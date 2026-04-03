@@ -1,0 +1,52 @@
+# ========================
+# .NET / C#
+# ========================
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+
+# ========================
+# Rider / JetBrains
+# ========================
+.idea/
+*.DotSettings.user
+
+# ========================
+# Vue / Node
+# ========================
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+*.local
+
+# ========================
+# Variables de entorno
+# ========================
+.env
+.env.*
+!.env.example
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# Logs y temporales
+# ========================
+*.log
+*.tmp
+*.temp
+
+# ========================
+# Sistema operativo
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
