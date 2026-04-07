@@ -7,5 +7,4 @@ public interface IAuthService
 {
     public Task<RegisterResponse> RegisterAsync(RegisterRequest request);
     public Task<LoginResponse> LoginAsync(LoginRequest request);
-    public string GenerateToken(User user, List<string> roles);
 }

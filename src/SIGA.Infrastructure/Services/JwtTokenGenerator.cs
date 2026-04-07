@@ -1,16 +1,12 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 
-namespace SIGA.Application.Services
+namespace SIGA.Infrastructure.Services
 {
     public class JwtTokenGenerator : IJwtTokenGenerator
     {

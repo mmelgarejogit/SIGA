@@ -7,7 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SIGA.Infrastructure\SIGA.Infrastructure.csproj" />
+        <ProjectReference Include="..\SIGA.Domain\SIGA.Domain.csproj" />
     </ItemGroup>
-
 </Project>

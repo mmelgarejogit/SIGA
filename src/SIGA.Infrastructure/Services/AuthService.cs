@@ -5,7 +5,7 @@ using SIGA.Domain.Security;
 using SIGA.Domain.Entities;
 using SIGA.Application.DTOs.Auth;
 
-namespace SIGA.Application.Services;
+namespace SIGA.Infrastructure.Services;
 public class AuthService : IAuthService
 {
     private readonly AppDbContext _dbContext;
