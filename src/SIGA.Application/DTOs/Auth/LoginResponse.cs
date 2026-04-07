@@ -10,6 +10,6 @@ namespace SIGA.Application.DTOs.Auth
     {
         public string JwtToken { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public string RoleClaims {  get; set; } = string.Empty;
+        public List<string> RoleClaims {  get; set; } = [];
     }
 }
