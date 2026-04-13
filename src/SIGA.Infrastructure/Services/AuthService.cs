@@ -23,24 +23,44 @@ public class AuthService : IAuthService
 
     public async Task<Result<RegisterResponse>> RegisterAsync(RegisterRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrEmpty(request.LastName))
-            return Result<RegisterResponse>.Failure("First Name and Last Name are required.", ErrorType.Validation);
+        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
+            return Result<RegisterResponse>.Failure("First name and last name are required.", ErrorType.Validation);
 
-        if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
-            return Result<RegisterResponse>.Failure("Email and Password are required.", ErrorType.Validation);
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            return Result<RegisterResponse>.Failure("Email and password are required.", ErrorType.Validation);
+
+        if (string.IsNullOrWhiteSpace(request.DNI))
+            return Result<RegisterResponse>.Failure("DNI is required.", ErrorType.Validation);
 
         var email = request.Email.Trim().ToLower();
-        if (await _dbContext.Users.AnyAsync(u => u.Email == email))
+
+        if (await _dbContext.Persons.AnyAsync(p => p.Email == email))
             return Result<RegisterResponse>.Failure("Email is already in use.", ErrorType.Conflict);
+
+        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI.Trim()))
+            return Result<RegisterResponse>.Failure("DNI is already in use.", ErrorType.Conflict);
+
+        var now = DateTime.UtcNow;
+
+        var person = new Person
+        {
+            DNI = request.DNI.Trim(),
+            FirstName = request.FirstName.Trim(),
+            LastName = request.LastName.Trim(),
+            BirthDate = request.BirthDate,
+            PhoneNumber = request.PhoneNumber?.Trim(),
+            Email = email,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
 
         var user = new User
         {
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            Email = email,
+            Person = person,
             PasswordHash = _passwordHasher.Hash(request.Password),
             IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         _dbContext.Users.Add(user);
@@ -48,19 +68,20 @@ public class AuthService : IAuthService
 
         return Result<RegisterResponse>.Success(new RegisterResponse
         {
-            Email = user.Email,
-            FirstName = user.FirstName ?? string.Empty,
-            LastName = user.LastName ?? string.Empty
+            Email = person.Email,
+            FirstName = person.FirstName,
+            LastName = person.LastName
         });
     }
 
     public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request)
     {
         var email = request.Email.Trim().ToLower();
+
         var user = await _dbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Email == email);
+            .Include(u => u.Person)
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.Person.Email == email);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             return Result<LoginResponse>.Failure("Invalid email or password.", ErrorType.Unauthorized);
@@ -73,7 +94,7 @@ public class AuthService : IAuthService
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
-            Email = user.Email,
+            Email = user.Person.Email,
             JwtToken = token,
             RoleClaims = roles
         });

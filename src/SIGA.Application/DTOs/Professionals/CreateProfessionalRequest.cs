@@ -1,6 +1,6 @@
-namespace SIGA.Application.DTOs.Auth;
+namespace SIGA.Application.DTOs.Professionals;
 
-public class RegisterRequest
+public class CreateProfessionalRequest
 {
     public string DNI { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
@@ -9,4 +9,7 @@ public class RegisterRequest
     public string? PhoneNumber { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+
+    public string Specialty { get; set; } = string.Empty;
+    public string LicenseNumber { get; set; } = string.Empty;
 }

@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using SIGA.Application.Interfaces;
 using SIGA.Infrastructure;
-using SIGA.Infrastructure.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,8 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 // 1️⃣ Servicios
 // ==============================
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

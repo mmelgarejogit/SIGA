@@ -1,6 +1,6 @@
-namespace SIGA.Application.DTOs.Auth;
+namespace SIGA.Application.DTOs.Patients;
 
-public class RegisterRequest
+public class CreatePatientRequest
 {
     public string DNI { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
