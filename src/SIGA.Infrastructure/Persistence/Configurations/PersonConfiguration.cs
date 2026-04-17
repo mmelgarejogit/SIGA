@@ -16,11 +16,11 @@ public class PersonConfiguration : IEntityTypeConfiguration<Person>
 
         builder.Property(x => x.FirstName).IsRequired().HasMaxLength(100);
         builder.Property(x => x.LastName).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.BirthDate).IsRequired();
+        builder.Property(x => x.BirthDate).IsRequired().HasColumnType("date");
         builder.Property(x => x.PhoneNumber).HasMaxLength(20);
 
-        builder.Property(x => x.Email).IsRequired().HasMaxLength(320);
-        builder.HasIndex(x => x.Email).IsUnique();
+        builder.Property(x => x.Email).HasMaxLength(320);
+        builder.HasIndex(x => x.Email).IsUnique().AreNullsDistinct(true);
 
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();

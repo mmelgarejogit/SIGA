@@ -1,9 +1,9 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Patients;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
-using SIGA.Domain.Security;
 using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
@@ -11,45 +11,102 @@ namespace SIGA.Infrastructure.Services;
 public class PatientService : IPatientService
 {
     private readonly AppDbContext _dbContext;
-    private readonly IPasswordHasher _passwordHasher;
 
-    public PatientService(AppDbContext dbContext, IPasswordHasher passwordHasher)
+    private static readonly Regex OnlyLetters = new(@"^[\p{L}\s]+$", RegexOptions.Compiled);
+    private static readonly Regex EmailFormat  = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
+
+    public PatientService(AppDbContext dbContext)
     {
         _dbContext = dbContext;
-        _passwordHasher = passwordHasher;
     }
 
-    public async Task<Result<IEnumerable<PatientResponse>>> GetAllAsync()
+    public async Task<Result<PagedResult<PatientResponse>>> GetAllAsync(int page, int pageSize, string? search, string? status)
     {
-        var patients = await _dbContext.Patients
-            .Include(p => p.User).ThenInclude(u => u.Person)
+        var query = _dbContext.Patients
+            .Include(p => p.Person)
+            .AsQueryable();
+
+        if (status == "active")   query = query.Where(p => p.IsActive);
+        if (status == "inactive") query = query.Where(p => !p.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var q = search.Trim().ToLower();
+            query = query.Where(p =>
+                p.Person.FirstName.ToLower().Contains(q) ||
+                p.Person.LastName.ToLower().Contains(q)  ||
+                p.Person.DNI.ToLower().Contains(q)       ||
+                (p.Person.Email != null && p.Person.Email.ToLower().Contains(q)) ||
+                (p.Person.PhoneNumber != null && p.Person.PhoneNumber.ToLower().Contains(q))
+            );
+        }
+
+        var totalCount  = await query.CountAsync();
+        var totalActive = await _dbContext.Patients.CountAsync(p => p.IsActive);
+        var totalPages  = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Result<IEnumerable<PatientResponse>>.Success(patients.Select(ToResponse));
+        return Result<PagedResult<PatientResponse>>.Success(new PagedResult<PatientResponse>
+        {
+            Items       = items.Select(ToResponse),
+            TotalCount  = totalCount,
+            TotalActive = totalActive,
+            Page        = page,
+            PageSize    = pageSize,
+            TotalPages  = totalPages,
+        });
     }
 
     public async Task<Result<PatientResponse>> GetByIdAsync(int id)
     {
         var patient = await _dbContext.Patients
-            .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Person)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (patient is null)
-            return Result<PatientResponse>.Failure("Patient not found.", ErrorType.NotFound);
+            return Result<PatientResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
         return Result<PatientResponse>.Success(ToResponse(patient));
     }
 
     public async Task<Result<PatientResponse>> CreateAsync(CreatePatientRequest request)
     {
-        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI))
-            return Result<PatientResponse>.Failure("DNI already in use.", ErrorType.Conflict);
+        // Validaciones de formato
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+            return Result<PatientResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
+        if (!OnlyLetters.IsMatch(request.FirstName.Trim()))
+            return Result<PatientResponse>.Failure("El nombre solo puede contener letras y espacios.", ErrorType.Validation);
 
-        if (await _dbContext.Persons.AnyAsync(p => p.Email == request.Email.Trim().ToLower()))
-            return Result<PatientResponse>.Failure("Email already in use.", ErrorType.Conflict);
+        if (string.IsNullOrWhiteSpace(request.LastName))
+            return Result<PatientResponse>.Failure("El apellido es obligatorio.", ErrorType.Validation);
+        if (!OnlyLetters.IsMatch(request.LastName.Trim()))
+            return Result<PatientResponse>.Failure("El apellido solo puede contener letras y espacios.", ErrorType.Validation);
 
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Patient")
-                   ?? new Role { Name = "Patient" };
+        if (string.IsNullOrWhiteSpace(request.DNI))
+            return Result<PatientResponse>.Failure("El documento es obligatorio.", ErrorType.Validation);
+
+        if (!string.IsNullOrWhiteSpace(request.Email) && !EmailFormat.IsMatch(request.Email.Trim()))
+            return Result<PatientResponse>.Failure("El formato del email no es válido.", ErrorType.Validation);
+
+        // RN-P03: al menos un dato de contacto
+        if (string.IsNullOrWhiteSpace(request.Email) && string.IsNullOrWhiteSpace(request.PhoneNumber))
+            return Result<PatientResponse>.Failure(
+                "Se requiere al menos un dato de contacto: email o teléfono.",
+                ErrorType.Validation);
+
+        // RN-P01: documento único
+        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI.Trim()))
+            return Result<PatientResponse>.Failure("El DNI ya está registrado.", ErrorType.Conflict);
+
+        // RN-P02: email único si se provee
+        if (!string.IsNullOrWhiteSpace(request.Email) &&
+            await _dbContext.Persons.AnyAsync(p => p.Email == request.Email.Trim().ToLower()))
+            return Result<PatientResponse>.Failure("El email ya está registrado.", ErrorType.Conflict);
 
         var now = DateTime.UtcNow;
 
@@ -60,25 +117,15 @@ public class PatientService : IPatientService
             LastName = request.LastName.Trim(),
             BirthDate = request.BirthDate,
             PhoneNumber = request.PhoneNumber?.Trim(),
-            Email = request.Email.Trim().ToLower(),
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLower(),
             CreatedAt = now,
             UpdatedAt = now
         };
-
-        var user = new User
-        {
-            Person = person,
-            PasswordHash = _passwordHasher.Hash(request.Password),
-            IsActive = true,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        user.UserRoles.Add(new UserRole { User = user, Role = role });
 
         var patient = new Patient
         {
-            User = user,
+            Person = person,
+            IsActive = true,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -91,23 +138,31 @@ public class PatientService : IPatientService
 
     public async Task<Result<PatientResponse>> UpdateAsync(int id, UpdatePatientRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+            return Result<PatientResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
+        if (!OnlyLetters.IsMatch(request.FirstName.Trim()))
+            return Result<PatientResponse>.Failure("El nombre solo puede contener letras y espacios.", ErrorType.Validation);
+
+        if (string.IsNullOrWhiteSpace(request.LastName))
+            return Result<PatientResponse>.Failure("El apellido es obligatorio.", ErrorType.Validation);
+        if (!OnlyLetters.IsMatch(request.LastName.Trim()))
+            return Result<PatientResponse>.Failure("El apellido solo puede contener letras y espacios.", ErrorType.Validation);
+
         var patient = await _dbContext.Patients
-            .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Person)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (patient is null)
-            return Result<PatientResponse>.Failure("Patient not found.", ErrorType.NotFound);
+            return Result<PatientResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
         var now = DateTime.UtcNow;
 
-        patient.User.Person.FirstName = request.FirstName.Trim();
-        patient.User.Person.LastName = request.LastName.Trim();
-        patient.User.Person.PhoneNumber = request.PhoneNumber?.Trim();
-        patient.User.Person.UpdatedAt = now;
+        patient.Person.FirstName = request.FirstName.Trim();
+        patient.Person.LastName = request.LastName.Trim();
+        patient.Person.PhoneNumber = request.PhoneNumber?.Trim();
+        patient.Person.UpdatedAt = now;
 
-        patient.User.IsActive = request.IsActive;
-        patient.User.UpdatedAt = now;
-
+        patient.IsActive = request.IsActive;
         patient.UpdatedAt = now;
 
         await _dbContext.SaveChangesAsync();
@@ -118,14 +173,13 @@ public class PatientService : IPatientService
     public async Task<Result<bool>> DeleteAsync(int id)
     {
         var patient = await _dbContext.Patients
-            .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (patient is null)
-            return Result<bool>.Failure("Patient not found.", ErrorType.NotFound);
+            return Result<bool>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
-        patient.User.IsActive = false;
-        patient.User.UpdatedAt = DateTime.UtcNow;
+        patient.IsActive = false;
+        patient.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
 
@@ -136,13 +190,13 @@ public class PatientService : IPatientService
     {
         Id = p.Id,
         UserId = p.UserId,
-        DNI = p.User.Person.DNI,
-        FirstName = p.User.Person.FirstName,
-        LastName = p.User.Person.LastName,
-        BirthDate = p.User.Person.BirthDate,
-        PhoneNumber = p.User.Person.PhoneNumber,
-        Email = p.User.Person.Email,
-        IsActive = p.User.IsActive,
+        DNI = p.Person.DNI,
+        FirstName = p.Person.FirstName,
+        LastName = p.Person.LastName,
+        BirthDate = p.Person.BirthDate,
+        PhoneNumber = p.Person.PhoneNumber,
+        Email = p.Person.Email,
+        IsActive = p.IsActive,
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt
     };

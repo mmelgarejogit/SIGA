@@ -16,9 +16,16 @@ public class PatientsController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null)
     {
-        var result = await _patientService.GetAllAsync();
+        if (page < 1)    page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+
+        var result = await _patientService.GetAllAsync(page, pageSize, search, status);
         return ToHttpResponse(result);
     }
 
