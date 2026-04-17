@@ -17,7 +17,7 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _config = config;
     }
 
-    public string GenerateToken(User user, List<string> roles)
+    public string GenerateToken(User user, List<string> roles, List<string> permissions)
     {
         var claims = new List<Claim>
         {
@@ -27,6 +27,9 @@ public class JwtTokenGenerator : IJwtTokenGenerator
 
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
+
+        foreach (var permission in permissions)
+            claims.Add(new Claim("permission", permission));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Secret"]!));
 

@@ -1,18 +1,14 @@
-namespace SIGA.Application.DTOs.Patients;
+namespace SIGA.Application.DTOs.Users;
 
-public class PatientResponse
+public class UserResponse
 {
-    public int Id { get; set; }
-    public int? UserId { get; set; }
-
+    public int UserId { get; set; }
     public string CI { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
-    public DateOnly BirthDate { get; set; }
-    public string? PhoneNumber { get; set; }
     public string Email { get; set; } = string.Empty;
-
+    public string Type { get; set; } = string.Empty; // "Profesional" | "Paciente" | "Usuario"
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public List<string> Roles { get; set; } = [];
 }

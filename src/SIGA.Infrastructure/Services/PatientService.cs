@@ -35,7 +35,7 @@ public class PatientService : IPatientService
             query = query.Where(p =>
                 p.Person.FirstName.ToLower().Contains(q) ||
                 p.Person.LastName.ToLower().Contains(q)  ||
-                p.Person.DNI.ToLower().Contains(q)       ||
+                p.Person.CI.ToLower().Contains(q)       ||
                 (p.Person.Email != null && p.Person.Email.ToLower().Contains(q)) ||
                 (p.Person.PhoneNumber != null && p.Person.PhoneNumber.ToLower().Contains(q))
             );
@@ -87,7 +87,7 @@ public class PatientService : IPatientService
         if (!OnlyLetters.IsMatch(request.LastName.Trim()))
             return Result<PatientResponse>.Failure("El apellido solo puede contener letras y espacios.", ErrorType.Validation);
 
-        if (string.IsNullOrWhiteSpace(request.DNI))
+        if (string.IsNullOrWhiteSpace(request.CI))
             return Result<PatientResponse>.Failure("El documento es obligatorio.", ErrorType.Validation);
 
         if (!string.IsNullOrWhiteSpace(request.Email) && !EmailFormat.IsMatch(request.Email.Trim()))
@@ -100,8 +100,8 @@ public class PatientService : IPatientService
                 ErrorType.Validation);
 
         // RN-P01: documento único
-        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI.Trim()))
-            return Result<PatientResponse>.Failure("El DNI ya está registrado.", ErrorType.Conflict);
+        if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI.Trim()))
+            return Result<PatientResponse>.Failure("El CI ya está registrado.", ErrorType.Conflict);
 
         // RN-P02: email único si se provee
         if (!string.IsNullOrWhiteSpace(request.Email) &&
@@ -112,7 +112,7 @@ public class PatientService : IPatientService
 
         var person = new Person
         {
-            DNI = request.DNI.Trim(),
+            CI = request.CI.Trim(),
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             BirthDate = request.BirthDate,
@@ -190,7 +190,7 @@ public class PatientService : IPatientService
     {
         Id = p.Id,
         UserId = p.UserId,
-        DNI = p.Person.DNI,
+        CI = p.Person.CI,
         FirstName = p.Person.FirstName,
         LastName = p.Person.LastName,
         BirthDate = p.Person.BirthDate,

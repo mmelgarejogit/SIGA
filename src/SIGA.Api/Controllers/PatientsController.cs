@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Patients;
 using SIGA.Application.Interfaces;
@@ -6,6 +7,7 @@ namespace SIGA.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class PatientsController : BaseController
 {
     private readonly IPatientService _patientService;
@@ -16,20 +18,22 @@ public class PatientsController : BaseController
     }
 
     [HttpGet]
+    [Authorize(Policy = "ver_pacientes")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null)
     {
-        if (page < 1)    page = 1;
-        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 10;
 
         var result = await _patientService.GetAllAsync(page, pageSize, search, status);
         return ToHttpResponse(result);
     }
 
     [HttpGet("{id:int}")]
+    [Authorize(Policy = "ver_pacientes")]
     public async Task<IActionResult> GetById(int id)
     {
         var result = await _patientService.GetByIdAsync(id);
@@ -37,6 +41,7 @@ public class PatientsController : BaseController
     }
 
     [HttpPost]
+    [Authorize(Policy = "crear_paciente")]
     public async Task<IActionResult> Create([FromBody] CreatePatientRequest request)
     {
         var result = await _patientService.CreateAsync(request);
@@ -44,6 +49,7 @@ public class PatientsController : BaseController
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Policy = "editar_paciente")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdatePatientRequest request)
     {
         var result = await _patientService.UpdateAsync(id, request);
@@ -51,6 +57,7 @@ public class PatientsController : BaseController
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Policy = "desactivar_paciente")]
     public async Task<IActionResult> Delete(int id)
     {
         var result = await _patientService.DeleteAsync(id);

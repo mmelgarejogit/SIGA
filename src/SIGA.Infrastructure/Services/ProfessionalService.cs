@@ -42,8 +42,8 @@ public class ProfessionalService : IProfessionalService
 
     public async Task<Result<ProfessionalResponse>> CreateAsync(CreateProfessionalRequest request)
     {
-        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI))
-            return Result<ProfessionalResponse>.Failure("DNI already in use.", ErrorType.Conflict);
+        if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI))
+            return Result<ProfessionalResponse>.Failure("CI already in use.", ErrorType.Conflict);
 
         if (await _dbContext.Persons.AnyAsync(p => p.Email == request.Email.Trim().ToLower()))
             return Result<ProfessionalResponse>.Failure("Email already in use.", ErrorType.Conflict);
@@ -58,7 +58,7 @@ public class ProfessionalService : IProfessionalService
 
         var person = new Person
         {
-            DNI = request.DNI.Trim(),
+            CI = request.CI.Trim(),
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             BirthDate = request.BirthDate,
@@ -146,7 +146,7 @@ public class ProfessionalService : IProfessionalService
     {
         Id = p.Id,
         UserId = p.UserId,
-        DNI = p.User.Person.DNI,
+        CI = p.User.Person.CI,
         FirstName = p.User.Person.FirstName,
         LastName = p.User.Person.LastName,
         BirthDate = p.User.Person.BirthDate,

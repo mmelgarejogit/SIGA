@@ -29,22 +29,22 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             return Result<RegisterResponse>.Failure("Email and password are required.", ErrorType.Validation);
 
-        if (string.IsNullOrWhiteSpace(request.DNI))
-            return Result<RegisterResponse>.Failure("DNI is required.", ErrorType.Validation);
+        if (string.IsNullOrWhiteSpace(request.CI))
+            return Result<RegisterResponse>.Failure("CI is required.", ErrorType.Validation);
 
         var email = request.Email.Trim().ToLower();
 
         if (await _dbContext.Persons.AnyAsync(p => p.Email == email))
             return Result<RegisterResponse>.Failure("Email is already in use.", ErrorType.Conflict);
 
-        if (await _dbContext.Persons.AnyAsync(p => p.DNI == request.DNI.Trim()))
-            return Result<RegisterResponse>.Failure("DNI is already in use.", ErrorType.Conflict);
+        if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI.Trim()))
+            return Result<RegisterResponse>.Failure("CI is already in use.", ErrorType.Conflict);
 
         var now = DateTime.UtcNow;
 
         var person = new Person
         {
-            DNI = request.DNI.Trim(),
+            CI = request.CI.Trim(),
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             BirthDate = request.BirthDate,
@@ -90,13 +90,18 @@ public class AuthService : IAuthService
             return Result<LoginResponse>.Failure("Account is disabled.", ErrorType.Unauthorized);
 
         var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();
-        var token = _jwtTokenGenerator.GenerateToken(user, roles);
+        var permissions = user.UserRoles
+            .SelectMany(ur => ur.Role.Permissions)
+            .Distinct()
+            .ToList();
+        var token = _jwtTokenGenerator.GenerateToken(user, roles, permissions);
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
             Email = user.Person.Email,
             JwtToken = token,
-            RoleClaims = roles
+            RoleClaims = roles,
+            Permissions = permissions
         });
     }
 }
