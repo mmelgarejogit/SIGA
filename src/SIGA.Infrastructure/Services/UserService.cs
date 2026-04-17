@@ -22,22 +22,35 @@ public class UserService : IUserService
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.Professional)
             .Include(u => u.Patient)
-            .OrderBy(u => u.Person.LastName)
+            .OrderByDescending(u => u.CreatedAt)
             .ToListAsync();
 
-        var response = users.Select(u => new UserResponse
+        var response = users.Select(u =>
         {
-            UserId    = u.Id,
-            CI        = u.Person.CI,
-            FirstName = u.Person.FirstName,
-            LastName  = u.Person.LastName,
-            Email     = u.Person.Email ?? string.Empty,
-            Type      = u.Professional != null ? "Profesional"
-                      : u.Patient      != null ? "Paciente"
-                                               : "Usuario",
-            IsActive  = u.IsActive,
-            CreatedAt = u.CreatedAt,
-            Roles     = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+            string type;
+            if (u.Professional is not null)
+                type = "Profesional";
+            else if (u.Patient is not null)
+                type = "Paciente";
+            else if (u.UserRoles.Any(ur => ur.Role.Name == "Admin"))
+                type = "Administrador";
+            else
+                type = "Usuario";
+
+            return new UserResponse
+            {
+                UserId      = u.Id,
+                PersonId    = u.PersonId,
+                CI          = u.Person.CI,
+                FirstName   = u.Person.FirstName,
+                LastName    = u.Person.LastName,
+                Email       = u.Person.Email,
+                PhoneNumber = u.Person.PhoneNumber,
+                IsActive    = u.IsActive,
+                Type        = type,
+                Roles       = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+                CreatedAt   = u.CreatedAt,
+            };
         });
 
         return Result<IEnumerable<UserResponse>>.Success(response);

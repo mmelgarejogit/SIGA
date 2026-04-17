@@ -81,6 +81,7 @@ public class AuthService : IAuthService
         var user = await _dbContext.Users
             .Include(u => u.Person)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.Professional)
             .FirstOrDefaultAsync(u => u.Person.Email == email);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
@@ -98,9 +99,12 @@ public class AuthService : IAuthService
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
-            Email = user.Person.Email,
-            JwtToken = token,
-            RoleClaims = roles,
+            JwtToken    = token,
+            Email       = user.Person.Email,
+            FirstName   = user.Person.FirstName,
+            LastName    = user.Person.LastName,
+            Specialty   = user.Professional?.Specialty,
+            RoleClaims  = roles,
             Permissions = permissions
         });
     }

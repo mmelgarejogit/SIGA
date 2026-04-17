@@ -148,6 +148,12 @@ public class PatientService : IPatientService
         if (!OnlyLetters.IsMatch(request.LastName.Trim()))
             return Result<PatientResponse>.Failure("El apellido solo puede contener letras y espacios.", ErrorType.Validation);
 
+        if (string.IsNullOrWhiteSpace(request.CI))
+            return Result<PatientResponse>.Failure("El nro. de cédula es obligatorio.", ErrorType.Validation);
+
+        if (!string.IsNullOrWhiteSpace(request.Email) && !EmailFormat.IsMatch(request.Email.Trim()))
+            return Result<PatientResponse>.Failure("El formato del email no es válido.", ErrorType.Validation);
+
         var patient = await _dbContext.Patients
             .Include(p => p.Person)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -155,15 +161,27 @@ public class PatientService : IPatientService
         if (patient is null)
             return Result<PatientResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
+        // RN-P01: CI único excluyendo el propio registro
+        if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI.Trim() && p.Id != patient.PersonId))
+            return Result<PatientResponse>.Failure("El nro. de cédula ya está registrado.", ErrorType.Conflict);
+
+        // RN-P02: email único si se provee, excluyendo el propio registro
+        if (!string.IsNullOrWhiteSpace(request.Email) &&
+            await _dbContext.Persons.AnyAsync(p => p.Email == request.Email.Trim().ToLower() && p.Id != patient.PersonId))
+            return Result<PatientResponse>.Failure("El email ya está registrado.", ErrorType.Conflict);
+
         var now = DateTime.UtcNow;
 
-        patient.Person.FirstName = request.FirstName.Trim();
-        patient.Person.LastName = request.LastName.Trim();
+        patient.Person.FirstName   = request.FirstName.Trim();
+        patient.Person.LastName    = request.LastName.Trim();
+        patient.Person.CI          = request.CI.Trim();
+        patient.Person.BirthDate   = request.BirthDate;
         patient.Person.PhoneNumber = request.PhoneNumber?.Trim();
-        patient.Person.UpdatedAt = now;
+        patient.Person.Email       = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLower();
+        patient.Person.UpdatedAt   = now;
 
-        patient.IsActive = request.IsActive;
-        patient.UpdatedAt = now;
+        patient.IsActive   = request.IsActive;
+        patient.UpdatedAt  = now;
 
         await _dbContext.SaveChangesAsync();
 
