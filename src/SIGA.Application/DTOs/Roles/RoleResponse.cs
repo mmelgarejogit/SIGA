@@ -1,10 +1,8 @@
-namespace SIGA.Domain.Entities;
+namespace SIGA.Application.DTOs.Roles;
 
-public class Role
+public class RoleResponse
 {
     public int Id { get; set; }
     public string Name { get; set; } = null!;
     public List<string> Permissions { get; set; } = new();
-
-    public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
