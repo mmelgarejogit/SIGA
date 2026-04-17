@@ -5,7 +5,7 @@ namespace SIGA.Application.Interfaces;
 
 public interface IPatientService
 {
-    Task<Result<IEnumerable<PatientResponse>>> GetAllAsync();
+    Task<Result<PagedResult<PatientResponse>>> GetAllAsync(int page, int pageSize, string? search, string? status);
     Task<Result<PatientResponse>> GetByIdAsync(int id);
     Task<Result<PatientResponse>> CreateAsync(CreatePatientRequest request);
     Task<Result<PatientResponse>> UpdateAsync(int id, UpdatePatientRequest request);
