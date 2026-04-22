@@ -23,4 +23,12 @@ public class UsersController : BaseController
         var result = await _userService.GetAllAsync();
         return ToHttpResponse(result);
     }
+
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "editar_usuario")]
+    public async Task<IActionResult> Deactivate(int id)
+    {
+        var result = await _userService.DeactivateAsync(id);
+        return ToHttpResponse(result);
+    }
 }

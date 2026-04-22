@@ -18,13 +18,18 @@ public class RoleService : IRoleService
 
     public async Task<Result<IEnumerable<RoleResponse>>> GetAllAsync()
     {
-        var roles = await _dbContext.Roles.ToListAsync();
+        var roles = await _dbContext.Roles
+            .Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
+            .ToListAsync();
         return Result<IEnumerable<RoleResponse>>.Success(roles.Select(ToResponse));
     }
 
     public async Task<Result<RoleResponse>> GetByIdAsync(int id)
     {
-        var role = await _dbContext.Roles.FindAsync(id);
+        var role = await _dbContext.Roles
+            .Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
         if (role is null)
             return Result<RoleResponse>.Failure("Role not found.", ErrorType.NotFound);
 
@@ -38,11 +43,13 @@ public class RoleService : IRoleService
         if (await _dbContext.Roles.AnyAsync(r => r.Name == name))
             return Result<RoleResponse>.Failure("Role name already exists.", ErrorType.Conflict);
 
-        var role = new Role { Name = name, Permissions = request.Permissions };
+        var role = new Role { Name = name };
         _dbContext.Roles.Add(role);
         await _dbContext.SaveChangesAsync();
 
-        return Result<RoleResponse>.Success(ToResponse(role));
+        await SetPermissionsAsync(role.Id, request.Permissions);
+
+        return await GetByIdAsync(role.Id);
     }
 
     public async Task<Result<RoleResponse>> UpdateAsync(int id, RoleRequest request)
@@ -57,10 +64,11 @@ public class RoleService : IRoleService
             return Result<RoleResponse>.Failure("Role name already exists.", ErrorType.Conflict);
 
         role.Name = name;
-        role.Permissions = request.Permissions;
         await _dbContext.SaveChangesAsync();
 
-        return Result<RoleResponse>.Success(ToResponse(role));
+        await SetPermissionsAsync(id, request.Permissions);
+
+        return await GetByIdAsync(id);
     }
 
     public async Task<Result<bool>> DeleteAsync(int id)
@@ -125,11 +133,40 @@ public class RoleService : IRoleService
 
         var roles = await _dbContext.UserRoles
             .Where(ur => ur.UserId == userId)
+            .Include(ur => ur.Role).ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .Select(ur => ur.Role)
             .ToListAsync();
 
         return Result<IEnumerable<RoleResponse>>.Success(roles.Select(ToResponse));
     }
 
-    private static RoleResponse ToResponse(Role r) => new() { Id = r.Id, Name = r.Name, Permissions = r.Permissions };
+    private async Task SetPermissionsAsync(int roleId, List<string> permissionNames)
+    {
+        var existing = await _dbContext.RolePermissions
+            .Where(rp => rp.RoleId == roleId)
+            .ToListAsync();
+        _dbContext.RolePermissions.RemoveRange(existing);
+
+        foreach (var name in permissionNames.Select(p => p.Trim()).Distinct())
+        {
+            var permission = await _dbContext.Permissions.FirstOrDefaultAsync(p => p.Name == name)
+                             ?? new Permission { Name = name };
+
+            if (permission.Id == 0)
+                _dbContext.Permissions.Add(permission);
+
+            await _dbContext.SaveChangesAsync();
+
+            _dbContext.RolePermissions.Add(new RolePermission { RoleId = roleId, PermissionId = permission.Id });
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private static RoleResponse ToResponse(Role r) => new()
+    {
+        Id = r.Id,
+        Name = r.Name,
+        Permissions = r.RolePermissions.Select(rp => rp.Permission.Name).ToList()
+    };
 }

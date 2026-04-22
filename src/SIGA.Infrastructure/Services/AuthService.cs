@@ -81,6 +81,7 @@ public class AuthService : IAuthService
         var user = await _dbContext.Users
             .Include(u => u.Person)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .Include(u => u.Professional)
             .FirstOrDefaultAsync(u => u.Person.Email == email);
 
@@ -92,7 +93,7 @@ public class AuthService : IAuthService
 
         var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();
         var permissions = user.UserRoles
-            .SelectMany(ur => ur.Role.Permissions)
+            .SelectMany(ur => ur.Role.RolePermissions.Select(rp => rp.Permission.Name))
             .Distinct()
             .ToList();
         var token = _jwtTokenGenerator.GenerateToken(user, roles, permissions);

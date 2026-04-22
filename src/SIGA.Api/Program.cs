@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SIGA.Infrastructure;
+using SIGA.Infrastructure.Persistence;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,10 +32,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var permissionPolicies = new[]
 {
-    "ver_pacientes",   "crear_paciente",    "editar_paciente",    "desactivar_paciente",
-    "ver_profesionales", "crear_profesional", "editar_profesional",
-    "ver_usuarios",    "editar_usuario",
-    "ver_roles",       "crear_rol",          "editar_rol",         "eliminar_rol",
+    "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
+    "ver_profesionales", "crear_profesional",   "editar_profesional",
+    "ver_usuarios",      "editar_usuario",
+    "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
+    "ver_calendario",
+    "ver_historia_clinica",
+    "ver_inventario",
+    "ver_ventas",
+    "ver_reportes",
 };
 
 builder.Services.AddAuthorization(options =>
@@ -96,5 +103,15 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// ==============================
+// 4️⃣ Seed
+// ==============================
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+    await DbSeeder.SeedAsync(db);
+}
 
 app.Run();
