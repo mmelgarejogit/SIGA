@@ -83,6 +83,7 @@ public class AuthService : IAuthService
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
                 .ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .Include(u => u.Professional)
+                .ThenInclude(p => p!.Especialidades).ThenInclude(pe => pe.Especialidad)
             .FirstOrDefaultAsync(u => u.Person.Email == email);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
@@ -104,7 +105,7 @@ public class AuthService : IAuthService
             Email       = user.Person.Email,
             FirstName   = user.Person.FirstName,
             LastName    = user.Person.LastName,
-            Specialty   = user.Professional?.Specialty,
+            Specialty   = user.Professional?.Especialidades.FirstOrDefault()?.Especialidad.Nombre,
             RoleClaims  = roles,
             Permissions = permissions
         });

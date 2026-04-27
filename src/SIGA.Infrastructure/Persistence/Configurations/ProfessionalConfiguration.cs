@@ -11,7 +11,6 @@ public class ProfessionalConfiguration : IEntityTypeConfiguration<Professional>
         builder.ToTable("professionals");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Specialty).IsRequired().HasMaxLength(150);
         builder.Property(x => x.LicenseNumber).IsRequired().HasMaxLength(50);
         builder.HasIndex(x => x.LicenseNumber).IsUnique();
 

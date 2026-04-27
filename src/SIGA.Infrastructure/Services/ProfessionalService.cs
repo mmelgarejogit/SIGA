@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
+using SIGA.Application.DTOs.Especialidades;
 using SIGA.Application.DTOs.Professionals;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
@@ -23,6 +24,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professionals = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .ToListAsync();
 
         return Result<IEnumerable<ProfessionalResponse>>.Success(professionals.Select(ToResponse));
@@ -32,6 +34,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professional = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (professional is null)
@@ -50,6 +53,13 @@ public class ProfessionalService : IProfessionalService
 
         if (await _dbContext.Professionals.AnyAsync(p => p.LicenseNumber == request.LicenseNumber))
             return Result<ProfessionalResponse>.Failure("License number already in use.", ErrorType.Conflict);
+
+        var especialidades = await _dbContext.Especialidades
+            .Where(e => request.EspecialidadIds.Contains(e.Id))
+            .ToListAsync();
+
+        if (especialidades.Count != request.EspecialidadIds.Distinct().Count())
+            return Result<ProfessionalResponse>.Failure("Una o más especialidades no existen.", ErrorType.Validation);
 
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Professional")
                    ?? new Role { Name = "Professional" };
@@ -82,14 +92,17 @@ public class ProfessionalService : IProfessionalService
         var professional = new Professional
         {
             User = user,
-            Specialty = request.Specialty.Trim(),
             LicenseNumber = request.LicenseNumber.Trim(),
             CreatedAt = now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            Especialidades = especialidades.Select(e => new ProfesionalEspecialidad { EspecialidadId = e.Id }).ToList()
         };
 
         _dbContext.Professionals.Add(professional);
         await _dbContext.SaveChangesAsync();
+
+        await _dbContext.Entry(professional).Collection(p => p.Especialidades).Query()
+            .Include(pe => pe.Especialidad).LoadAsync();
 
         return Result<ProfessionalResponse>.Success(ToResponse(professional));
     }
@@ -98,6 +111,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professional = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (professional is null)
@@ -105,6 +119,13 @@ public class ProfessionalService : IProfessionalService
 
         if (await _dbContext.Professionals.AnyAsync(p => p.LicenseNumber == request.LicenseNumber && p.Id != id))
             return Result<ProfessionalResponse>.Failure("License number already in use.", ErrorType.Conflict);
+
+        var especialidades = await _dbContext.Especialidades
+            .Where(e => request.EspecialidadIds.Contains(e.Id))
+            .ToListAsync();
+
+        if (especialidades.Count != request.EspecialidadIds.Distinct().Count())
+            return Result<ProfessionalResponse>.Failure("Una o más especialidades no existen.", ErrorType.Validation);
 
         var now = DateTime.UtcNow;
 
@@ -116,9 +137,12 @@ public class ProfessionalService : IProfessionalService
         professional.User.IsActive = request.IsActive;
         professional.User.UpdatedAt = now;
 
-        professional.Specialty = request.Specialty.Trim();
         professional.LicenseNumber = request.LicenseNumber.Trim();
         professional.UpdatedAt = now;
+
+        professional.Especialidades.Clear();
+        foreach (var e in especialidades)
+            professional.Especialidades.Add(new ProfesionalEspecialidad { EspecialidadId = e.Id, ProfessionalId = id });
 
         await _dbContext.SaveChangesAsync();
 
@@ -152,8 +176,13 @@ public class ProfessionalService : IProfessionalService
         BirthDate = p.User.Person.BirthDate,
         PhoneNumber = p.User.Person.PhoneNumber,
         Email = p.User.Person.Email,
-        Specialty = p.Specialty,
         LicenseNumber = p.LicenseNumber,
+        Especialidades = p.Especialidades.Select(pe => new EspecialidadResponse
+        {
+            Id = pe.Especialidad.Id,
+            Nombre = pe.Especialidad.Nombre,
+            Descripcion = pe.Especialidad.Descripcion
+        }).ToList(),
         IsActive = p.User.IsActive,
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt

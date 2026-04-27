@@ -9,6 +9,7 @@ public static class DbSeeder
     [
         "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
         "ver_profesionales", "crear_profesional",   "editar_profesional",
+        "ver_especialidades", "gestionar_especialidades",
         "ver_usuarios",      "editar_usuario",
         "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
         "ver_calendario",
@@ -23,6 +24,15 @@ public static class DbSeeder
         ("Admin",        AllPermissions),
         ("Professional", []),
         ("Patient",      []),
+    ];
+
+    private static readonly string[] EspecialidadesIniciales =
+    [
+        "Optometría",
+        "Oftalmología",
+        "Contactología",
+        "Baja Visión",
+        "Ortoqueratología",
     ];
 
     public static async Task SeedAsync(AppDbContext db)
@@ -72,6 +82,19 @@ public static class DbSeeder
                 db.RolePermissions.AddRange(missing);
                 await db.SaveChangesAsync();
             }
+        }
+
+        // 4. Especialidades iniciales
+        var existingEspecialidades = await db.Especialidades.Select(e => e.Nombre).ToHashSetAsync();
+        var nuevasEspecialidades = EspecialidadesIniciales
+            .Where(n => !existingEspecialidades.Contains(n))
+            .Select(n => new Especialidad { Nombre = n })
+            .ToList();
+
+        if (nuevasEspecialidades.Count > 0)
+        {
+            db.Especialidades.AddRange(nuevasEspecialidades);
+            await db.SaveChangesAsync();
         }
     }
 }
