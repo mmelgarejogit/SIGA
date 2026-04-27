@@ -13,6 +13,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<ConsultaClinica> ConsultasClinicas => Set<ConsultaClinica>();
+    public DbSet<Receta> Recetas => Set<Receta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

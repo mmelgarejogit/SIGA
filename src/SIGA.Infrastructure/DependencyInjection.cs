@@ -1,9 +1,11 @@
+using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SIGA.Application.Interfaces;
-using SIGA.Infrastructure.Persistence;
 using SIGA.Domain.Security;
+using SIGA.Infrastructure.Options;
+using SIGA.Infrastructure.Persistence;
 using SIGA.Infrastructure.Security;
 using SIGA.Infrastructure.Services;
 
@@ -24,6 +26,22 @@ public static class DependencyInjection
         services.AddScoped<IPatientService, PatientService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IConsultaClinicaService, ConsultaClinicaService>();
+        services.AddScoped<IEmailService, ResendEmailService>();
+        services.AddScoped<IHCaptchaService, HCaptchaService>();
+
+        services.Configure<ResendOptions>(config.GetSection("Resend"));
+        services.Configure<HCaptchaOptions>(config.GetSection("HCaptcha"));
+        services.Configure<AppOptions>(config.GetSection("App"));
+
+        services.AddHttpClient("resend", (_, client) =>
+        {
+            var apiKey = config["Resend:ApiKey"] ?? string.Empty;
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", apiKey);
+        });
+
+        services.AddHttpClient("hcaptcha");
 
         return services;
     }

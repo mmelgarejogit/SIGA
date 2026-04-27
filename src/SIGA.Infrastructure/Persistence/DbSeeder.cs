@@ -18,11 +18,11 @@ public static class DbSeeder
         "ver_reportes",
     ];
 
-    private static readonly (string Name, string[] Permissions)[] Roles =
+    private static readonly (string Type, string Name, string[] Permissions)[] Roles =
     [
-        ("Admin",        AllPermissions),
-        ("Professional", []),
-        ("Patient",      []),
+        ("admin",        "Administrador", AllPermissions),
+        ("professional", "Profesional",   []),
+        ("patient",      "Paciente",      []),
     ];
 
     public static async Task SeedAsync(AppDbContext db)
@@ -46,17 +46,22 @@ public static class DbSeeder
         var allPermissions = await db.Permissions.ToListAsync();
         var permissionMap  = allPermissions.ToDictionary(p => p.Name, p => p.Id);
 
-        // 3. Roles — insertar los que no existen y asignar permisos
-        foreach (var (roleName, rolePerms) in Roles)
+        // 3. Roles — idempotencia por Type; actualizar Name si cambió
+        foreach (var (roleType, roleName, rolePerms) in Roles)
         {
             var role = await db.Roles
                 .Include(r => r.RolePermissions)
-                .FirstOrDefaultAsync(r => r.Name == roleName);
+                .FirstOrDefaultAsync(r => r.Type == roleType);
 
             if (role is null)
             {
-                role = new Role { Name = roleName };
+                role = new Role { Name = roleName, Type = roleType };
                 db.Roles.Add(role);
+                await db.SaveChangesAsync();
+            }
+            else if (role.Name != roleName)
+            {
+                role.Name = roleName;
                 await db.SaveChangesAsync();
             }
 

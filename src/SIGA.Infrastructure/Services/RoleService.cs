@@ -167,6 +167,7 @@ public class RoleService : IRoleService
     {
         Id = r.Id,
         Name = r.Name,
+        Type = r.Type,
         Permissions = r.RolePermissions.Select(rp => rp.Permission.Name).ToList()
     };
 }

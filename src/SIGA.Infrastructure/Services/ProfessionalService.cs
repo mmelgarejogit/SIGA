@@ -51,8 +51,9 @@ public class ProfessionalService : IProfessionalService
         if (await _dbContext.Professionals.AnyAsync(p => p.LicenseNumber == request.LicenseNumber))
             return Result<ProfessionalResponse>.Failure("License number already in use.", ErrorType.Conflict);
 
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Professional")
-                   ?? new Role { Name = "Professional" };
+        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Type == "professional");
+        if (role is null)
+            return Result<ProfessionalResponse>.Failure("Rol de profesional no encontrado.", ErrorType.NotFound);
 
         var now = DateTime.UtcNow;
 
