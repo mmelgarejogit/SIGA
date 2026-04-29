@@ -23,6 +23,23 @@ public class AuthController : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpPost("register/patient")]
+    public async Task<IActionResult> RegisterPatient([FromBody] RegisterPatientRequest request)
+    {
+        var result = await _authService.RegisterPatientAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest("Token requerido.");
+
+        var result = await _authService.VerifyEmailAsync(token);
+        return ToHttpResponse(result);
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {

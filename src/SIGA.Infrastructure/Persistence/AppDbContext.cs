@@ -18,6 +18,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<HorarioProfesional> HorariosProfesional => Set<HorarioProfesional>();
     public DbSet<PausaHorario> PausasHorario => Set<PausaHorario>();
     public DbSet<BloqueoFecha> BloqueosFecha => Set<BloqueoFecha>();
+    public DbSet<ConsultaClinica> ConsultasClinicas => Set<ConsultaClinica>();
+    public DbSet<Receta> Recetas => Set<Receta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

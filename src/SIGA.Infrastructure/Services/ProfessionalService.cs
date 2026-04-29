@@ -61,8 +61,9 @@ public class ProfessionalService : IProfessionalService
         if (especialidades.Count != request.EspecialidadIds.Distinct().Count())
             return Result<ProfessionalResponse>.Failure("Una o más especialidades no existen.", ErrorType.Validation);
 
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Professional")
-                   ?? new Role { Name = "Professional" };
+        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Type == "professional");
+        if (role is null)
+            return Result<ProfessionalResponse>.Failure("Rol de profesional no encontrado.", ErrorType.NotFound);
 
         var now = DateTime.UtcNow;
 

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260427023014_010_RoleType")]
+    partial class _010_RoleType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -87,88 +90,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("consultas_clinicas", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.BloqueoFecha", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateOnly>("Fecha")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<int>("ProfessionalId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProfessionalId", "Fecha")
-                        .IsUnique();
-
-                    b.ToTable("bloqueos_fecha", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Especialidad", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nombre")
-                        .IsUnique();
-
-                    b.ToTable("especialidades", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.HorarioProfesional", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("DiaSemana")
-                        .HasColumnType("integer");
-
-                    b.Property<TimeOnly>("HoraFin")
-                        .HasColumnType("time");
-
-                    b.Property<TimeOnly>("HoraInicio")
-                        .HasColumnType("time");
-
-                    b.Property<int>("ProfessionalId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProfessionalId", "DiaSemana")
-                        .IsUnique();
-
-                    b.ToTable("horarios_profesional", (string)null);
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Patient", b =>
                 {
                     b.Property<int>("Id")
@@ -201,34 +122,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("patients", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.PausaHorario", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<TimeOnly>("HoraFin")
-                        .HasColumnType("time");
-
-                    b.Property<TimeOnly>("HoraInicio")
-                        .HasColumnType("time");
-
-                    b.Property<int>("HorarioProfesionalId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HorarioProfesionalId");
-
-                    b.ToTable("pausas_horario", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Permission", b =>
@@ -305,21 +198,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("persons", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.ProfesionalEspecialidad", b =>
-                {
-                    b.Property<int>("ProfessionalId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("EspecialidadId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("ProfessionalId", "EspecialidadId");
-
-                    b.HasIndex("EspecialidadId");
-
-                    b.ToTable("profesional_especialidades", (string)null);
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Professional", b =>
                 {
                     b.Property<int>("Id")
@@ -335,6 +213,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Specialty")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -451,7 +334,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Type")
                         .IsUnique()
-                        .HasFilter("\"Type\" IS NOT NULL");
+                        .HasFilter("\"type\" IS NOT NULL");
 
                     b.ToTable("roles", (string)null);
                 });
@@ -543,28 +426,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Professional");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.BloqueoFecha", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Professional", "Professional")
-                        .WithMany("Bloqueos")
-                        .HasForeignKey("ProfessionalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Professional");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.HorarioProfesional", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Professional", "Professional")
-                        .WithMany("Horarios")
-                        .HasForeignKey("ProfessionalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Professional");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Patient", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Person", "Person")
@@ -580,36 +441,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Person");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.PausaHorario", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.HorarioProfesional", "HorarioProfesional")
-                        .WithMany("Pausas")
-                        .HasForeignKey("HorarioProfesionalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("HorarioProfesional");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.ProfesionalEspecialidad", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Especialidad", "Especialidad")
-                        .WithMany("Profesionales")
-                        .HasForeignKey("EspecialidadId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SIGA.Domain.Entities.Professional", "Professional")
-                        .WithMany("Especialidades")
-                        .HasForeignKey("ProfessionalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Especialidad");
-
-                    b.Navigation("Professional");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Professional", b =>
@@ -688,16 +519,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Receta");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.Especialidad", b =>
-                {
-                    b.Navigation("Profesionales");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.HorarioProfesional", b =>
-                {
-                    b.Navigation("Pausas");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Permission", b =>
                 {
                     b.Navigation("RolePermissions");
@@ -706,15 +527,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SIGA.Domain.Entities.Person", b =>
                 {
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Professional", b =>
-                {
-                    b.Navigation("Bloqueos");
-
-                    b.Navigation("Especialidades");
-
-                    b.Navigation("Horarios");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Role", b =>
