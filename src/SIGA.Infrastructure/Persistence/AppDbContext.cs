@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BloqueoFecha> BloqueosFecha => Set<BloqueoFecha>();
     public DbSet<ConsultaClinica> ConsultasClinicas => Set<ConsultaClinica>();
     public DbSet<Receta> Recetas => Set<Receta>();
+    public DbSet<Turno> Turnos => Set<Turno>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

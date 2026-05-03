@@ -15,4 +15,5 @@ public class Professional
     public ICollection<ProfesionalEspecialidad> Especialidades { get; set; } = new List<ProfesionalEspecialidad>();
     public ICollection<HorarioProfesional> Horarios { get; set; } = new List<HorarioProfesional>();
     public ICollection<BloqueoFecha> Bloqueos { get; set; } = new List<BloqueoFecha>();
+    public ICollection<Turno> Turnos { get; set; } = new List<Turno>();
 }

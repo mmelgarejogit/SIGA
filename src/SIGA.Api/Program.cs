@@ -37,6 +37,7 @@ var permissionPolicies = new[]
     "ver_especialidades", "gestionar_especialidades",
     "ver_usuarios",      "editar_usuario",
     "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
+    "ver_agenda",        "gestionar_agenda",
     "ver_calendario",
     "ver_historia_clinica",
     "ver_inventario",

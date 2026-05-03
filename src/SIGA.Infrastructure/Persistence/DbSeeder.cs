@@ -10,6 +10,7 @@ public static class DbSeeder
         "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
         "ver_profesionales", "crear_profesional",   "editar_profesional",
         "ver_especialidades", "gestionar_especialidades",
+        "ver_agenda",         "gestionar_agenda",
         "ver_usuarios",      "editar_usuario",
         "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
         "ver_calendario",

@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddHttpClient("hcaptcha");
         services.AddScoped<IEspecialidadService, EspecialidadService>();
         services.AddScoped<IHorarioProfesionalService, HorarioProfesionalService>();
+        services.AddScoped<ITurnoService, TurnoService>();
 
         return services;
     }
