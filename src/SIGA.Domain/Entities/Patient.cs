@@ -14,4 +14,6 @@ public class Patient
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    public ICollection<Turno> Turnos { get; set; } = new List<Turno>();
 }

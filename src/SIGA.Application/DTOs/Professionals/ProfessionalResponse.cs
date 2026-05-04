@@ -1,3 +1,5 @@
+using SIGA.Application.DTOs.Especialidades;
+
 namespace SIGA.Application.DTOs.Professionals;
 
 public class ProfessionalResponse
@@ -12,8 +14,8 @@ public class ProfessionalResponse
     public string? PhoneNumber { get; set; }
     public string Email { get; set; } = string.Empty;
 
-    public string Specialty { get; set; } = string.Empty;
     public string LicenseNumber { get; set; } = string.Empty;
+    public List<EspecialidadResponse> Especialidades { get; set; } = [];
 
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }

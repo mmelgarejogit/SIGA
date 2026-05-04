@@ -11,6 +11,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Professional> Professionals => Set<Professional>();
     public DbSet<Patient> Patients => Set<Patient>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Especialidad> Especialidades => Set<Especialidad>();
+    public DbSet<ProfesionalEspecialidad> ProfesionalEspecialidades => Set<ProfesionalEspecialidad>();
+    public DbSet<HorarioProfesional> HorariosProfesional => Set<HorarioProfesional>();
+    public DbSet<PausaHorario> PausasHorario => Set<PausaHorario>();
+    public DbSet<BloqueoFecha> BloqueosFecha => Set<BloqueoFecha>();
+    public DbSet<ConsultaClinica> ConsultasClinicas => Set<ConsultaClinica>();
+    public DbSet<Receta> Recetas => Set<Receta>();
+    public DbSet<Turno> Turnos => Set<Turno>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

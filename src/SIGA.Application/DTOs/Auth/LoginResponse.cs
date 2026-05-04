@@ -7,6 +7,7 @@ public class LoginResponse
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Specialty { get; set; }
+    public int? ProfessionalId { get; set; }
     public List<string> RoleClaims { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
 }

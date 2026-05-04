@@ -55,4 +55,20 @@ public class UserService : IUserService
 
         return Result<IEnumerable<UserResponse>>.Success(response);
     }
+
+    public async Task<Result<bool>> DeactivateAsync(int id)
+    {
+        var user = await _dbContext.Users.FindAsync(id);
+        if (user is null)
+            return Result<bool>.Failure("User not found.", ErrorType.NotFound);
+
+        if (!user.IsActive)
+            return Result<bool>.Failure("User is already inactive.", ErrorType.Conflict);
+
+        user.IsActive  = false;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
 }

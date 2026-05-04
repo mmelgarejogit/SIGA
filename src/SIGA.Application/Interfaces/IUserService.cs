@@ -6,4 +6,5 @@ namespace SIGA.Application.Interfaces;
 public interface IUserService
 {
     Task<Result<IEnumerable<UserResponse>>> GetAllAsync();
+    Task<Result<bool>> DeactivateAsync(int id);
 }
