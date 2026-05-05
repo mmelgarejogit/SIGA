@@ -40,9 +40,15 @@ var permissionPolicies = new[]
     "ver_agenda",        "gestionar_agenda",
     "ver_calendario",
     "ver_historia_clinica",
-    "ver_inventario",
-    "ver_ventas",
-    "ver_reportes",
+        "ver_consultas",
+        "registrar_consulta",
+        "editar_consulta",
+        "eliminar_consulta",
+        "ver_recetas",
+        "ver_inventario",
+        "registrar_venta",
+        "ver_reportes",
+        "ver_mis_turnos",
 };
 
 builder.Services.AddAuthorization(options =>

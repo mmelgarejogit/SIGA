@@ -15,9 +15,17 @@ public static class DbSeeder
         "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
         "ver_calendario",
         "ver_historia_clinica",
+        "ver_consultas",
+        "registrar_consulta",
+        "editar_consulta",
+        "eliminar_consulta",
+        "ver_recetas",
         "ver_inventario",
-        "ver_ventas",
+        "registrar_venta",
         "ver_reportes",
+        "ver_mis_turnos",
+        "ver_dashboard",
+        "ver_notificaciones",
     ];
 
     private static readonly (string Type, string Name, string[] Permissions)[] Roles =

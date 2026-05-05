@@ -174,10 +174,160 @@ public class TurnoService : ITurnoService
         if (turno is null)
             return Result<bool>.Failure("Turno no encontrado.", ErrorType.NotFound);
 
-        turno.Estado    = TurnoEstado.Cancelado;
-        turno.UpdatedAt = DateTime.UtcNow;
+        turno.Estado              = TurnoEstado.Cancelado;
+        turno.SolicitudCancelacion = false;
+        turno.UpdatedAt           = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
+    // ── Patient self-scheduling ───────────────────────────────────────────
+
+    private async Task<int?> ResolvePatientIdAsync(int userId)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
+        return patient?.Id;
+    }
+
+    public async Task<Result<IEnumerable<TurnoResponse>>> GetMisTurnosAsync(int userId)
+    {
+        var patientId = await ResolvePatientIdAsync(userId);
+        if (!patientId.HasValue)
+            return Result<IEnumerable<TurnoResponse>>.Failure("No se encontró perfil de paciente asociado a tu cuenta.", ErrorType.NotFound);
+
+        var turnos = await _db.Turnos
+            .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
+            .Include(t => t.Patient).ThenInclude(p => p.Person)
+            .Where(t => t.PatientId == patientId.Value)
+            .OrderByDescending(t => t.FechaHora)
+            .ToListAsync();
+
+        return Result<IEnumerable<TurnoResponse>>.Success(turnos.Select(ToResponse));
+    }
+
+    public async Task<Result<TurnoResponse>> SelfBookAsync(int userId, SelfBookTurnoRequest request)
+    {
+        var patientId = await ResolvePatientIdAsync(userId);
+        if (!patientId.HasValue)
+            return Result<TurnoResponse>.Failure("No se encontró perfil de paciente asociado a tu cuenta.", ErrorType.NotFound);
+
+        // Patient can only have one active (non-cancelled) appointment
+        var tieneActivo = await _db.Turnos.AnyAsync(t =>
+            t.PatientId == patientId.Value &&
+            t.Estado != TurnoEstado.Cancelado);
+
+        if (tieneActivo)
+            return Result<TurnoResponse>.Failure("Ya tenés un turno activo. Cancelá o completá el turno existente antes de reservar uno nuevo.", ErrorType.Conflict);
+
+        var professional = await _db.Professionals
+            .Include(p => p.User).ThenInclude(u => u.Person)
+            .FirstOrDefaultAsync(p => p.Id == request.ProfessionalId);
+        if (professional is null)
+            return Result<TurnoResponse>.Failure("Profesional no encontrado.", ErrorType.NotFound);
+
+        var patient = await _db.Patients
+            .Include(p => p.Person)
+            .FirstOrDefaultAsync(p => p.Id == patientId.Value);
+        if (patient is null)
+            return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
+
+        if (request.FechaHora < DateTime.UtcNow)
+            return Result<TurnoResponse>.Failure("No se pueden reservar turnos en fechas pasadas.", ErrorType.Validation);
+
+        var fecha = DateOnly.FromDateTime(request.FechaHora);
+        var hora  = TimeOnly.FromDateTime(request.FechaHora);
+
+        if (await _db.BloqueosFecha.AnyAsync(b => b.ProfessionalId == request.ProfessionalId && b.Fecha == fecha))
+            return Result<TurnoResponse>.Failure("El profesional tiene esa fecha bloqueada.", ErrorType.Validation);
+
+        var horario = await _db.HorariosProfesional
+            .Include(h => h.Pausas)
+            .FirstOrDefaultAsync(h => h.ProfessionalId == request.ProfessionalId
+                                   && h.DiaSemana == fecha.DayOfWeek
+                                   && h.Activo);
+
+        if (horario is null)
+            return Result<TurnoResponse>.Failure("El profesional no trabaja ese día.", ErrorType.Validation);
+
+        var slotFin = hora.AddMinutes(DuracionMinutos);
+        if (hora < horario.HoraInicio || slotFin > horario.HoraFin)
+            return Result<TurnoResponse>.Failure("El horario está fuera del rango de trabajo del profesional.", ErrorType.Validation);
+
+        if (horario.Pausas.Any(p => hora < p.HoraFin && slotFin > p.HoraInicio))
+            return Result<TurnoResponse>.Failure("El horario coincide con una pausa del profesional.", ErrorType.Validation);
+
+        if (await _db.Turnos.AnyAsync(t => t.ProfessionalId == request.ProfessionalId
+                                        && t.FechaHora == request.FechaHora
+                                        && t.Estado != TurnoEstado.Cancelado))
+            return Result<TurnoResponse>.Failure("Ese horario ya está reservado.", ErrorType.Conflict);
+
+        var now   = DateTime.UtcNow;
+        var turno = new Turno
+        {
+            ProfessionalId = request.ProfessionalId,
+            PatientId      = patientId.Value,
+            FechaHora      = request.FechaHora,
+            Estado         = TurnoEstado.Pendiente,
+            SolicitudCancelacion = false,
+            Motivo         = request.Motivo?.Trim(),
+            CreatedAt      = now,
+            UpdatedAt      = now,
+        };
+
+        _db.Turnos.Add(turno);
+        await _db.SaveChangesAsync();
+
+        turno.Professional = professional;
+        turno.Patient      = patient;
+
+        return Result<TurnoResponse>.Success(ToResponse(turno));
+    }
+
+    public async Task<Result<bool>> SolicitarCancelacionAsync(int turnoId, int userId)
+    {
+        var patientId = await ResolvePatientIdAsync(userId);
+        if (!patientId.HasValue)
+            return Result<bool>.Failure("No se encontró perfil de paciente asociado a tu cuenta.", ErrorType.NotFound);
+
+        var turno = await _db.Turnos.FirstOrDefaultAsync(t => t.Id == turnoId && t.PatientId == patientId.Value);
+        if (turno is null)
+            return Result<bool>.Failure("Turno no encontrado.", ErrorType.NotFound);
+
+        if (turno.Estado == TurnoEstado.Cancelado)
+            return Result<bool>.Failure("El turno ya está cancelado.", ErrorType.Conflict);
+
+        if (turno.Estado == TurnoEstado.Completado)
+            return Result<bool>.Failure("No se puede solicitar cancelación de un turno completado.", ErrorType.Conflict);
+
+        if (turno.SolicitudCancelacion)
+            return Result<bool>.Failure("Ya solicitaste la cancelación de este turno. Esperá la confirmación del equipo.", ErrorType.Conflict);
+
+        turno.SolicitudCancelacion = true;
+        turno.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> GestionarCancelacionAsync(int turnoId, GestionarCancelacionRequest request)
+    {
+        var turno = await _db.Turnos.FirstOrDefaultAsync(t => t.Id == turnoId);
+        if (turno is null)
+            return Result<bool>.Failure("Turno no encontrado.", ErrorType.NotFound);
+
+        if (!turno.SolicitudCancelacion)
+            return Result<bool>.Failure("Este turno no tiene una solicitud de cancelación pendiente.", ErrorType.Validation);
+
+        if (request.Aprobar)
+        {
+            turno.Estado = TurnoEstado.Cancelado;
+        }
+
+        turno.SolicitudCancelacion = false;
+        turno.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
         return Result<bool>.Success(true);
     }
 
@@ -200,6 +350,7 @@ public class TurnoService : ITurnoService
         PatientNombre      = $"{t.Patient.Person.FirstName} {t.Patient.Person.LastName}",
         FechaHora          = t.FechaHora,
         Estado             = t.Estado.ToString(),
+        SolicitudCancelacion = t.SolicitudCancelacion,
         Motivo             = t.Motivo,
         Notas              = t.Notas,
         CreatedAt          = t.CreatedAt,

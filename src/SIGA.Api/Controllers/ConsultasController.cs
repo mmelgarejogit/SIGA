@@ -15,7 +15,7 @@ public class ConsultasController : BaseController
     public ConsultasController(IConsultaClinicaService service) => _service = service;
 
     [HttpGet]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "ver_consultas")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
@@ -31,7 +31,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpGet("patient/{patientId:int}")]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "ver_consultas")]
     public async Task<IActionResult> GetByPatient(int patientId)
     {
         var result = await _service.GetByPatientAsync(patientId);
@@ -39,7 +39,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "ver_consultas")]
     public async Task<IActionResult> GetById(int id)
     {
         var result = await _service.GetByIdAsync(id);
@@ -47,7 +47,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpPost]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "registrar_consulta")]
     public async Task<IActionResult> Create([FromBody] CreateConsultaClinicaRequest request)
     {
         var result = await _service.CreateAsync(request);
@@ -55,7 +55,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "editar_consulta")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateConsultaClinicaRequest request)
     {
         var result = await _service.UpdateAsync(id, request);
@@ -63,7 +63,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "eliminar_consulta")]
     public async Task<IActionResult> Delete(int id)
     {
         var result = await _service.DeleteAsync(id);
@@ -71,7 +71,7 @@ public class ConsultasController : BaseController
     }
 
     [HttpPost("{id:int}/receta")]
-    [Authorize(Policy = "ver_historia_clinica")]
+    [Authorize(Policy = "editar_consulta")]
     public async Task<IActionResult> CreateOrUpdateReceta(int id, [FromBody] CreateRecetaRequest request)
     {
         var result = await _service.CreateOrUpdateRecetaAsync(id, request);

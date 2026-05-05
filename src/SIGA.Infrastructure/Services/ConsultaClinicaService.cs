@@ -17,6 +17,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
         int page, int pageSize, string? search, int? patientId, int? professionalId)
     {
         var query = _db.ConsultasClinicas
+            .Where(c => c.IsActive)
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
@@ -66,10 +67,10 @@ public class ConsultaClinicaService : IConsultaClinicaService
             return Result<IEnumerable<ConsultaClinicaResponse>>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
         var consultas = await _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.PatientId == patientId)
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
-            .Where(c => c.PatientId == patientId)
             .OrderByDescending(c => c.FechaConsulta)
             .ToListAsync();
 
@@ -192,7 +193,8 @@ public class ConsultaClinicaService : IConsultaClinicaService
         if (consulta is null)
             return Result<bool>.Failure("Consulta no encontrada.", ErrorType.NotFound);
 
-        _db.ConsultasClinicas.Remove(consulta);
+        consulta.IsActive = false;
+        consulta.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Result<bool>.Success(true);

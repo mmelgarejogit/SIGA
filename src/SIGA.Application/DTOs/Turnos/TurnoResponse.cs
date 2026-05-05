@@ -9,6 +9,7 @@ public class TurnoResponse
     public string PatientNombre { get; set; } = null!;
     public DateTime FechaHora { get; set; }
     public string Estado { get; set; } = null!;
+    public bool SolicitudCancelacion { get; set; }
     public string? Motivo { get; set; }
     public string? Notas { get; set; }
     public DateTime CreatedAt { get; set; }
