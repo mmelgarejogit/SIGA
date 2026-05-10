@@ -20,10 +20,9 @@ public static class DbSeeder
         "editar_consulta",
         "eliminar_consulta",
         "ver_recetas",
-        "ver_inventario",
+        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",
         "registrar_venta",
         "ver_reportes",
-        "ver_mis_turnos",
         "ver_dashboard",
         "ver_notificaciones",
     ];
@@ -32,7 +31,7 @@ public static class DbSeeder
     [
         ("admin",        "Administrador", AllPermissions),
         ("professional", "Profesional",   []),
-        ("patient",      "Paciente",      []),
+        ("patient",      "Paciente",      ["ver_dashboard", "ver_mis_turnos"]),
     ];
 
     private static readonly string[] EspecialidadesIniciales =
@@ -84,18 +83,25 @@ public static class DbSeeder
                 await db.SaveChangesAsync();
             }
 
+            var expectedPermIds = rolePerms
+                .Where(p => permissionMap.ContainsKey(p))
+                .Select(p => permissionMap[p])
+                .ToHashSet();
+
             var assignedPermIds = role.RolePermissions.Select(rp => rp.PermissionId).ToHashSet();
 
-            var missing = rolePerms
-                .Where(p => permissionMap.ContainsKey(p) && !assignedPermIds.Contains(permissionMap[p]))
-                .Select(p => new RolePermission { RoleId = role.Id, PermissionId = permissionMap[p] })
+            var toAdd = expectedPermIds
+                .Except(assignedPermIds)
+                .Select(id => new RolePermission { RoleId = role.Id, PermissionId = id })
                 .ToList();
 
-            if (missing.Count > 0)
-            {
-                db.RolePermissions.AddRange(missing);
-                await db.SaveChangesAsync();
-            }
+            var toRemove = role.RolePermissions
+                .Where(rp => !expectedPermIds.Contains(rp.PermissionId))
+                .ToList();
+
+            if (toAdd.Count > 0) db.RolePermissions.AddRange(toAdd);
+            if (toRemove.Count > 0) db.RolePermissions.RemoveRange(toRemove);
+            if (toAdd.Count > 0 || toRemove.Count > 0) await db.SaveChangesAsync();
         }
 
         // 4. Especialidades iniciales

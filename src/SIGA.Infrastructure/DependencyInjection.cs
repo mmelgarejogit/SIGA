@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IEspecialidadService, EspecialidadService>();
         services.AddScoped<IHorarioProfesionalService, HorarioProfesionalService>();
         services.AddScoped<ITurnoService, TurnoService>();
+        services.AddScoped<IProductoService, ProductoService>();
+        services.AddScoped<IProveedorService, ProveedorService>();
 
         return services;
     }
