@@ -9,6 +9,6 @@ namespace SIGA.Application.Interfaces
 {
     public interface IJwtTokenGenerator
     {
-        public string GenerateToken(User user, List<string> roles, List<string> permissions);
+        public string GenerateToken(User user, List<string> roles, List<string> permissions, int? professionalId = null);
     }
 }

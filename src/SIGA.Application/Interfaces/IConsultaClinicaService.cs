@@ -12,4 +12,5 @@ public interface IConsultaClinicaService
     Task<Result<ConsultaClinicaResponse>> UpdateAsync(int id, UpdateConsultaClinicaRequest request);
     Task<Result<bool>> DeleteAsync(int id);
     Task<Result<RecetaResponse>> CreateOrUpdateRecetaAsync(int consultaId, CreateRecetaRequest request);
+    Task<Result<ProfessionalDashboardStatsResponse>> GetProfessionalStatsAsync(int professionalId);
 }

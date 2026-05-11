@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IConsultaClinicaService, ConsultaClinicaService>();
+        services.AddScoped<IRecetaPdfGenerator, RecetaPdfGenerator>();
         services.AddScoped<IEmailService, ResendEmailService>();
         services.AddScoped<IHCaptchaService, HCaptchaService>();
 

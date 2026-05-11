@@ -111,7 +111,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
             CitaId = request.CitaId,
-            FechaConsulta = request.FechaConsulta,
+            FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc),
             Motivo = request.Motivo.Trim(),
             Anamnesis = request.Anamnesis?.Trim(),
             ExamenFisico = request.ExamenFisico?.Trim(),
@@ -171,7 +171,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             return Result<ConsultaClinicaResponse>.Failure("Consulta no encontrada.", ErrorType.NotFound);
 
         consulta.ProfessionalId = request.ProfessionalId;
-        consulta.FechaConsulta = request.FechaConsulta;
+        consulta.FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc);
         consulta.Motivo = request.Motivo.Trim();
         consulta.Anamnesis = request.Anamnesis?.Trim();
         consulta.ExamenFisico = request.ExamenFisico?.Trim();
@@ -280,6 +280,50 @@ public class ConsultaClinicaService : IConsultaClinicaService
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt,
     };
+
+    public async Task<Result<ProfessionalDashboardStatsResponse>> GetProfessionalStatsAsync(int professionalId)
+    {
+        var now      = DateTime.UtcNow;
+        var today    = now.Date;
+        var weekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var base_ = _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.ProfessionalId == professionalId);
+
+        var consultasHoy        = await base_.CountAsync(c => c.FechaConsulta.Date == today);
+        var consultasEstaSemana = await base_.CountAsync(c => c.FechaConsulta.Date >= weekStart);
+        var consultasEsteMes    = await base_.CountAsync(c => c.FechaConsulta >= monthStart);
+
+        var pacientesUnicos = await base_
+            .Where(c => c.FechaConsulta >= monthStart)
+            .Select(c => c.PatientId)
+            .Distinct()
+            .CountAsync();
+
+        var recetasEmitidas = await base_
+            .Where(c => c.FechaConsulta >= monthStart && c.Receta != null)
+            .CountAsync();
+
+        var ultimas = await _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.ProfessionalId == professionalId)
+            .Include(c => c.Patient).ThenInclude(p => p.Person)
+            .Include(c => c.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
+            .Include(c => c.Receta)
+            .OrderByDescending(c => c.FechaConsulta)
+            .Take(5)
+            .ToListAsync();
+
+        return Result<ProfessionalDashboardStatsResponse>.Success(new ProfessionalDashboardStatsResponse
+        {
+            ConsultasHoy            = consultasHoy,
+            ConsultasEstaSemana     = consultasEstaSemana,
+            ConsultasEsteMes        = consultasEsteMes,
+            PacientesUnicosEsteMes  = pacientesUnicos,
+            RecetasEmitidasEsteMes  = recetasEmitidas,
+            UltimasConsultas        = ultimas.Select(ToResponse).ToList(),
+        });
+    }
 
     private static RecetaResponse ToRecetaResponse(Receta r) => new()
     {

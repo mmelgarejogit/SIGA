@@ -17,13 +17,16 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _config = config;
     }
 
-    public string GenerateToken(User user, List<string> roles, List<string> permissions)
+    public string GenerateToken(User user, List<string> roles, List<string> permissions, int? professionalId = null)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Person.Email)
         };
+
+        if (professionalId.HasValue)
+            claims.Add(new Claim("professional_id", professionalId.Value.ToString()));
 
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));

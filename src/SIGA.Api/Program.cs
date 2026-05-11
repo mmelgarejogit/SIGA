@@ -2,9 +2,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using QuestPDF.Infrastructure;
 using SIGA.Infrastructure;
 using SIGA.Infrastructure.Persistence;
 using System.Text;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
