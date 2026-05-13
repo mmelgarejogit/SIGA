@@ -18,6 +18,9 @@ public class Turno
     public string? Motivo { get; set; }
     public string? Notas { get; set; }
 
+    public string? ConfirmationToken { get; set; }
+    public DateTime? ReminderSentAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
