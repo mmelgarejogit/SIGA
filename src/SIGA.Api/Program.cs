@@ -52,6 +52,7 @@ var permissionPolicies = new[]
         "registrar_venta",
         "ver_reportes",
         "ver_mis_turnos",
+        "gestionar_configuracion",
 };
 
 builder.Services.AddAuthorization(options =>

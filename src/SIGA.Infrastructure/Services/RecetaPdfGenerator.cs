@@ -2,6 +2,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SIGA.Application.DTOs.Clinica;
+using SIGA.Application.DTOs.Configuracion;
 using SIGA.Application.Interfaces;
 
 namespace SIGA.Infrastructure.Services;
@@ -12,7 +13,7 @@ public class RecetaPdfGenerator : IRecetaPdfGenerator
     private static readonly string OutlineColor  = "#757684";
     private static readonly string BorderColor   = "#E0E2E7";
 
-    public byte[] Generate(ConsultaClinicaResponse consulta)
+    public byte[] Generate(ConsultaClinicaResponse consulta, ConfiguracionNegocioResponse? config = null)
     {
         var receta = consulta.Receta!;
 
@@ -36,6 +37,9 @@ public class RecetaPdfGenerator : IRecetaPdfGenerator
                         {
                             h.Item().Text("RECETA ÓPTICA")
                                 .FontSize(20).Bold().FontColor(PrimaryColor);
+                            if (!string.IsNullOrWhiteSpace(config?.NombreFantasia))
+                                h.Item().PaddingTop(1).Text(config.NombreFantasia)
+                                    .FontSize(9).FontColor(OutlineColor);
                             h.Item().PaddingTop(2).Text(
                                 $"Fecha de emisión: {FormatDate(receta.FechaEmision.ToDateTime(TimeOnly.MinValue))}")
                                 .FontSize(8.5f).FontColor(OutlineColor);

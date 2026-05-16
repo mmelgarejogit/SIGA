@@ -3,6 +3,7 @@ using SIGA.Domain.Entities;
 
 namespace SIGA.Infrastructure.Persistence;
 
+
 public static class DbSeeder
 {
     private static readonly string[] AllPermissions =
@@ -25,6 +26,7 @@ public static class DbSeeder
         "ver_reportes",
         "ver_dashboard",
         "ver_notificaciones",
+        "gestionar_configuracion",
     ];
 
     private static readonly (string Type, string Name, string[] Permissions)[] Roles =
@@ -32,6 +34,21 @@ public static class DbSeeder
         ("admin",        "Administrador", AllPermissions),
         ("professional", "Profesional",   []),
         ("patient",      "Paciente",      ["ver_dashboard", "ver_mis_turnos"]),
+    ];
+
+    private static readonly (string Entidad, string Nombre, string Color, string CodigoInterno, bool EsProtegido, int Orden)[] EstadosIniciales =
+    [
+        ("Turno",    "Pendiente",  "#F59E0B", "Pendiente",  true,  1),
+        ("Turno",    "Completado", "#10B981", "Completado", true,  2),
+        ("Turno",    "Cancelado",  "#EF4444", "Cancelado",  true,  3),
+        ("Pedido",   "Pendiente",  "#F59E0B", "Pendiente",  true,  1),
+        ("Pedido",   "Enviado",    "#3B82F6", "Enviado",    true,  2),
+        ("Pedido",   "Recibido",   "#10B981", "Recibido",   true,  3),
+        ("Pedido",   "Cancelado",  "#EF4444", "Cancelado",  true,  4),
+        ("Consulta", "Pendiente",  "#F59E0B", "Pendiente",  false, 1),
+        ("Consulta", "Abierta",    "#3B82F6", "Abierta",    false, 2),
+        ("Consulta", "Cerrada",    "#10B981", "Cerrada",    false, 3),
+        ("Consulta", "Cancelada",  "#EF4444", "Cancelada",  false, 4),
     ];
 
     private static readonly string[] EspecialidadesIniciales =
@@ -104,7 +121,34 @@ public static class DbSeeder
             if (toAdd.Count > 0 || toRemove.Count > 0) await db.SaveChangesAsync();
         }
 
-        // 4. Especialidades iniciales
+        // 4. Estados Config iniciales
+        var existingEstados = await db.EstadosConfig
+            .Select(e => new { e.Entidad, e.CodigoInterno })
+            .ToListAsync();
+        var existingEstadosSet = existingEstados
+            .Select(e => $"{e.Entidad}:{e.CodigoInterno}")
+            .ToHashSet();
+
+        var nuevosEstados = EstadosIniciales
+            .Where(s => !existingEstadosSet.Contains($"{s.Entidad}:{s.CodigoInterno}"))
+            .Select(s => new EstadoConfig
+            {
+                Entidad       = s.Entidad,
+                Nombre        = s.Nombre,
+                Color         = s.Color,
+                CodigoInterno = s.CodigoInterno,
+                EsProtegido   = s.EsProtegido,
+                Orden         = s.Orden,
+            })
+            .ToList();
+
+        if (nuevosEstados.Count > 0)
+        {
+            db.EstadosConfig.AddRange(nuevosEstados);
+            await db.SaveChangesAsync();
+        }
+
+        // 5. Especialidades iniciales (was 4)
         var existingEspecialidades = await db.Especialidades.Select(e => e.Nombre).ToHashSetAsync();
         var nuevasEspecialidades = EspecialidadesIniciales
             .Where(n => !existingEspecialidades.Contains(n))

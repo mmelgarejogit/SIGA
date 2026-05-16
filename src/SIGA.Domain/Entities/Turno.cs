@@ -13,6 +13,8 @@ public class Turno
     public DateTime FechaHora { get; set; }
 
     public TurnoEstado Estado { get; set; } = TurnoEstado.Pendiente;
+    public int? EstadoCustomId { get; set; }
+    public EstadoConfig? EstadoCustom { get; set; }
     public bool SolicitudCancelacion { get; set; } = false;
 
     public string? Motivo { get; set; }

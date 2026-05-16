@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IConsultaClinicaService, ConsultaClinicaService>();
         services.AddScoped<IRecetaPdfGenerator, RecetaPdfGenerator>();
+        services.AddScoped<IConfiguracionNegocioService, ConfiguracionNegocioService>();
         services.AddScoped<IEmailService, ResendEmailService>();
         services.AddScoped<IHCaptchaService, HCaptchaService>();
 
@@ -44,6 +45,7 @@ public static class DependencyInjection
 
         services.AddHttpClient("hcaptcha");
         services.AddScoped<IEspecialidadService, EspecialidadService>();
+        services.AddScoped<IEstadoConfigService, EstadoConfigService>();
         services.AddScoped<IHorarioProfesionalService, HorarioProfesionalService>();
         services.AddScoped<ITurnoService, TurnoService>();
         services.AddScoped<IProductoService, ProductoService>();

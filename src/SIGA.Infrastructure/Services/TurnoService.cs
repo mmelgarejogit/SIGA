@@ -353,6 +353,9 @@ public class TurnoService : ITurnoService
         SolicitudCancelacion = t.SolicitudCancelacion,
         Motivo             = t.Motivo,
         Notas              = t.Notas,
+        EstadoCustomId     = t.EstadoCustomId,
+        EstadoCustomNombre = t.EstadoCustom?.Nombre,
+        EstadoCustomColor  = t.EstadoCustom?.Color,
         CreatedAt          = t.CreatedAt,
         UpdatedAt          = t.UpdatedAt,
     };

@@ -12,11 +12,13 @@ public class ConsultasController : BaseController
 {
     private readonly IConsultaClinicaService _service;
     private readonly IRecetaPdfGenerator _pdfGenerator;
+    private readonly IConfiguracionNegocioService _configuracion;
 
-    public ConsultasController(IConsultaClinicaService service, IRecetaPdfGenerator pdfGenerator)
+    public ConsultasController(IConsultaClinicaService service, IRecetaPdfGenerator pdfGenerator, IConfiguracionNegocioService configuracion)
     {
         _service = service;
         _pdfGenerator = pdfGenerator;
+        _configuracion = configuracion;
     }
 
     private int? CallerProfessionalId =>
@@ -122,7 +124,10 @@ public class ConsultasController : BaseController
         if (consulta.Receta is null)
             return NotFound(new { message = "Esta consulta no tiene receta." });
 
-        var pdf = _pdfGenerator.Generate(consulta);
+        var configResult = await _configuracion.GetAsync();
+        var config = configResult.IsSuccess ? configResult.Value : null;
+
+        var pdf = _pdfGenerator.Generate(consulta, config);
         var filename = $"receta_{consulta.PatientLastName}_{consulta.Receta.FechaEmision:yyyyMMdd}.pdf";
         return File(pdf, "application/pdf", filename);
     }

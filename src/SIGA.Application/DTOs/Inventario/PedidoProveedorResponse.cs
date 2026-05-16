@@ -15,6 +15,8 @@ public class PedidoProveedorResponse
     public int ProveedorId { get; set; }
     public string ProveedorNombre { get; set; } = "";
     public string Estado { get; set; } = "";
+    public int? EstadoId { get; set; }
+    public string EstadoColor { get; set; } = "#6B7280";
     public string? Observaciones { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

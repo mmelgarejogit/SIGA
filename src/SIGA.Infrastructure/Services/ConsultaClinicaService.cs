@@ -21,6 +21,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .AsQueryable();
 
         if (patientId.HasValue)
@@ -71,6 +72,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .OrderByDescending(c => c.FechaConsulta)
             .ToListAsync();
 
@@ -83,6 +85,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (consulta is null)
@@ -106,11 +109,15 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         var now = DateTime.UtcNow;
 
+        var estadoAbierta = await _db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Entidad == "Consulta" && e.CodigoInterno == "Abierta");
+
         var consulta = new ConsultaClinica
         {
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
             CitaId = request.CitaId,
+            EstadoConfigId = estadoAbierta?.Id,
             FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc),
             Motivo = request.Motivo.Trim(),
             Anamnesis = request.Anamnesis?.Trim(),
@@ -165,6 +172,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (consulta is null)
@@ -276,6 +284,9 @@ public class ConsultaClinicaService : IConsultaClinicaService
         DiagnosticoSecundario = c.DiagnosticoSecundario,
         PlanTratamiento = c.PlanTratamiento,
         Observaciones = c.Observaciones,
+        EstadoId = c.EstadoConfigId,
+        EstadoNombre = c.EstadoConfig?.Nombre,
+        EstadoColor = c.EstadoConfig?.Color,
         Receta = c.Receta is null ? null : ToRecetaResponse(c.Receta),
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt,

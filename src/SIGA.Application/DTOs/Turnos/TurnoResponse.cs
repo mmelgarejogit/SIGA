@@ -12,6 +12,9 @@ public class TurnoResponse
     public bool SolicitudCancelacion { get; set; }
     public string? Motivo { get; set; }
     public string? Notas { get; set; }
+    public int? EstadoCustomId { get; set; }
+    public string? EstadoCustomNombre { get; set; }
+    public string? EstadoCustomColor { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

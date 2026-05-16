@@ -92,9 +92,13 @@ public class ProveedorService(AppDbContext db) : IProveedorService
                 return Result<PedidoProveedorResponse>.Failure($"Producto {item.ProductoId} no encontrado.", ErrorType.NotFound);
         }
 
+        var estadoPendiente = await db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Entidad == "Pedido" && e.CodigoInterno == "Pendiente");
+
         var pedido = new PedidoProveedor
         {
             ProveedorId    = request.ProveedorId,
+            EstadoConfigId = estadoPendiente?.Id,
             Observaciones  = request.Observaciones?.Trim(),
             Items          = items.Select(i => new PedidoProveedorItem
             {
@@ -120,13 +124,14 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         var query = db.PedidosProveedor
             .Include(p => p.Proveedor)
             .Include(p => p.Items).ThenInclude(i => i.Producto)
+            .Include(p => p.EstadoConfig)
             .AsQueryable();
 
         if (proveedorId.HasValue)
             query = query.Where(p => p.ProveedorId == proveedorId.Value);
 
         if (!string.IsNullOrWhiteSpace(estado))
-            query = query.Where(p => p.Estado == estado);
+            query = query.Where(p => p.EstadoConfig != null && p.EstadoConfig.CodigoInterno == estado);
 
         var pedidos = await query.OrderByDescending(p => p.CreatedAt).ToListAsync();
         return Result<IEnumerable<PedidoProveedorResponse>>.Success(pedidos.Select(ToResponse));
@@ -134,20 +139,25 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
     public async Task<Result<PedidoProveedorResponse>> UpdatePedidoEstadoAsync(int id, string estado)
     {
+        var nuevoEstado = await db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Entidad == "Pedido" && e.CodigoInterno == estado);
+
+        if (nuevoEstado is null)
+            return Result<PedidoProveedorResponse>.Failure("Estado inválido.", ErrorType.Validation);
+
         var pedido = await db.PedidosProveedor
             .Include(p => p.Proveedor)
             .Include(p => p.Items).ThenInclude(i => i.Producto)
+            .Include(p => p.EstadoConfig)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (pedido is null)
             return Result<PedidoProveedorResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
-        var estadosValidos = new[] { "Pendiente", "Enviado", "Recibido", "Cancelado" };
-        if (!estadosValidos.Contains(estado))
-            return Result<PedidoProveedorResponse>.Failure("Estado inválido.", ErrorType.Validation);
+        var estadoActual = pedido.EstadoConfig?.CodigoInterno;
 
         // Al recibir un pedido, actualizar el stock de los productos
-        if (estado == "Recibido" && pedido.Estado != "Recibido")
+        if (estado == "Recibido" && estadoActual != "Recibido")
         {
             foreach (var item in pedido.Items)
             {
@@ -168,8 +178,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
             }
         }
 
-        pedido.Estado    = estado;
-        pedido.UpdatedAt = DateTime.UtcNow;
+        pedido.EstadoConfigId = nuevoEstado.Id;
+        pedido.EstadoConfig   = nuevoEstado;
+        pedido.UpdatedAt      = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
         return Result<PedidoProveedorResponse>.Success(ToResponse(pedido));
@@ -177,15 +188,21 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
     public async Task<Result<bool>> CancelPedidoAsync(int id)
     {
-        var pedido = await db.PedidosProveedor.FindAsync(id);
+        var pedido = await db.PedidosProveedor
+            .Include(p => p.EstadoConfig)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<bool>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
-        if (pedido.Estado == "Recibido")
+        if (pedido.EstadoConfig?.CodigoInterno == "Recibido")
             return Result<bool>.Failure("No se puede cancelar un pedido ya recibido.", ErrorType.Validation);
 
-        pedido.Estado    = "Cancelado";
-        pedido.UpdatedAt = DateTime.UtcNow;
+        var estadoCancelado = await db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Entidad == "Pedido" && e.CodigoInterno == "Cancelado");
+
+        pedido.EstadoConfigId = estadoCancelado?.Id;
+        pedido.EstadoConfig   = estadoCancelado;
+        pedido.UpdatedAt      = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return Result<bool>.Success(true);
     }
@@ -206,7 +223,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         Id              = p.Id,
         ProveedorId     = p.ProveedorId,
         ProveedorNombre = p.Proveedor.Nombre,
-        Estado          = p.Estado,
+        Estado          = p.EstadoConfig?.Nombre ?? "Desconocido",
+        EstadoId        = p.EstadoConfigId,
+        EstadoColor     = p.EstadoConfig?.Color ?? "#6B7280",
         Observaciones   = p.Observaciones,
         CreatedAt       = p.CreatedAt,
         UpdatedAt       = p.UpdatedAt,
