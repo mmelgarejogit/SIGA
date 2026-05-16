@@ -98,4 +98,12 @@ public class TurnosController : BaseController
         var result = await _turnoService.GestionarCancelacionAsync(id, request);
         return ToHttpResponse(result);
     }
+
+    [HttpPost("confirmar/{token}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConfirmarPorToken(string token)
+    {
+        var result = await _turnoService.ConfirmarPorTokenAsync(token);
+        return ToHttpResponse(result);
+    }
 }

@@ -195,7 +195,7 @@ public class ProductoService(AppDbContext db) : IProductoService
             movimientos.Select(m => ToMovimientoResponse(m, producto.Nombre)));
     }
 
-    public async Task<Result<IEnumerable<MovimientoStockResponse>>> GetAllMovimientosAsync(
+    public async Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(
         int page, int pageSize, string? tipo)
     {
         var query = db.MovimientosStock.Include(m => m.Producto).AsQueryable();
@@ -203,14 +203,22 @@ public class ProductoService(AppDbContext db) : IProductoService
         if (!string.IsNullOrWhiteSpace(tipo))
             query = query.Where(m => m.Tipo == tipo);
 
+        var totalCount = await query.CountAsync();
+
         var movimientos = await query
             .OrderByDescending(m => m.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        return Result<IEnumerable<MovimientoStockResponse>>.Success(
-            movimientos.Select(m => ToMovimientoResponse(m, m.Producto.Nombre)));
+        return Result<PagedResult<MovimientoStockResponse>>.Success(new PagedResult<MovimientoStockResponse>
+        {
+            Items      = movimientos.Select(m => ToMovimientoResponse(m, m.Producto.Nombre)).ToList(),
+            TotalCount = totalCount,
+            Page       = page,
+            PageSize   = pageSize,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+        });
     }
 
     private static ProductoResponse ToResponse(Producto p) => new()

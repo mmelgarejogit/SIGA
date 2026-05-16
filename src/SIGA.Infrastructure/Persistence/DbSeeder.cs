@@ -27,11 +27,15 @@ public static class DbSeeder
         "ver_dashboard",
         "ver_notificaciones",
         "gestionar_configuracion",
+        "ver_mis_turnos",
     ];
+
+    private static readonly string[] AdminPermissions =
+        AllPermissions.Where(p => p != "ver_mis_turnos").ToArray();
 
     private static readonly (string Type, string Name, string[] Permissions)[] Roles =
     [
-        ("admin",        "Administrador", AllPermissions),
+        ("admin",        "Administrador", AdminPermissions),
         ("professional", "Profesional",   []),
         ("patient",      "Paciente",      ["ver_dashboard", "ver_mis_turnos"]),
     ];

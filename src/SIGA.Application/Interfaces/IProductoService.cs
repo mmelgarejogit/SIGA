@@ -12,5 +12,5 @@ public interface IProductoService
     Task<Result<bool>> DeactivateAsync(int id);
     Task<Result<MovimientoStockResponse>> RegistrarMovimientoAsync(int productoId, CreateMovimientoStockRequest request);
     Task<Result<IEnumerable<MovimientoStockResponse>>> GetMovimientosAsync(int productoId);
-    Task<Result<IEnumerable<MovimientoStockResponse>>> GetAllMovimientosAsync(int page, int pageSize, string? tipo);
+    Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(int page, int pageSize, string? tipo);
 }

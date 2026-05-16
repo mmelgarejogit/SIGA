@@ -11,6 +11,8 @@ public interface ITurnoService
     Task<Result<TurnoResponse>> UpdateEstadoAsync(int id, UpdateTurnoEstadoRequest request);
     Task<Result<bool>> CancelAsync(int id);
 
+    Task<Result<TurnoResponse>> ConfirmarPorTokenAsync(string token);
+
     // ── Patient self-scheduling ──
     Task<Result<IEnumerable<TurnoResponse>>> GetMisTurnosAsync(int userId);
     Task<Result<TurnoResponse>> SelfBookAsync(int userId, SelfBookTurnoRequest request);

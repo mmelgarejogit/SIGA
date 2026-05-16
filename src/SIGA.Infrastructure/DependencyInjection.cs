@@ -51,6 +51,8 @@ public static class DependencyInjection
         services.AddScoped<IProductoService, ProductoService>();
         services.AddScoped<IProveedorService, ProveedorService>();
 
+        services.AddHostedService<TurnoReminderService>();
+
         return services;
     }
 }

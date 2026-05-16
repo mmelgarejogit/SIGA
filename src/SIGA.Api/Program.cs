@@ -124,6 +124,12 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
+
+    if (app.Environment.IsDevelopment())
+    {
+        var hasher = scope.ServiceProvider.GetRequiredService<SIGA.Domain.Security.IPasswordHasher>();
+        await DevDataSeeder.SeedAsync(db, hasher);
+    }
 }
 
 app.Run();
