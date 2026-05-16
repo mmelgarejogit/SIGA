@@ -43,8 +43,10 @@ public static class DbSeeder
     private static readonly (string Entidad, string Nombre, string Color, string CodigoInterno, bool EsProtegido, int Orden)[] EstadosIniciales =
     [
         ("Turno",    "Pendiente",  "#F59E0B", "Pendiente",  true,  1),
-        ("Turno",    "Completado", "#10B981", "Completado", true,  2),
-        ("Turno",    "Cancelado",  "#EF4444", "Cancelado",  true,  3),
+        ("Turno",    "Confirmado", "#3B82F6", "Confirmado", true,  2),
+        ("Turno",    "Presente",   "#6366F1", "Presente",   true,  3),
+        ("Turno",    "Completado", "#10B981", "Completado", true,  4),
+        ("Turno",    "Cancelado",  "#EF4444", "Cancelado",  true,  5),
         ("Pedido",   "Pendiente",  "#F59E0B", "Pendiente",  true,  1),
         ("Pedido",   "Enviado",    "#3B82F6", "Enviado",    true,  2),
         ("Pedido",   "Recibido",   "#10B981", "Recibido",   true,  3),

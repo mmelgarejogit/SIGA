@@ -6,4 +6,5 @@ public enum TurnoEstado
     Completado = 1,
     Cancelado  = 2,
     Confirmado = 3,
+    Presente   = 4,
 }

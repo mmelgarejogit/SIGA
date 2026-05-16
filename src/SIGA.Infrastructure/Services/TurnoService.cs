@@ -140,7 +140,7 @@ public class TurnoService : ITurnoService
     {
         if (!Enum.TryParse<TurnoEstado>(request.Estado, true, out var estadoEnum))
             return Result<TurnoResponse>.Failure(
-                "Estado inválido. Valores posibles: Pendiente, Confirmado, Completado, Cancelado.",
+                "Estado inválido. Valores posibles: Pendiente, Confirmado, Presente, Completado, Cancelado.",
                 ErrorType.Validation);
 
         var turno = await _db.Turnos
