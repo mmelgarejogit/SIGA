@@ -53,6 +53,7 @@ var permissionPolicies = new[]
         "ver_reportes",
         "ver_mis_turnos",
         "gestionar_configuracion",
+        "ver_egresos",       "gestionar_egresos",
 };
 
 builder.Services.AddAuthorization(options =>

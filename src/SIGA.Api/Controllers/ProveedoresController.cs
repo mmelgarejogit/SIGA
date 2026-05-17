@@ -41,40 +41,4 @@ public class ProveedoresController(IProveedorService proveedorService) : BaseCon
         var result = await proveedorService.DeactivateAsync(id);
         return ToHttpResponse(result);
     }
-
-    [HttpGet("pedidos")]
-    [Authorize(Policy = "ver_inventario")]
-    public async Task<IActionResult> GetPedidos(
-        [FromQuery] int? proveedorId = null,
-        [FromQuery] string? estado = null)
-    {
-        var result = await proveedorService.GetPedidosAsync(proveedorId, estado);
-        return ToHttpResponse(result);
-    }
-
-    [HttpPost("pedidos")]
-    [Authorize(Policy = "gestionar_pedidos")]
-    public async Task<IActionResult> CreatePedido([FromBody] CreatePedidoProveedorRequest request)
-    {
-        var result = await proveedorService.CreatePedidoAsync(request);
-        return ToHttpResponse(result);
-    }
-
-    [HttpPut("pedidos/{id:int}/estado")]
-    [Authorize(Policy = "gestionar_pedidos")]
-    public async Task<IActionResult> UpdatePedidoEstado(int id, [FromBody] UpdatePedidoEstadoBody body)
-    {
-        var result = await proveedorService.UpdatePedidoEstadoAsync(id, body.Estado);
-        return ToHttpResponse(result);
-    }
-
-    [HttpDelete("pedidos/{id:int}")]
-    [Authorize(Policy = "gestionar_pedidos")]
-    public async Task<IActionResult> CancelPedido(int id)
-    {
-        var result = await proveedorService.CancelPedidoAsync(id);
-        return ToHttpResponse(result);
-    }
 }
-
-public record UpdatePedidoEstadoBody(string Estado);

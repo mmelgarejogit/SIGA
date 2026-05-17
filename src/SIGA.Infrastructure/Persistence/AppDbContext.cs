@@ -26,8 +26,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Proveedor> Proveedores => Set<Proveedor>();
     public DbSet<PedidoProveedor> PedidosProveedor => Set<PedidoProveedor>();
     public DbSet<PedidoProveedorItem> PedidosProveedorItems => Set<PedidoProveedorItem>();
+    public DbSet<DevolucionProveedor> DevolucionesProveedor => Set<DevolucionProveedor>();
     public DbSet<ConfiguracionNegocio> ConfiguracionNegocio => Set<ConfiguracionNegocio>();
     public DbSet<EstadoConfig> EstadosConfig => Set<EstadoConfig>();
+    public DbSet<CategoriaGasto> CategoriasGasto => Set<CategoriaGasto>();
+    public DbSet<Egreso> Egresos => Set<Egreso>();
+    public DbSet<FacturaCompra> FacturasCompra => Set<FacturaCompra>();
+    public DbSet<Honorario> Honorarios => Set<Honorario>();
+    public DbSet<GastoGeneral> GastosGenerales => Set<GastoGeneral>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

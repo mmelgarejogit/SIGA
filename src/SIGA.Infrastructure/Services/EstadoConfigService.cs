@@ -82,7 +82,6 @@ public class EstadoConfigService(AppDbContext db) : IEstadoConfigService
         var enUso = estado.Entidad switch
         {
             "Turno"    => await db.Turnos.AnyAsync(t => t.EstadoCustomId == id),
-            "Pedido"   => await db.PedidosProveedor.AnyAsync(p => p.EstadoConfigId == id),
             "Consulta" => await db.ConsultasClinicas.AnyAsync(c => c.EstadoConfigId == id),
             _          => false,
         };

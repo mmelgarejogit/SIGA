@@ -1,0 +1,92 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SIGA.Application.DTOs.Egresos;
+using SIGA.Application.Interfaces;
+
+namespace SIGA.Api.Controllers;
+
+[ApiController]
+[Route("api/egresos")]
+[Authorize(Policy = "gestionar_egresos")]
+public class EgresosController(IEgresoService egresoService) : BaseController
+{
+    [HttpGet]
+    [Authorize(Policy = "ver_egresos")]
+    public async Task<IActionResult> GetEgresos(
+        [FromQuery] string? tipo = null,
+        [FromQuery] string? estado = null,
+        [FromQuery] string? fechaDesde = null,
+        [FromQuery] string? fechaHasta = null,
+        [FromQuery] bool? soloVencidos = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await egresoService.GetEgresosAsync(tipo, estado, fechaDesde, fechaHasta, soloVencidos, page, pageSize);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("{id:int}")]
+    [Authorize(Policy = "ver_egresos")]
+    public async Task<IActionResult> GetEgreso(int id)
+    {
+        var result = await egresoService.GetEgresoByIdAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("facturas")]
+    public async Task<IActionResult> CrearFacturaCompra([FromBody] CrearFacturaCompraRequest request)
+    {
+        var result = await egresoService.CrearFacturaCompraAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("honorarios")]
+    public async Task<IActionResult> CrearHonorario([FromBody] CrearHonorarioRequest request)
+    {
+        var result = await egresoService.CrearHonorarioAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("gastos")]
+    public async Task<IActionResult> CrearGastoGeneral([FromBody] CrearGastoGeneralRequest request)
+    {
+        var result = await egresoService.CrearGastoGeneralAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/pago")]
+    public async Task<IActionResult> RegistrarPago(int id, [FromBody] RegistrarPagoRequest request)
+    {
+        var result = await egresoService.RegistrarPagoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/anular")]
+    public async Task<IActionResult> AnularEgreso(int id, [FromBody] AnularEgresoRequest request)
+    {
+        var result = await egresoService.AnularEgresoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("categorias")]
+    [Authorize(Policy = "ver_egresos")]
+    public async Task<IActionResult> GetCategorias()
+    {
+        var result = await egresoService.GetCategoriasAsync();
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("categorias")]
+    public async Task<IActionResult> CrearCategoria([FromBody] CrearCategoriaGastoRequest request)
+    {
+        var result = await egresoService.CrearCategoriaAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("categorias/{id:int}")]
+    public async Task<IActionResult> ActualizarCategoria(int id, [FromBody] ActualizarCategoriaGastoRequest request)
+    {
+        var result = await egresoService.ActualizarCategoriaAsync(id, request);
+        return ToHttpResponse(result);
+    }
+}

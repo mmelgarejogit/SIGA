@@ -50,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<ITurnoService, TurnoService>();
         services.AddScoped<IProductoService, ProductoService>();
         services.AddScoped<IProveedorService, ProveedorService>();
+        services.AddScoped<IComprasService, ComprasService>();
+        services.AddScoped<IEgresoService, EgresoService>();
 
         services.AddHostedService<TurnoReminderService>();
 
