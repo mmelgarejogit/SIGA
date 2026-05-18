@@ -539,10 +539,12 @@ public class TurnoService : ITurnoService
     private static IEnumerable<TimeOnly> GenerateSlots(TimeOnly inicio, TimeOnly fin)
     {
         var current = inicio;
-        while (current.AddMinutes(DuracionMinutos) <= fin)
+        while (true)
         {
+            var next = current.AddMinutes(DuracionMinutos, out int wrappedDays);
+            if (wrappedDays > 0 || next > fin) break;
             yield return current;
-            current = current.AddMinutes(DuracionMinutos);
+            current = next;
         }
     }
 

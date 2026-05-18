@@ -11,33 +11,52 @@ public class EgresoService(AppDbContext db) : IEgresoService
 {
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    private static EgresoResponse Map(Egreso e) => new()
+    private static EgresoResponse Map(Egreso e)
     {
-        Id             = e.Id,
-        Tipo           = e.Tipo.ToString(),
-        Estado         = e.Estado.ToString(),
-        Monto          = e.Monto,
-        Concepto       = e.Concepto,
-        Observaciones  = e.Observaciones,
-        FechaEmision   = e.FechaEmision.ToString("yyyy-MM-dd"),
-        FechaVencimiento = e.FechaVencimiento?.ToString("yyyy-MM-dd"),
-        FechaPago      = e.FechaPago?.ToString("yyyy-MM-dd"),
-        MetodoPago     = e.MetodoPago?.ToString(),
-        EstaVencido    = e.EstaVencido(),
-        CreatedAt      = e.CreatedAt,
+        var r = new EgresoResponse
+        {
+            Id               = e.Id,
+            Tipo             = e.Tipo.ToString(),
+            Estado           = e.Estado.ToString(),
+            Monto            = e.Monto,
+            Concepto         = e.Concepto,
+            Observaciones    = e.Observaciones,
+            FechaEmision     = e.FechaEmision.ToString("yyyy-MM-dd"),
+            FechaVencimiento = e.FechaVencimiento?.ToString("yyyy-MM-dd"),
+            FechaPago        = e.FechaPago?.ToString("yyyy-MM-dd"),
+            MetodoPago       = e.MetodoPago?.ToString(),
+            EstaVencido      = e.EstaVencido(),
+            CreatedAt        = e.CreatedAt,
+        };
 
-        NroFactura         = e is FacturaCompra fc ? fc.NroFactura : null,
-        ProveedorId        = e is FacturaCompra fc2 ? fc2.ProveedorId : null,
-        ProveedorNombre    = e is FacturaCompra fc3 ? fc3.Proveedor?.Nombre : null,
-        PedidoProveedorId  = e is FacturaCompra fc4 ? fc4.PedidoProveedorId : null,
+        if (e is FacturaCompra fc)
+        {
+            r.NroFactura        = fc.NroFactura;
+            r.ProveedorId       = fc.ProveedorId;
+            r.ProveedorNombre   = fc.Proveedor?.Nombre;
+            r.PedidoProveedorId = fc.PedidoProveedorId;
+            r.MontoExento       = fc.MontoExento;
+            r.MontoGravado5     = fc.MontoGravado5;
+            r.MontoGravado10    = fc.MontoGravado10;
+            r.Iva5              = fc.Iva5;
+            r.Iva10             = fc.Iva10;
+            r.MontoTotal        = fc.MontoTotal;
+            r.CondicionVenta    = fc.CondicionVenta.ToString();
+        }
+        else if (e is Honorario h)
+        {
+            r.ProfessionalId     = h.ProfessionalId;
+            r.ProfessionalNombre = $"{h.Professional?.User?.Person?.FirstName} {h.Professional?.User?.Person?.LastName}".Trim();
+            r.Periodo            = h.Periodo;
+        }
+        else if (e is GastoGeneral g)
+        {
+            r.CategoriaGastoId     = g.CategoriaGastoId;
+            r.CategoriaGastoNombre = g.CategoriaGasto?.Nombre;
+        }
 
-        ProfessionalId    = e is Honorario h ? h.ProfessionalId : null,
-        ProfessionalNombre = e is Honorario h2 ? $"{h2.Professional?.User?.Person?.FirstName} {h2.Professional?.User?.Person?.LastName}".Trim() : null,
-        Periodo           = e is Honorario h3 ? h3.Periodo : null,
-
-        CategoriaGastoId     = e is GastoGeneral g ? g.CategoriaGastoId : null,
-        CategoriaGastoNombre = e is GastoGeneral g2 ? g2.CategoriaGasto?.Nombre : null,
-    };
+        return r;
+    }
 
     private static CategoriaGastoResponse MapCategoria(CategoriaGasto c) => new()
     {
@@ -109,6 +128,9 @@ public class EgresoService(AppDbContext db) : IEgresoService
             fechaVencimiento = fv;
         }
 
+        if (!Enum.TryParse<CondicionVenta>(request.CondicionVenta, ignoreCase: true, out var condicion))
+            return Result<EgresoResponse>.Failure("Condición de venta inválida. Valores válidos: Contado, Credito.", ErrorType.Validation);
+
         var proveedorExists = await db.Proveedores.AnyAsync(p => p.Id == request.ProveedorId);
         if (!proveedorExists)
             return Result<EgresoResponse>.Failure("Proveedor no encontrado.", ErrorType.NotFound);
@@ -118,13 +140,18 @@ public class EgresoService(AppDbContext db) : IEgresoService
             ProveedorId       = request.ProveedorId,
             PedidoProveedorId = request.PedidoProveedorId,
             NroFactura        = request.NroFactura?.Trim(),
-            Monto             = request.Monto,
+            MontoExento       = request.MontoExento,
+            MontoGravado5     = request.MontoGravado5,
+            MontoGravado10    = request.MontoGravado10,
+            CondicionVenta    = condicion,
             Concepto          = request.Concepto.Trim(),
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
             Estado            = EstadoEgreso.Pendiente,
         };
+        factura.Monto = factura.MontoTotal;
+
         db.FacturasCompra.Add(factura);
         await db.SaveChangesAsync();
 
@@ -242,8 +269,8 @@ public class EgresoService(AppDbContext db) : IEgresoService
         if (egreso.Estado == EstadoEgreso.Pagado)
             return Result<EgresoResponse>.Failure("No se puede anular un egreso pagado.", ErrorType.Conflict);
 
-        egreso.Estado     = EstadoEgreso.Anulado;
-        egreso.UpdatedAt  = DateTime.UtcNow;
+        egreso.Estado    = EstadoEgreso.Anulado;
+        egreso.UpdatedAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.Motivo))
             egreso.Observaciones = (egreso.Observaciones is not null
                 ? egreso.Observaciones + " | " : "") + $"Anulado: {request.Motivo.Trim()}";
@@ -290,8 +317,8 @@ public class EgresoService(AppDbContext db) : IEgresoService
                 e.FechaVencimiento.Value < hoy);
         }
 
-        var total  = await query.CountAsync();
-        var items  = await query
+        var total = await query.CountAsync();
+        var items = await query
             .OrderByDescending(e => e.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

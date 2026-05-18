@@ -34,6 +34,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FacturaCompra> FacturasCompra => Set<FacturaCompra>();
     public DbSet<Honorario> Honorarios => Set<Honorario>();
     public DbSet<GastoGeneral> GastosGenerales => Set<GastoGeneral>();
+    public DbSet<Servicio> Servicios => Set<Servicio>();
+    public DbSet<Venta> Ventas => Set<Venta>();
+    public DbSet<VentaLinea> VentaLineas => Set<VentaLinea>();
+    public DbSet<Cobro> Cobros => Set<Cobro>();
+    public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
+    public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

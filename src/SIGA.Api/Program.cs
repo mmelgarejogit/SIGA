@@ -49,9 +49,11 @@ var permissionPolicies = new[]
         "eliminar_consulta",
         "ver_recetas",
         "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",
-        "registrar_venta",
+        "registrar_venta",   "ver_ventas",
         "ver_reportes",
         "ver_mis_turnos",
+        "ver_dashboard",
+        "ver_notificaciones",
         "gestionar_configuracion",
         "ver_egresos",       "gestionar_egresos",
 };

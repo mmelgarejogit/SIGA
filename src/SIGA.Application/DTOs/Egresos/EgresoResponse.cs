@@ -15,11 +15,20 @@ public class EgresoResponse
     public bool EstaVencido { get; set; }
     public DateTime CreatedAt { get; set; }
 
-    // FacturaCompra
+    // FacturaCompra — datos de referencia
     public string? NroFactura { get; set; }
     public int? ProveedorId { get; set; }
     public string? ProveedorNombre { get; set; }
     public int? PedidoProveedorId { get; set; }
+
+    // FacturaCompra — desglose fiscal
+    public decimal? MontoExento { get; set; }
+    public decimal? MontoGravado5 { get; set; }
+    public decimal? MontoGravado10 { get; set; }
+    public decimal? Iva5 { get; set; }
+    public decimal? Iva10 { get; set; }
+    public decimal? MontoTotal { get; set; }
+    public string? CondicionVenta { get; set; }
 
     // Honorario
     public int? ProfessionalId { get; set; }

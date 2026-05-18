@@ -7,6 +7,10 @@ public class ProveedorResponse
     public string? Contacto { get; set; }
     public string? Email { get; set; }
     public string? Telefono { get; set; }
+    public string Ruc { get; set; } = "";
+    public string Timbrado { get; set; } = "";
+    public string? VigenciaTimbrado { get; set; }
+    public string? Establecimiento { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
 }
