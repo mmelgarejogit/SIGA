@@ -14,4 +14,14 @@ public class ProductoResponse
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    public decimal DescuentoCategoria { get; set; }
+
+    public int? MarcaId { get; set; }
+    public string? MarcaNombre { get; set; }
+    public int? ModeloId { get; set; }
+    public string? ModeloNombre { get; set; }
+    public string? Color { get; set; }
+    public string? Talle { get; set; }
+    public string? Descripcion { get; set; }
 }

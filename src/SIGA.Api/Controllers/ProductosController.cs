@@ -81,4 +81,38 @@ public class ProductosController(IProductoService productoService) : BaseControl
         var result = await productoService.GetAllMovimientosAsync(page, pageSize, tipo);
         return ToHttpResponse(result);
     }
+
+    // ── Categorías ────────────────────────────────────────────────────────────
+
+    [HttpGet("categorias")]
+    [Authorize(Policy = "ver_inventario")]
+    public async Task<IActionResult> GetCategorias()
+    {
+        var result = await productoService.GetCategoriasAsync();
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("categorias")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> CreateCategoria([FromBody] CreateCategoriaProductoRequest request)
+    {
+        var result = await productoService.CreateCategoriaAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("categorias/{id:int}")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> UpdateCategoria(int id, [FromBody] UpdateCategoriaProductoRequest request)
+    {
+        var result = await productoService.UpdateCategoriaAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpDelete("categorias/{id:int}")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> DeactivateCategoria(int id)
+    {
+        var result = await productoService.DeactivateCategoriaAsync(id);
+        return ToHttpResponse(result);
+    }
 }

@@ -23,6 +23,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Receta> Recetas => Set<Receta>();
     public DbSet<Turno> Turnos => Set<Turno>();
     public DbSet<Producto> Productos => Set<Producto>();
+    public DbSet<CategoriaProducto> CategoriasProducto => Set<CategoriaProducto>();
+    public DbSet<Marca> Marcas => Set<Marca>();
+    public DbSet<Modelo> Modelos => Set<Modelo>();
     public DbSet<MovimientoStock> MovimientosStock => Set<MovimientoStock>();
     public DbSet<Proveedor> Proveedores => Set<Proveedor>();
     public DbSet<PedidoProveedor> PedidosProveedor => Set<PedidoProveedor>();

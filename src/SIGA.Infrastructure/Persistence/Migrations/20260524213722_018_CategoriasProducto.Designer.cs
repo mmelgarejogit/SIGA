@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260524213722_018_CategoriasProducto")]
+    partial class _018_CategoriasProducto
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -90,11 +93,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<string>("Descripcion")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<decimal>("Descuento")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(5,2)")
-                        .HasDefaultValue(0m);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -541,63 +539,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("horarios_profesional", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.Marca", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nombre")
-                        .IsUnique();
-
-                    b.ToTable("marcas", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Modelo", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("MarcaId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MarcaId", "Nombre")
-                        .IsUnique();
-
-                    b.ToTable("modelos", (string)null);
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.MovimientoCaja", b =>
                 {
                     b.Property<int>("Id")
@@ -893,23 +834,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int?>("CategoriaProductoId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Color")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Descripcion")
-                        .HasColumnType("text");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<int?>("MarcaId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ModeloId")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -930,19 +859,12 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("StockMinimo")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Talle")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CategoriaProductoId");
-
-                    b.HasIndex("MarcaId");
-
-                    b.HasIndex("ModeloId");
 
                     b.ToTable("Productos");
                 });
@@ -1572,17 +1494,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Professional");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.Modelo", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Marca", "Marca")
-                        .WithMany("Modelos")
-                        .HasForeignKey("MarcaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Marca");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.MovimientoCaja", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Egreso", "Egreso")
@@ -1671,23 +1582,9 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SIGA.Domain.Entities.Producto", b =>
                 {
-                    b.HasOne("SIGA.Domain.Entities.CategoriaProducto", "CategoriaProducto")
+                    b.HasOne("SIGA.Domain.Entities.CategoriaProducto", null)
                         .WithMany("Productos")
                         .HasForeignKey("CategoriaProductoId");
-
-                    b.HasOne("SIGA.Domain.Entities.Marca", "Marca")
-                        .WithMany()
-                        .HasForeignKey("MarcaId");
-
-                    b.HasOne("SIGA.Domain.Entities.Modelo", "Modelo")
-                        .WithMany("Productos")
-                        .HasForeignKey("ModeloId");
-
-                    b.Navigation("CategoriaProducto");
-
-                    b.Navigation("Marca");
-
-                    b.Navigation("Modelo");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.ProfesionalEspecialidad", b =>
@@ -1911,16 +1808,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SIGA.Domain.Entities.HorarioProfesional", b =>
                 {
                     b.Navigation("Pausas");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Marca", b =>
-                {
-                    b.Navigation("Modelos");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Modelo", b =>
-                {
-                    b.Navigation("Productos");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Patient", b =>

@@ -31,7 +31,12 @@ public class ProductoService(AppDbContext db) : IProductoService
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
+        var discountMap = await db.CategoriasProducto
+            .ToDictionaryAsync(c => c.Nombre, c => c.Descuento);
+
         var items = await query
+            .Include(p => p.Marca)
+            .Include(p => p.Modelo)
             .OrderBy(p => p.Nombre)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -39,7 +44,7 @@ public class ProductoService(AppDbContext db) : IProductoService
 
         return Result<PagedResult<ProductoResponse>>.Success(new PagedResult<ProductoResponse>
         {
-            Items      = items.Select(ToResponse),
+            Items      = items.Select(p => ToResponse(p, discountMap.GetValueOrDefault(p.Categoria, 0))),
             TotalCount = totalCount,
             TotalActive = await db.Productos.CountAsync(p => p.IsActive),
             Page       = page,
@@ -50,11 +55,19 @@ public class ProductoService(AppDbContext db) : IProductoService
 
     public async Task<Result<ProductoResponse>> GetByIdAsync(int id)
     {
-        var producto = await db.Productos.FindAsync(id);
+        var producto = await db.Productos
+            .Include(p => p.Marca)
+            .Include(p => p.Modelo)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        return Result<ProductoResponse>.Success(ToResponse(producto));
+        var descuento = await db.CategoriasProducto
+            .Where(c => c.Nombre == producto.Categoria)
+            .Select(c => c.Descuento)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
     }
 
     public async Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request)
@@ -87,12 +100,25 @@ public class ProductoService(AppDbContext db) : IProductoService
             PrecioVenta = request.PrecioVenta,
             StockActual = request.StockActual,
             StockMinimo = request.StockMinimo,
+            MarcaId     = request.MarcaId,
+            ModeloId    = request.ModeloId,
+            Color       = request.Color?.Trim(),
+            Talle       = request.Talle?.Trim(),
+            Descripcion = request.Descripcion?.Trim(),
         };
 
         db.Productos.Add(producto);
         await db.SaveChangesAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto));
+        await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
+        await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
+
+        var descuentoCreate = await db.CategoriasProducto
+            .Where(c => c.Nombre == producto.Categoria)
+            .Select(c => c.Descuento)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoCreate));
     }
 
     public async Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request)
@@ -123,10 +149,25 @@ public class ProductoService(AppDbContext db) : IProductoService
         producto.PrecioCosto = request.PrecioCosto;
         producto.PrecioVenta = request.PrecioVenta;
         producto.StockMinimo = request.StockMinimo;
+        producto.IsActive    = request.IsActive;
+        producto.MarcaId     = request.MarcaId;
+        producto.ModeloId    = request.ModeloId;
+        producto.Color       = request.Color?.Trim();
+        producto.Talle       = request.Talle?.Trim();
+        producto.Descripcion = request.Descripcion?.Trim();
         producto.UpdatedAt   = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
-        return Result<ProductoResponse>.Success(ToResponse(producto));
+
+        await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
+        await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
+
+        var descuentoUpdate = await db.CategoriasProducto
+            .Where(c => c.Nombre == producto.Categoria)
+            .Select(c => c.Descuento)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoUpdate));
     }
 
     public async Task<Result<bool>> DeactivateAsync(int id)
@@ -221,20 +262,28 @@ public class ProductoService(AppDbContext db) : IProductoService
         });
     }
 
-    private static ProductoResponse ToResponse(Producto p) => new()
+    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria = 0) => new()
     {
-        Id          = p.Id,
-        Nombre      = p.Nombre,
-        Categoria   = p.Categoria,
-        Sku         = p.Sku,
-        PrecioCosto = p.PrecioCosto,
-        PrecioVenta = p.PrecioVenta,
-        StockActual = p.StockActual,
-        StockMinimo = p.StockMinimo,
-        BajoStock   = p.StockActual <= p.StockMinimo,
-        IsActive    = p.IsActive,
-        CreatedAt   = p.CreatedAt,
-        UpdatedAt   = p.UpdatedAt,
+        Id           = p.Id,
+        Nombre       = p.Nombre,
+        Categoria    = p.Categoria,
+        Sku          = p.Sku,
+        PrecioCosto  = p.PrecioCosto,
+        PrecioVenta  = p.PrecioVenta,
+        StockActual  = p.StockActual,
+        StockMinimo  = p.StockMinimo,
+        BajoStock    = p.StockActual <= p.StockMinimo,
+        IsActive           = p.IsActive,
+        DescuentoCategoria = descuentoCategoria,
+        CreatedAt    = p.CreatedAt,
+        UpdatedAt    = p.UpdatedAt,
+        MarcaId      = p.MarcaId,
+        MarcaNombre  = p.Marca?.Nombre,
+        ModeloId     = p.ModeloId,
+        ModeloNombre = p.Modelo?.Nombre,
+        Color        = p.Color,
+        Talle        = p.Talle,
+        Descripcion  = p.Descripcion,
     };
 
     private static MovimientoStockResponse ToMovimientoResponse(MovimientoStock m, string productoNombre) => new()
@@ -247,4 +296,97 @@ public class ProductoService(AppDbContext db) : IProductoService
         Motivo         = m.Motivo,
         CreatedAt      = m.CreatedAt,
     };
+
+    // ── Categorías de producto ─────────────────────────────────────────────────
+
+    public async Task<Result<IEnumerable<CategoriaProductoResponse>>> GetCategoriasAsync()
+    {
+        var cats = await db.CategoriasProducto
+            .OrderBy(c => c.Nombre)
+            .ToListAsync();
+
+        var counts = await db.Productos
+            .GroupBy(p => p.Categoria)
+            .Select(g => new { Nombre = g.Key, Total = g.Count() })
+            .ToListAsync();
+
+        var result = cats.Select(c => new CategoriaProductoResponse
+        {
+            Id             = c.Id,
+            Nombre         = c.Nombre,
+            Descripcion    = c.Descripcion,
+            Descuento      = c.Descuento,
+            IsActive       = c.IsActive,
+            TotalProductos = counts.FirstOrDefault(x => x.Nombre == c.Nombre)?.Total ?? 0,
+        });
+
+        return Result<IEnumerable<CategoriaProductoResponse>>.Success(result);
+    }
+
+    public async Task<Result<CategoriaProductoResponse>> CreateCategoriaAsync(CreateCategoriaProductoRequest request)
+    {
+        var nombre = request.Nombre.Trim();
+        if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre))
+            return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
+
+        if (request.Descuento < 0 || request.Descuento > 100)
+            return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
+
+        var cat = new CategoriaProducto
+        {
+            Nombre      = nombre,
+            Descripcion = request.Descripcion?.Trim(),
+            Descuento   = request.Descuento,
+            IsActive    = true,
+            CreatedAt   = DateTime.UtcNow,
+        };
+
+        db.CategoriasProducto.Add(cat);
+        await db.SaveChangesAsync();
+
+        return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
+        {
+            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
+            Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = 0,
+        });
+    }
+
+    public async Task<Result<CategoriaProductoResponse>> UpdateCategoriaAsync(int id, UpdateCategoriaProductoRequest request)
+    {
+        var cat = await db.CategoriasProducto.FindAsync(id);
+        if (cat is null)
+            return Result<CategoriaProductoResponse>.Failure("Categoría no encontrada.", ErrorType.NotFound);
+
+        var nombre = request.Nombre.Trim();
+        if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre && c.Id != id))
+            return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
+
+        if (request.Descuento < 0 || request.Descuento > 100)
+            return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
+
+        cat.Nombre      = nombre;
+        cat.Descripcion = request.Descripcion?.Trim();
+        cat.Descuento   = request.Descuento;
+        cat.IsActive    = request.IsActive;
+
+        await db.SaveChangesAsync();
+
+        var total = await db.Productos.CountAsync(p => p.Categoria == cat.Nombre);
+        return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
+        {
+            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
+            Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = total,
+        });
+    }
+
+    public async Task<Result<bool>> DeactivateCategoriaAsync(int id)
+    {
+        var cat = await db.CategoriasProducto.FindAsync(id);
+        if (cat is null)
+            return Result<bool>.Failure("Categoría no encontrada.", ErrorType.NotFound);
+
+        cat.IsActive = false;
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
 }

@@ -9,4 +9,10 @@ public class CreateProductoRequest
     public decimal PrecioVenta { get; set; }
     public int StockActual { get; set; }
     public int StockMinimo { get; set; }
+
+    public int? MarcaId { get; set; }
+    public int? ModeloId { get; set; }
+    public string? Color { get; set; }
+    public string? Talle { get; set; }
+    public string? Descripcion { get; set; }
 }

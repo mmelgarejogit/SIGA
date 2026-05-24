@@ -173,5 +173,195 @@ public static class DbSeeder
             db.Especialidades.AddRange(nuevasEspecialidades);
             await db.SaveChangesAsync();
         }
+
+        // 6. Categorías de producto
+        var existingCats = await db.CategoriasProducto.Select(c => c.Nombre).ToHashSetAsync();
+        var nuevasCats = CategoriasProductoIniciales
+            .Where(c => !existingCats.Contains(c.Nombre))
+            .Select(c => new CategoriaProducto
+            {
+                Nombre      = c.Nombre,
+                Descripcion = c.Descripcion,
+                IsActive    = true,
+                CreatedAt   = DateTime.UtcNow,
+            })
+            .ToList();
+
+        if (nuevasCats.Count > 0)
+        {
+            db.CategoriasProducto.AddRange(nuevasCats);
+            await db.SaveChangesAsync();
+        }
+
+        // 7. Marcas
+        var existingMarcas = await db.Marcas.Select(m => m.Nombre).ToHashSetAsync();
+        var nuevasMarcas = MarcasIniciales
+            .Where(n => !existingMarcas.Contains(n))
+            .Select(n => new Marca { Nombre = n, IsActive = true, CreatedAt = DateTime.UtcNow })
+            .ToList();
+
+        if (nuevasMarcas.Count > 0)
+        {
+            db.Marcas.AddRange(nuevasMarcas);
+            await db.SaveChangesAsync();
+        }
+
+        // 8. Modelos (requiere que las marcas estén persistidas)
+        var marcaMap = await db.Marcas.ToDictionaryAsync(m => m.Nombre, m => m.Id);
+
+        var existingModelos = await db.Modelos
+            .Select(m => new { m.MarcaId, m.Nombre })
+            .ToListAsync();
+        var existingModelosSet = existingModelos
+            .Select(m => $"{m.MarcaId}:{m.Nombre}")
+            .ToHashSet();
+
+        var nuevosModelos = ModelosIniciales
+            .Where(x => marcaMap.ContainsKey(x.Marca))
+            .Select(x => new { MarcaId = marcaMap[x.Marca], x.Nombre })
+            .Where(x => !existingModelosSet.Contains($"{x.MarcaId}:{x.Nombre}"))
+            .Select(x => new Modelo { Nombre = x.Nombre, MarcaId = x.MarcaId, IsActive = true, CreatedAt = DateTime.UtcNow })
+            .ToList();
+
+        if (nuevosModelos.Count > 0)
+        {
+            db.Modelos.AddRange(nuevosModelos);
+            await db.SaveChangesAsync();
+        }
     }
+
+    private static readonly string[] MarcasIniciales =
+    [
+        "Ray-Ban", "Oakley", "Prada", "Gucci", "Versace", "Tom Ford", "Carrera",
+        "Police", "Hugo Boss", "Silhouette", "Vogue", "Persol", "Michael Kors",
+        "Emporio Armani", "Giorgio Armani", "Dolce & Gabbana", "Chanel", "Dior",
+        "Bvlgari", "Burberry", "Lacoste", "Nautica", "Fossil", "Kate Spade",
+        "CooperVision", "Bausch & Lomb", "Alcon", "Johnson & Johnson",
+        "Essilor", "Hoya", "Zeiss", "Transitions",
+    ];
+
+    private static readonly (string Marca, string Nombre)[] ModelosIniciales =
+    [
+        // Ray-Ban
+        ("Ray-Ban", "Aviator Classic"),
+        ("Ray-Ban", "Aviator Reverse"),
+        ("Ray-Ban", "Clubmaster"),
+        ("Ray-Ban", "Wayfarer"),
+        ("Ray-Ban", "Wayfarer Ease"),
+        ("Ray-Ban", "Round Metal"),
+        ("Ray-Ban", "New Wayfarer"),
+        ("Ray-Ban", "Erika"),
+        ("Ray-Ban", "Justin"),
+        ("Ray-Ban", "Predator"),
+
+        // Oakley
+        ("Oakley", "Holbrook"),
+        ("Oakley", "Frogskins"),
+        ("Oakley", "Sylas"),
+        ("Oakley", "Crosshair"),
+        ("Oakley", "Flak 2.0"),
+        ("Oakley", "Jawbreaker"),
+        ("Oakley", "Radar EV Path"),
+        ("Oakley", "Sutro"),
+
+        // Prada
+        ("Prada", "PR 17WS"),
+        ("Prada", "PR 53SS"),
+        ("Prada", "PR 56MS"),
+        ("Prada", "PR 60XS"),
+        ("Prada", "PR 01XS"),
+
+        // Gucci
+        ("Gucci", "GG0061S"),
+        ("Gucci", "GG0396S"),
+        ("Gucci", "GG1244S"),
+        ("Gucci", "GG0593SK"),
+
+        // Tom Ford
+        ("Tom Ford", "FT0237 Henry"),
+        ("Tom Ford", "FT0711 Snowdon"),
+        ("Tom Ford", "FT0775 Fausto"),
+        ("Tom Ford", "FT0858 Jameson"),
+
+        // Carrera
+        ("Carrera", "Carrera 1011/S"),
+        ("Carrera", "Carrera 1049/S"),
+        ("Carrera", "Carrera 8837/S"),
+        ("Carrera", "Hyperfit"),
+        ("Carrera", "Ducati Cardboard"),
+
+        // Silhouette
+        ("Silhouette", "Momentum"),
+        ("Silhouette", "Urban Fusion"),
+        ("Silhouette", "Titan Minimal Art"),
+        ("Silhouette", "Spx Art Comfort"),
+
+        // CooperVision
+        ("CooperVision", "Biofinity"),
+        ("CooperVision", "Biofinity Toric"),
+        ("CooperVision", "MyDay"),
+        ("CooperVision", "Proclear"),
+        ("CooperVision", "Avaira Vitality"),
+
+        // Bausch & Lomb
+        ("Bausch & Lomb", "Ultra"),
+        ("Bausch & Lomb", "Ultra Toric"),
+        ("Bausch & Lomb", "PureVision 2"),
+        ("Bausch & Lomb", "SofLens 38"),
+        ("Bausch & Lomb", "INFUSE"),
+
+        // Alcon
+        ("Alcon", "Air Optix Plus HydraGlyde"),
+        ("Alcon", "Air Optix Night & Day"),
+        ("Alcon", "Dailies Total1"),
+        ("Alcon", "Dailies AquaComfort Plus"),
+        ("Alcon", "Total30"),
+
+        // Johnson & Johnson
+        ("Johnson & Johnson", "Acuvue Oasys"),
+        ("Johnson & Johnson", "Acuvue Vita"),
+        ("Johnson & Johnson", "1-Day Acuvue Moist"),
+        ("Johnson & Johnson", "Acuvue Oasys 1-Day"),
+        ("Johnson & Johnson", "Acuvue Oasys Max 1-Day"),
+
+        // Essilor
+        ("Essilor", "Varilux Comfort"),
+        ("Essilor", "Varilux X Series"),
+        ("Essilor", "Eyezen+"),
+        ("Essilor", "Crizal Forte UV"),
+
+        // Hoya
+        ("Hoya", "iD MyStyle"),
+        ("Hoya", "Nulux EP"),
+        ("Hoya", "Hilux 1.6"),
+
+        // Zeiss
+        ("Zeiss", "Progressive Individual 2"),
+        ("Zeiss", "SmartLife Individual"),
+        ("Zeiss", "DriveSafe"),
+
+        // Transitions
+        ("Transitions", "Signature Gen 8"),
+        ("Transitions", "XTRActive"),
+        ("Transitions", "Vantage"),
+        ("Transitions", "DriveWear"),
+    ];
+
+    private static readonly (string Nombre, string Descripcion)[] CategoriasProductoIniciales =
+    [
+        ("Marcos",                "Marcos ópticos para receta y sol"),
+        ("Lentes Oftálmicos",     "Lentes de resina, policarbonato y cristal para prescripción"),
+        ("Lentes de Contacto",    "Lentes de contacto blandos, rígidos y de colores"),
+        ("Soluciones",            "Soluciones multiusos, salinas y gotas oculares"),
+        ("Accesorios",            "Estuches, paños, correas y herramientas ópticas"),
+        ("Monturas Infantiles",   "Marcos y monturas diseñados para niños y adolescentes"),
+        ("Lentes de Sol",         "Lentes de sol con y sin prescripción"),
+        ("Lentes Progresivos",    "Lentes multifocales progresivos para presbicia"),
+        ("Lentes Bifocales",      "Lentes bifocales con segmento visible"),
+        ("Lentes Antirreflejo",   "Tratamientos y lentes con recubrimiento antirreflejo"),
+        ("Filtros de Luz Azul",   "Lentes con filtro para luz azul de pantallas digitales"),
+        ("Lentes Fotocromáticos", "Lentes que se oscurecen con la luz UV"),
+        ("Instrumentos",          "Equipos y herramientas de diagnóstico y adaptación"),
+        ("Insumos",               "Materiales de consumo y laboratorio óptico"),
+    ];
 }

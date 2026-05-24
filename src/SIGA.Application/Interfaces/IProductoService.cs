@@ -13,4 +13,9 @@ public interface IProductoService
     Task<Result<MovimientoStockResponse>> RegistrarMovimientoAsync(int productoId, CreateMovimientoStockRequest request);
     Task<Result<IEnumerable<MovimientoStockResponse>>> GetMovimientosAsync(int productoId);
     Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(int page, int pageSize, string? tipo);
+
+    Task<Result<IEnumerable<CategoriaProductoResponse>>> GetCategoriasAsync();
+    Task<Result<CategoriaProductoResponse>> CreateCategoriaAsync(CreateCategoriaProductoRequest request);
+    Task<Result<CategoriaProductoResponse>> UpdateCategoriaAsync(int id, UpdateCategoriaProductoRequest request);
+    Task<Result<bool>> DeactivateCategoriaAsync(int id);
 }
