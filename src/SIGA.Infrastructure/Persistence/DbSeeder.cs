@@ -11,7 +11,7 @@ public static class DbSeeder
         "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
         "ver_profesionales", "crear_profesional",   "editar_profesional",
         "ver_especialidades", "gestionar_especialidades",
-        "ver_agenda",         "gestionar_agenda",
+        "ver_agenda",         "gestionar_agenda",   "ver_recepcion",
         "ver_usuarios",      "editar_usuario",
         "ver_roles",         "crear_rol",           "editar_rol",         "eliminar_rol",
         "ver_calendario",
@@ -34,11 +34,13 @@ public static class DbSeeder
     private static readonly string[] AdminPermissions =
         AllPermissions.Where(p => p != "ver_mis_turnos").ToArray();
 
-    private static readonly (string Type, string Name, string[] Permissions)[] Roles =
+    // ManagePermissions = true  → el seeder sincroniza permisos (agrega y elimina)
+    // ManagePermissions = false → el seeder solo agrega defaults en la creación inicial; nunca elimina permisos asignados manualmente
+    private static readonly (string Type, string Name, string[] Permissions, bool ManagePermissions)[] Roles =
     [
-        ("admin",        "Administrador", AdminPermissions),
-        ("professional", "Profesional",   []),
-        ("patient",      "Paciente",      ["ver_dashboard", "ver_mis_turnos"]),
+        ("admin",        "Administrador", AdminPermissions,                    true),
+        ("professional", "Profesional",   [],                                  false),
+        ("patient",      "Paciente",      ["ver_dashboard", "ver_mis_turnos"], false),
     ];
 
     private static readonly (string Entidad, string Nombre, string Color, string CodigoInterno, bool EsProtegido, int Orden)[] EstadosIniciales =
@@ -89,7 +91,7 @@ public static class DbSeeder
         var permissionMap  = allPermissions.ToDictionary(p => p.Name, p => p.Id);
 
         // 3. Roles — idempotencia por Type; actualizar Name si cambió
-        foreach (var (roleType, roleName, rolePerms) in Roles)
+        foreach (var (roleType, roleName, rolePerms, managePermissions) in Roles)
         {
             var role = await db.Roles
                 .Include(r => r.RolePermissions)
@@ -119,9 +121,13 @@ public static class DbSeeder
                 .Select(id => new RolePermission { RoleId = role.Id, PermissionId = id })
                 .ToList();
 
-            var toRemove = role.RolePermissions
-                .Where(rp => !expectedPermIds.Contains(rp.PermissionId))
-                .ToList();
+            // Solo eliminar permisos en roles completamente gestionados por el seeder (admin).
+            // Para professional y patient, el admin puede asignar permisos manualmente y el seeder no los toca.
+            var toRemove = managePermissions
+                ? role.RolePermissions
+                    .Where(rp => !expectedPermIds.Contains(rp.PermissionId))
+                    .ToList()
+                : [];
 
             if (toAdd.Count > 0) db.RolePermissions.AddRange(toAdd);
             if (toRemove.Count > 0) db.RolePermissions.RemoveRange(toRemove);

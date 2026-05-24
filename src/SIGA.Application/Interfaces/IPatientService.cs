@@ -10,4 +10,5 @@ public interface IPatientService
     Task<Result<PatientResponse>> CreateAsync(CreatePatientRequest request);
     Task<Result<PatientResponse>> UpdateAsync(int id, UpdatePatientRequest request);
     Task<Result<bool>> DeleteAsync(int id);
+    Task<Result<PatientResponse>> UpsertDatosFacturacionAsync(int id, UpsertDatosFacturacionRequest request);
 }

@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Professional> Professionals => Set<Professional>();
     public DbSet<Patient> Patients => Set<Patient>();
+    public DbSet<DatosFacturacion> DatosFacturacion => Set<DatosFacturacion>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Especialidad> Especialidades => Set<Especialidad>();
