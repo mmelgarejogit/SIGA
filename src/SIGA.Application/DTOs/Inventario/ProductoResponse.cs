@@ -24,4 +24,5 @@ public class ProductoResponse
     public string? Color { get; set; }
     public string? Talle { get; set; }
     public string? Descripcion { get; set; }
+    public string? ImagenUrl { get; set; }
 }

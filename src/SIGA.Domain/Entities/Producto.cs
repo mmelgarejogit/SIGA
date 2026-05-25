@@ -17,6 +17,7 @@ public class Producto
     public string? Color { get; set; }
     public string? Talle { get; set; }
     public string? Descripcion { get; set; }
+    public string? ImagenUrl { get; set; }
 
     public int? CategoriaProductoId { get; set; }
     public CategoriaProducto? CategoriaProducto { get; set; }
