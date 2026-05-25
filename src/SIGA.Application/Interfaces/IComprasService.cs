@@ -6,7 +6,8 @@ namespace SIGA.Application.Interfaces;
 public interface IComprasService
 {
     Task<Result<PedidoResponse>> CrearPedidoAsync(CrearPedidoRequest request);
-    Task<Result<PedidoResponse>> EmitirPedidoAsync(int id);
+    Task<Result<PedidoResponse>> ConfirmarPedidoAsync(int id);
+    Task<Result<PedidoResponse>> RegistrarFacturaAsync(int id, RegistrarFacturaPedidoRequest request);
     Task<Result<PedidoResponse>> RegistrarRecepcionAsync(int id, RegistrarRecepcionRequest request);
     Task<Result<DevolucionResponse>> RegistrarDevolucionAsync(int id, RegistrarDevolucionRequest request);
     Task<Result<PagedResult<PedidoResponse>>> GetPedidosAsync(int? proveedorId, string? estado, int page, int pageSize);

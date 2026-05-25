@@ -11,6 +11,8 @@ public class PedidoResponse
     public DateTime UpdatedAt { get; set; }
     public IEnumerable<PedidoItemResponse> Items { get; set; } = [];
     public IEnumerable<DevolucionResponse> Devoluciones { get; set; } = [];
+    public IEnumerable<RecepcionComprasResponse> Recepciones { get; set; } = [];
+    public PedidoFacturaResponse? Factura { get; set; }
 }
 
 public class PedidoItemResponse

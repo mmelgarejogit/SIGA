@@ -14,7 +14,7 @@ public class ProductosController(IProductoService productoService) : BaseControl
     [Authorize(Policy = "ver_inventario")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? categoria = null,
         [FromQuery] bool? bajoStock = null)

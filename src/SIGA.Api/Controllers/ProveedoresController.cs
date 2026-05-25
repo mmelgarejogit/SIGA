@@ -12,9 +12,13 @@ public class ProveedoresController(IProveedorService proveedorService) : BaseCon
 {
     [HttpGet]
     [Authorize(Policy = "ver_inventario")]
-    public async Task<IActionResult> GetAll([FromQuery] string? search = null)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
-        var result = await proveedorService.GetAllAsync(search);
+        var result = await proveedorService.GetAllAsync(page, pageSize, search, isActive);
         return ToHttpResponse(result);
     }
 

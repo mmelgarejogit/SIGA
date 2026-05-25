@@ -9,6 +9,7 @@ public class FacturaCompraConfiguration : IEntityTypeConfiguration<FacturaCompra
     public void Configure(EntityTypeBuilder<FacturaCompra> builder)
     {
         builder.Property(x => x.NroFactura).HasMaxLength(15);
+        builder.Property(x => x.MotivoAnulacion).HasMaxLength(500);
 
         builder.Property(x => x.MontoExento).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.MontoGravado5).IsRequired().HasColumnType("numeric(18,0)");

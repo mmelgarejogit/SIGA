@@ -9,18 +9,44 @@ namespace SIGA.Infrastructure.Services;
 
 public class ProveedorService(AppDbContext db) : IProveedorService
 {
-    public async Task<Result<IEnumerable<ProveedorResponse>>> GetAllAsync(string? search)
+    public async Task<Result<PagedResult<ProveedorResponse>>> GetAllAsync(int page, int pageSize, string? search, bool? isActive)
     {
-        var query = db.Proveedores.AsQueryable();
+        page     = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = db.Proveedores.Include(p => p.Contactos).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var q = search.Trim().ToLower();
-            query = query.Where(p => p.Nombre.ToLower().Contains(q));
+            var q = $"%{search.Trim()}%";
+            query = query.Where(p =>
+                EF.Functions.ILike(p.Nombre, q) ||
+                (p.RazonSocial != null && EF.Functions.ILike(p.RazonSocial, q)) ||
+                EF.Functions.ILike(p.Ruc, q));
         }
 
-        var proveedores = await query.OrderBy(p => p.Nombre).ToListAsync();
-        return Result<IEnumerable<ProveedorResponse>>.Success(proveedores.Select(ToResponse));
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+
+        var totalCount  = await query.CountAsync();
+        var totalActive = await db.Proveedores.CountAsync(p => p.IsActive);
+        var totalPages  = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var items = await query
+            .OrderBy(p => p.Nombre)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Result<PagedResult<ProveedorResponse>>.Success(new PagedResult<ProveedorResponse>
+        {
+            Items       = items.Select(ToResponse),
+            TotalCount  = totalCount,
+            TotalActive = totalActive,
+            Page        = page,
+            PageSize    = pageSize,
+            TotalPages  = Math.Max(1, totalPages),
+        });
     }
 
     public async Task<Result<ProveedorResponse>> CreateAsync(CreateProveedorRequest request)
@@ -28,27 +54,29 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<ProveedorResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
-        DateOnly? vigencia = null;
-        if (!string.IsNullOrWhiteSpace(request.VigenciaTimbrado))
-        {
-            if (!DateOnly.TryParse(request.VigenciaTimbrado, out var v))
-                return Result<ProveedorResponse>.Failure("Fecha de vigencia del timbrado inválida.", ErrorType.Validation);
-            if (v <= DateOnly.FromDateTime(DateTime.UtcNow))
-                return Result<ProveedorResponse>.Failure("La vigencia del timbrado debe ser una fecha futura.", ErrorType.Validation);
-            vigencia = v;
-        }
-
         var proveedor = new Proveedor
         {
-            Nombre            = request.Nombre.Trim(),
-            Contacto          = request.Contacto?.Trim(),
-            Email             = request.Email?.Trim(),
-            Telefono          = request.Telefono?.Trim(),
-            Ruc               = request.Ruc.Trim(),
-            Timbrado          = request.Timbrado.Trim(),
-            VigenciaTimbrado  = vigencia,
-            Establecimiento   = request.Establecimiento?.Trim(),
+            Nombre     = request.Nombre.Trim(),
+            RazonSocial = request.RazonSocial?.Trim(),
+            Ruc        = request.Ruc.Trim(),
+            Direccion  = request.Direccion?.Trim(),
+            Ciudad     = request.Ciudad?.Trim(),
+            SitioWeb   = request.SitioWeb?.Trim(),
+            Facebook   = request.Facebook?.Trim(),
+            Instagram  = request.Instagram?.Trim(),
+            WhatsApp   = request.WhatsApp?.Trim(),
         };
+
+        foreach (var c in request.Contactos.Where(c => !string.IsNullOrWhiteSpace(c.Nombre)))
+        {
+            proveedor.Contactos.Add(new ProveedorContacto
+            {
+                Nombre   = c.Nombre.Trim(),
+                Cargo    = c.Cargo?.Trim(),
+                Telefono = c.Telefono?.Trim(),
+                Email    = c.Email?.Trim(),
+            });
+        }
 
         db.Proveedores.Add(proveedor);
         await db.SaveChangesAsync();
@@ -57,32 +85,38 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
     public async Task<Result<ProveedorResponse>> UpdateAsync(int id, CreateProveedorRequest request)
     {
-        var proveedor = await db.Proveedores.FindAsync(id);
+        var proveedor = await db.Proveedores.Include(p => p.Contactos).FirstOrDefaultAsync(p => p.Id == id);
         if (proveedor is null)
             return Result<ProveedorResponse>.Failure("Proveedor no encontrado.", ErrorType.NotFound);
 
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<ProveedorResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
-        DateOnly? vigencia = null;
-        if (!string.IsNullOrWhiteSpace(request.VigenciaTimbrado))
-        {
-            if (!DateOnly.TryParse(request.VigenciaTimbrado, out var v))
-                return Result<ProveedorResponse>.Failure("Fecha de vigencia del timbrado inválida.", ErrorType.Validation);
-            if (v <= DateOnly.FromDateTime(DateTime.UtcNow))
-                return Result<ProveedorResponse>.Failure("La vigencia del timbrado debe ser una fecha futura.", ErrorType.Validation);
-            vigencia = v;
-        }
+        proveedor.Nombre      = request.Nombre.Trim();
+        proveedor.RazonSocial = request.RazonSocial?.Trim();
+        proveedor.Ruc         = request.Ruc.Trim();
+        proveedor.Direccion   = request.Direccion?.Trim();
+        proveedor.Ciudad      = request.Ciudad?.Trim();
+        proveedor.SitioWeb    = request.SitioWeb?.Trim();
+        proveedor.Facebook    = request.Facebook?.Trim();
+        proveedor.Instagram   = request.Instagram?.Trim();
+        proveedor.WhatsApp    = request.WhatsApp?.Trim();
+        proveedor.UpdatedAt   = DateTime.UtcNow;
 
-        proveedor.Nombre           = request.Nombre.Trim();
-        proveedor.Contacto         = request.Contacto?.Trim();
-        proveedor.Email            = request.Email?.Trim();
-        proveedor.Telefono         = request.Telefono?.Trim();
-        proveedor.Ruc              = request.Ruc.Trim();
-        proveedor.Timbrado         = request.Timbrado.Trim();
-        proveedor.VigenciaTimbrado = vigencia;
-        proveedor.Establecimiento  = request.Establecimiento?.Trim();
-        proveedor.UpdatedAt        = DateTime.UtcNow;
+        // Reemplaza todos los contactos
+        db.Set<ProveedorContacto>().RemoveRange(proveedor.Contactos);
+        proveedor.Contactos.Clear();
+
+        foreach (var c in request.Contactos.Where(c => !string.IsNullOrWhiteSpace(c.Nombre)))
+        {
+            proveedor.Contactos.Add(new ProveedorContacto
+            {
+                Nombre   = c.Nombre.Trim(),
+                Cargo    = c.Cargo?.Trim(),
+                Telefono = c.Telefono?.Trim(),
+                Email    = c.Email?.Trim(),
+            });
+        }
 
         await db.SaveChangesAsync();
         return Result<ProveedorResponse>.Success(ToResponse(proveedor));
@@ -102,16 +136,25 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
     private static ProveedorResponse ToResponse(Proveedor p) => new()
     {
-        Id               = p.Id,
-        Nombre           = p.Nombre,
-        Contacto         = p.Contacto,
-        Email            = p.Email,
-        Telefono         = p.Telefono,
-        Ruc              = p.Ruc,
-        Timbrado         = p.Timbrado,
-        VigenciaTimbrado = p.VigenciaTimbrado?.ToString("yyyy-MM-dd"),
-        Establecimiento  = p.Establecimiento,
-        IsActive         = p.IsActive,
-        CreatedAt        = p.CreatedAt,
+        Id          = p.Id,
+        Nombre      = p.Nombre,
+        RazonSocial = p.RazonSocial,
+        Ruc         = p.Ruc,
+        Direccion   = p.Direccion,
+        Ciudad      = p.Ciudad,
+        SitioWeb    = p.SitioWeb,
+        Facebook    = p.Facebook,
+        Instagram   = p.Instagram,
+        WhatsApp    = p.WhatsApp,
+        IsActive    = p.IsActive,
+        CreatedAt   = p.CreatedAt,
+        Contactos   = p.Contactos.Select(c => new ProveedorContactoDto
+        {
+            Id       = c.Id,
+            Nombre   = c.Nombre,
+            Cargo    = c.Cargo,
+            Telefono = c.Telefono,
+            Email    = c.Email,
+        }).ToList(),
     };
 }

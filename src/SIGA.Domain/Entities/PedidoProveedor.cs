@@ -12,4 +12,5 @@ public class PedidoProveedor
 
     public ICollection<PedidoProveedorItem> Items { get; set; } = [];
     public ICollection<DevolucionProveedor> Devoluciones { get; set; } = [];
+    public ICollection<RecepcionMercaderia> Recepciones { get; set; } = [];
 }

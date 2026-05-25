@@ -19,7 +19,7 @@ public class EgresosController(IEgresoService egresoService) : BaseController
         [FromQuery] string? fechaHasta = null,
         [FromQuery] bool? soloVencidos = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 10)
     {
         var result = await egresoService.GetEgresosAsync(tipo, estado, fechaDesde, fechaHasta, soloVencidos, page, pageSize);
         return ToHttpResponse(result);

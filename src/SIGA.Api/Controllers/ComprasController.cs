@@ -16,7 +16,7 @@ public class ComprasController(IComprasService comprasService) : BaseController
         [FromQuery] int? proveedorId = null,
         [FromQuery] string? estado = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 10)
     {
         var result = await comprasService.GetPedidosAsync(proveedorId, estado, page, pageSize);
         return ToHttpResponse(result);
@@ -37,10 +37,17 @@ public class ComprasController(IComprasService comprasService) : BaseController
         return ToHttpResponse(result);
     }
 
-    [HttpPut("{id:int}/emitir")]
-    public async Task<IActionResult> EmitirPedido(int id)
+    [HttpPut("{id:int}/confirmar")]
+    public async Task<IActionResult> ConfirmarPedido(int id)
     {
-        var result = await comprasService.EmitirPedidoAsync(id);
+        var result = await comprasService.ConfirmarPedidoAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("{id:int}/factura")]
+    public async Task<IActionResult> RegistrarFactura(int id, [FromBody] RegistrarFacturaPedidoRequest request)
+    {
+        var result = await comprasService.RegistrarFacturaAsync(id, request);
         return ToHttpResponse(result);
     }
 

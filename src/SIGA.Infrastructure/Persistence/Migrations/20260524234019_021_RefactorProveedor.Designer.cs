@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260524234019_021_RefactorProveedor")]
+    partial class _021_RefactorProveedor
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1090,56 +1093,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("proveedor_contactos", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderia", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Observaciones")
-                        .HasColumnType("text");
-
-                    b.Property<int>("PedidoProveedorId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PedidoProveedorId");
-
-                    b.ToTable("RecepcionesMercaderia");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderiaItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Cantidad")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("PedidoItemId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RecepcionId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PedidoItemId");
-
-                    b.HasIndex("RecepcionId");
-
-                    b.ToTable("RecepcionesMercaderiaItems");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Receta", b =>
                 {
                     b.Property<int>("Id")
@@ -1517,10 +1470,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("MontoGravado5")
                         .HasColumnType("numeric(18,0)");
 
-                    b.Property<string>("MotivoAnulacion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("NroFactura")
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
@@ -1824,36 +1773,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Proveedor");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderia", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.PedidoProveedor", "PedidoProveedor")
-                        .WithMany("Recepciones")
-                        .HasForeignKey("PedidoProveedorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PedidoProveedor");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderiaItem", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.PedidoProveedorItem", "PedidoItem")
-                        .WithMany()
-                        .HasForeignKey("PedidoItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SIGA.Domain.Entities.RecepcionMercaderia", "Recepcion")
-                        .WithMany("Items")
-                        .HasForeignKey("RecepcionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PedidoItem");
-
-                    b.Navigation("Recepcion");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.Receta", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.ConsultaClinica", "ConsultaClinica")
@@ -2069,8 +1988,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Devoluciones");
 
                     b.Navigation("Items");
-
-                    b.Navigation("Recepciones");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.PedidoProveedorItem", b =>
@@ -2111,11 +2028,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Contactos");
 
                     b.Navigation("Pedidos");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderia", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Role", b =>
