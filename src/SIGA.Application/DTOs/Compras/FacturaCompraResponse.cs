@@ -22,4 +22,5 @@ public class FacturaCompraResponse
     public string? MotivoAnulacion { get; set; }
     public DateTime CreatedAt { get; set; }
     public bool TieneRecepciones { get; set; }
+    public IEnumerable<FacturaCompraItemResponse> Items { get; set; } = [];
 }

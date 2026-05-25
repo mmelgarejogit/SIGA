@@ -56,6 +56,61 @@ public class ComprasService(AppDbContext db) : IComprasService
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // Editar pedido en Borrador (proveedor, observaciones e ítems)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    public async Task<Result<PedidoResponse>> EditarPedidoAsync(int id, CrearPedidoRequest request)
+    {
+        var pedido = await db.PedidosProveedor
+            .Include(p => p.Items)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pedido is null)
+            return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
+
+        if (pedido.Estado != EstadoPedido.Borrador)
+            return Result<PedidoResponse>.Failure("Solo se pueden editar pedidos en estado Borrador.", ErrorType.Validation);
+
+        var proveedor = await db.Proveedores.FindAsync(request.ProveedorId);
+        if (proveedor is null)
+            return Result<PedidoResponse>.Failure("Proveedor no encontrado.", ErrorType.NotFound);
+
+        var items = request.Items.ToList();
+        if (items.Count == 0)
+            return Result<PedidoResponse>.Failure("El pedido debe tener al menos un ítem.", ErrorType.Validation);
+
+        foreach (var item in items)
+        {
+            if (item.Cantidad <= 0)
+                return Result<PedidoResponse>.Failure("La cantidad de cada ítem debe ser mayor a cero.", ErrorType.Validation);
+
+            if (item.PrecioUnitario < 0)
+                return Result<PedidoResponse>.Failure("El precio unitario no puede ser negativo.", ErrorType.Validation);
+
+            var existe = await db.Productos.AnyAsync(p => p.Id == item.ProductoId && p.IsActive);
+            if (!existe)
+                return Result<PedidoResponse>.Failure($"Producto {item.ProductoId} no encontrado.", ErrorType.NotFound);
+        }
+
+        pedido.ProveedorId   = request.ProveedorId;
+        pedido.Observaciones = request.Observaciones?.Trim();
+        pedido.UpdatedAt     = DateTime.UtcNow;
+
+        // Reemplazar ítems completamente (más simple y predecible que diffing)
+        db.PedidosProveedorItems.RemoveRange(pedido.Items);
+        pedido.Items = items.Select(i => new PedidoProveedorItem
+        {
+            ProductoId     = i.ProductoId,
+            Cantidad       = i.Cantidad,
+            PrecioUnitario = i.PrecioUnitario,
+        }).ToList();
+
+        await db.SaveChangesAsync();
+
+        return Result<PedidoResponse>.Success(await LoadAndMapAsync(id));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // Confirmar pedido: Borrador → Confirmada
     // ─────────────────────────────────────────────────────────────────────────────
 
@@ -81,7 +136,10 @@ public class ComprasService(AppDbContext db) : IComprasService
 
     public async Task<Result<PedidoResponse>> RegistrarFacturaAsync(int id, RegistrarFacturaPedidoRequest request)
     {
-        var pedido = await db.PedidosProveedor.Include(p => p.Proveedor).FirstOrDefaultAsync(p => p.Id == id);
+        var pedido = await db.PedidosProveedor
+            .Include(p => p.Proveedor)
+            .Include(p => p.Items).ThenInclude(i => i.Producto)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
@@ -114,20 +172,27 @@ public class ComprasService(AppDbContext db) : IComprasService
         if (!Enum.TryParse<CondicionVenta>(request.CondicionVenta, ignoreCase: true, out var condicion))
             return Result<PedidoResponse>.Failure("Condición de venta inválida. Valores: Contado, Credito.", ErrorType.Validation);
 
+        // Construir ítems: desde el request si se enviaron, sino copiar desde OC con IVA 10%
+        var facturaItems = BuildFacturaItems(request.Items, pedido.Items);
+
+        // Calcular montos fiscales desde los ítems
+        var (exento, gravado5, gravado10) = FacturaMontoCalculator.ComputeFromItems(facturaItems);
+
         var factura = new FacturaCompra
         {
             ProveedorId       = pedido.ProveedorId,
             PedidoProveedorId = id,
             NroFactura        = nroFactura,
-            MontoExento       = request.MontoExento,
-            MontoGravado5     = request.MontoGravado5,
-            MontoGravado10    = request.MontoGravado10,
+            MontoExento       = exento,
+            MontoGravado5     = gravado5,
+            MontoGravado10    = gravado10,
             CondicionVenta    = condicion,
             Concepto          = $"Factura de compra — OC #{id} — {pedido.Proveedor.Nombre}",
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
             Estado            = EstadoEgreso.Pendiente,
+            Items             = facturaItems,
         };
         factura.Monto = factura.MontoTotal;
 
@@ -138,80 +203,6 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         await db.SaveChangesAsync();
 
-        return Result<PedidoResponse>.Success(await LoadAndMapAsync(id));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────────
-    // Registrar recepción: Facturada → RecibidaParcial/RecibidaTotal
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    public async Task<Result<PedidoResponse>> RegistrarRecepcionAsync(int id, RegistrarRecepcionRequest request)
-    {
-        var pedido = await db.PedidosProveedor
-            .Include(p => p.Items).ThenInclude(i => i.Producto)
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (pedido is null)
-            return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
-
-        if (pedido.Estado != EstadoPedido.Facturada && pedido.Estado != EstadoPedido.RecibidaParcial)
-            return Result<PedidoResponse>.Failure(
-                "Solo se puede registrar recepción en pedidos Facturados o Recibidos Parcialmente.",
-                ErrorType.Validation);
-
-        var recepciones = request.Items.ToList();
-        if (recepciones.Count == 0)
-            return Result<PedidoResponse>.Failure("Debe indicar al menos un ítem a recibir.", ErrorType.Validation);
-
-        var recepcion = new RecepcionMercaderia
-        {
-            PedidoProveedorId = id,
-            Observaciones     = request.Observaciones?.Trim(),
-        };
-
-        foreach (var rec in recepciones)
-        {
-            var item = pedido.Items.FirstOrDefault(i => i.Id == rec.ItemId);
-            if (item is null)
-                return Result<PedidoResponse>.Failure($"Ítem {rec.ItemId} no pertenece a este pedido.", ErrorType.Validation);
-
-            if (rec.CantidadRecibida <= 0)
-                return Result<PedidoResponse>.Failure("La cantidad recibida debe ser mayor a cero.", ErrorType.Validation);
-
-            var pendiente = item.Cantidad - item.CantidadRecibida;
-            if (rec.CantidadRecibida > pendiente)
-                return Result<PedidoResponse>.Failure(
-                    $"La cantidad recibida para el ítem {rec.ItemId} supera la cantidad pendiente ({pendiente}).",
-                    ErrorType.Validation);
-
-            recepcion.Items.Add(new RecepcionMercaderiaItem
-            {
-                PedidoItemId = item.Id,
-                Cantidad     = rec.CantidadRecibida,
-            });
-
-            item.CantidadRecibida += rec.CantidadRecibida;
-
-            item.Producto.StockActual += rec.CantidadRecibida;
-            item.Producto.UpdatedAt   =  DateTime.UtcNow;
-
-            db.MovimientosStock.Add(new MovimientoStock
-            {
-                ProductoId = item.ProductoId,
-                Tipo       = "Entrada",
-                Cantidad   = rec.CantidadRecibida,
-                Motivo     = $"Recepción — OC #{pedido.Id}",
-            });
-        }
-
-        db.RecepcionesMercaderia.Add(recepcion);
-
-        pedido.Estado    = pedido.Items.All(i => i.CantidadRecibida >= i.Cantidad)
-            ? EstadoPedido.RecibidaTotal
-            : EstadoPedido.RecibidaParcial;
-        pedido.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync();
         return Result<PedidoResponse>.Success(await LoadAndMapAsync(id));
     }
 
@@ -303,6 +294,7 @@ public class ComprasService(AppDbContext db) : IComprasService
             .Include(p => p.Proveedor)
             .Include(p => p.Items).ThenInclude(i => i.Producto)
             .Include(p => p.Devoluciones).ThenInclude(d => d.Item).ThenInclude(i => i.Producto)
+            .Include(p => p.Recepciones).ThenInclude(r => r.User).ThenInclude(u => u.Person)
             .Include(p => p.Recepciones).ThenInclude(r => r.Items).ThenInclude(ri => ri.PedidoItem).ThenInclude(pi => pi.Producto)
             .OrderByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -332,6 +324,7 @@ public class ComprasService(AppDbContext db) : IComprasService
             .Include(p => p.Proveedor)
             .Include(p => p.Items).ThenInclude(i => i.Producto)
             .Include(p => p.Devoluciones).ThenInclude(d => d.Item).ThenInclude(i => i.Producto)
+            .Include(p => p.Recepciones).ThenInclude(r => r.User).ThenInclude(u => u.Person)
             .Include(p => p.Recepciones).ThenInclude(r => r.Items).ThenInclude(ri => ri.PedidoItem).ThenInclude(pi => pi.Producto)
             .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -370,12 +363,45 @@ public class ComprasService(AppDbContext db) : IComprasService
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Si el request trae ítems explícitos, los convierte; si no, copia los ítems de la OC con IVA 10%.
+    /// </summary>
+    private static List<FacturaCompraItem> BuildFacturaItems(
+        List<FacturaCompraItemRequest>? requestItems,
+        ICollection<PedidoProveedorItem> pedidoItems)
+    {
+        if (requestItems is { Count: > 0 })
+        {
+            return requestItems.Select(i => new FacturaCompraItem
+            {
+                ProductoId     = i.ProductoId,
+                Descripcion    = i.Descripcion.Trim(),
+                Cantidad       = i.Cantidad,
+                PrecioUnitario = i.PrecioUnitario,
+                TipoIva        = Enum.TryParse<TipoIvaFactura>(i.TipoIva, ignoreCase: true, out var t)
+                                    ? t
+                                    : TipoIvaFactura.Iva10,
+            }).ToList();
+        }
+
+        // Auto-copiar desde la OC con IVA 10%
+        return pedidoItems.Select(i => new FacturaCompraItem
+        {
+            ProductoId     = i.ProductoId,
+            Descripcion    = i.Producto?.Nombre ?? $"Producto {i.ProductoId}",
+            Cantidad       = i.Cantidad,
+            PrecioUnitario = i.PrecioUnitario,
+            TipoIva        = TipoIvaFactura.Iva10,
+        }).ToList();
+    }
+
     private async Task<PedidoResponse> LoadAndMapAsync(int id)
     {
         var pedido = await db.PedidosProveedor
             .Include(p => p.Proveedor)
             .Include(p => p.Items).ThenInclude(i => i.Producto)
             .Include(p => p.Devoluciones).ThenInclude(d => d.Item).ThenInclude(i => i.Producto)
+            .Include(p => p.Recepciones).ThenInclude(r => r.User).ThenInclude(u => u.Person)
             .Include(p => p.Recepciones).ThenInclude(r => r.Items).ThenInclude(ri => ri.PedidoItem).ThenInclude(pi => pi.Producto)
             .FirstAsync(p => p.Id == id);
 
@@ -413,14 +439,21 @@ public class ComprasService(AppDbContext db) : IComprasService
         }),
         Recepciones = p.Recepciones.OrderByDescending(r => r.CreatedAt).Select(r => new RecepcionComprasResponse
         {
-            Id            = r.Id,
-            Observaciones = r.Observaciones,
-            CreatedAt     = r.CreatedAt,
-            Items         = r.Items.Select(ri => new RecepcionComprasItemResponse
+            Id             = r.Id,
+            FechaRecepcion = r.FechaRecepcion.ToString("yyyy-MM-dd"),
+            UsuarioNombre  = r.User.Person is not null
+                                ? $"{r.User.Person.FirstName} {r.User.Person.LastName}".Trim()
+                                : $"Usuario #{r.UserId}",
+            Observaciones  = r.Observaciones,
+            CreatedAt      = r.CreatedAt,
+            Items          = r.Items.Select(ri => new RecepcionComprasItemResponse
             {
-                PedidoItemId   = ri.PedidoItemId,
-                ProductoNombre = ri.PedidoItem.Producto.Nombre,
-                Cantidad       = ri.Cantidad,
+                PedidoItemId     = ri.PedidoItemId,
+                ProductoNombre   = ri.PedidoItem.Producto.Nombre,
+                Cantidad         = ri.Cantidad,
+                Lote             = ri.Lote,
+                FechaVencimiento = ri.FechaVencimiento?.ToString("yyyy-MM-dd"),
+                Observaciones    = ri.Observaciones,
             }),
         }),
         Factura = factura is null ? null : new PedidoFacturaResponse

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260525191000_024_FacturaCompraItems")]
+    partial class _024_FacturaCompraItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -455,43 +458,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("estados_config", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompraItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Cantidad")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Descripcion")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<int>("FacturaCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("PrecioUnitario")
-                        .HasColumnType("numeric(18,0)");
-
-                    b.Property<int?>("ProductoId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TipoIva")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FacturaCompraId");
-
-                    b.HasIndex("ProductoId");
-
-                    b.ToTable("FacturaCompraItems", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaVenta", b =>
@@ -1138,29 +1104,15 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("FacturaCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("FechaRecepcion")
-                        .HasColumnType("date");
-
                     b.Property<string>("Observaciones")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<int>("PedidoProveedorId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("FacturaCompraId");
-
                     b.HasIndex("PedidoProveedorId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("RecepcionesMercaderia");
                 });
@@ -1175,17 +1127,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
-
-                    b.Property<DateOnly?>("FechaVencimiento")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Lote")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("PedidoItemId")
                         .HasColumnType("integer");
@@ -1579,10 +1520,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("MontoGravado5")
                         .HasColumnType("numeric(18,0)");
 
-                    b.Property<string>("MotivoAnulacion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("NroFactura")
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
@@ -1598,6 +1535,43 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProveedorId");
 
                     b.HasDiscriminator().HasValue(0);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompraItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("FacturaCompraId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasColumnType("numeric(18,0)");
+
+                    b.Property<int?>("ProductoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TipoIva")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FacturaCompraId");
+
+                    b.HasIndex("ProductoId");
+
+                    b.ToTable("FacturaCompraItems");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.GastoGeneral", b =>
@@ -1703,24 +1677,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Item");
 
                     b.Navigation("PedidoProveedor");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompraItem", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.FacturaCompra", "FacturaCompra")
-                        .WithMany("Items")
-                        .HasForeignKey("FacturaCompraId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SIGA.Domain.Entities.Producto", "Producto")
-                        .WithMany()
-                        .HasForeignKey("ProductoId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("FacturaCompra");
-
-                    b.Navigation("Producto");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaVenta", b =>
@@ -1906,28 +1862,13 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderia", b =>
                 {
-                    b.HasOne("SIGA.Domain.Entities.FacturaCompra", "FacturaCompra")
-                        .WithMany()
-                        .HasForeignKey("FacturaCompraId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SIGA.Domain.Entities.PedidoProveedor", "PedidoProveedor")
                         .WithMany("Recepciones")
                         .HasForeignKey("PedidoProveedorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SIGA.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("FacturaCompra");
-
                     b.Navigation("PedidoProveedor");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.RecepcionMercaderiaItem", b =>
@@ -2095,6 +2036,29 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Proveedor");
                 });
 
+            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompraItem", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.FacturaCompra", "FacturaCompra")
+                        .WithMany("Items")
+                        .HasForeignKey("FacturaCompraId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("FacturaCompra");
+
+                    b.Navigation("Producto");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("SIGA.Domain.Entities.GastoGeneral", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.CategoriaGasto", "CategoriaGasto")
@@ -2236,11 +2200,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Factura");
 
                     b.Navigation("Lineas");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>
-                {
-                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

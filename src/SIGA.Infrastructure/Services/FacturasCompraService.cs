@@ -24,7 +24,10 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
         int page,
         int pageSize)
     {
-        var query = db.FacturasCompra.Include(f => f.Proveedor).AsQueryable();
+        var query = db.FacturasCompra
+            .Include(f => f.Proveedor)
+            .Include(f => f.Items).ThenInclude(i => i.Producto)
+            .AsQueryable();
 
         if (proveedorId.HasValue)
             query = query.Where(f => f.ProveedorId == proveedorId.Value);
@@ -106,6 +109,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
     {
         var factura = await db.FacturasCompra
             .Include(f => f.Proveedor)
+            .Include(f => f.Items).ThenInclude(i => i.Producto)
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (factura is null)
@@ -152,28 +156,89 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 "Condición de venta inválida. Valores: Contado, Credito.",
                 ErrorType.Validation);
 
+        var items = request.Items.Select(i => new FacturaCompraItem
+        {
+            ProductoId     = i.ProductoId,
+            Descripcion    = i.Descripcion.Trim(),
+            Cantidad       = i.Cantidad,
+            PrecioUnitario = i.PrecioUnitario,
+            TipoIva        = Enum.TryParse<TipoIvaFactura>(i.TipoIva, ignoreCase: true, out var t)
+                                ? t
+                                : TipoIvaFactura.Iva10,
+        }).ToList();
+
+        // Validar que los productoIds referencien productos existentes y activos
+        var productoIds = items.Where(i => i.ProductoId.HasValue).Select(i => i.ProductoId!.Value).Distinct().ToList();
+        if (productoIds.Count > 0)
+        {
+            var existentes = await db.Productos
+                .Where(p => productoIds.Contains(p.Id) && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync();
+            var faltantes = productoIds.Except(existentes).ToList();
+            if (faltantes.Count > 0)
+                return Result<FacturaCompraResponse>.Failure(
+                    $"Producto(s) no encontrado(s) o inactivo(s): {string.Join(", ", faltantes)}.",
+                    ErrorType.NotFound);
+        }
+
+        // Calcular montos fiscales desde los ítems
+        var (exento, gravado5, gravado10) = FacturaMontoCalculator.ComputeFromItems(items);
+
         var factura = new FacturaCompra
         {
-            ProveedorId      = request.ProveedorId,
-            PedidoProveedorId = null,            // compra directa
-            NroFactura       = nroFactura,
-            MontoExento      = request.MontoExento,
-            MontoGravado5    = request.MontoGravado5,
-            MontoGravado10   = request.MontoGravado10,
-            CondicionVenta   = condicion,
-            Concepto         = $"Factura de compra directa — {nroFactura} — {proveedor.Nombre}",
-            Observaciones    = request.Observaciones?.Trim(),
-            FechaEmision     = fechaEmision,
-            FechaVencimiento = fechaVencimiento,
-            Estado           = EstadoEgreso.Pendiente,
+            ProveedorId       = request.ProveedorId,
+            PedidoProveedorId = null,
+            NroFactura        = nroFactura,
+            MontoExento       = exento,
+            MontoGravado5     = gravado5,
+            MontoGravado10    = gravado10,
+            CondicionVenta    = condicion,
+            Concepto          = $"Factura de compra directa — {nroFactura} — {proveedor.Nombre}",
+            Observaciones     = request.Observaciones?.Trim(),
+            FechaEmision      = fechaEmision,
+            FechaVencimiento  = fechaVencimiento,
+            Estado            = EstadoEgreso.Pendiente,
+            Items             = items,
         };
         factura.Monto = factura.MontoTotal;
+
+        // Ítems con producto → ingresan al stock automáticamente
+        var stockEntries = items
+            .Where(i => i.ProductoId.HasValue)
+            .GroupBy(i => i.ProductoId!.Value)
+            .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+            .ToList();
+
+        if (stockEntries.Count > 0)
+        {
+            var productos = await db.Productos
+                .Where(p => stockEntries.Select(s => s.ProductoId).Contains(p.Id))
+                .ToListAsync();
+
+            foreach (var entry in stockEntries)
+            {
+                var producto = productos.First(p => p.Id == entry.ProductoId);
+                producto.StockActual += entry.Cantidad;
+                producto.UpdatedAt   =  DateTime.UtcNow;
+
+                db.MovimientosStock.Add(new MovimientoStock
+                {
+                    ProductoId = producto.Id,
+                    Tipo       = "Entrada",
+                    Cantidad   = entry.Cantidad,
+                    Motivo     = $"Factura directa {nroFactura} — {proveedor.Nombre}",
+                });
+            }
+        }
 
         db.FacturasCompra.Add(factura);
         await db.SaveChangesAsync();
 
-        // Recargar con Proveedor
+        // Recargar con Proveedor e ítems
         await db.Entry(factura).Reference(f => f.Proveedor).LoadAsync();
+        await db.Entry(factura).Collection(f => f.Items).Query()
+            .Include(i => i.Producto).LoadAsync();
 
         return Result<FacturaCompraResponse>.Success(ToResponse(factura, false));
     }
@@ -186,6 +251,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
     {
         var factura = await db.FacturasCompra
             .Include(f => f.Proveedor)
+            .Include(f => f.Items)
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (factura is null)
@@ -197,7 +263,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result<FacturaCompraResponse>.Failure("El motivo de anulación es obligatorio.", ErrorType.Validation);
 
-        // Verificar recepciones (solo aplica si está vinculada a una OC)
+        // ── Caso ConOC: revertir OC, bloquear si hay recepciones ─────────────
         if (factura.PedidoProveedorId.HasValue)
         {
             var tieneRecepciones = await db.RecepcionesMercaderia
@@ -208,12 +274,59 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                     "No se puede anular la factura porque el pedido tiene recepciones registradas.",
                     ErrorType.Validation);
 
-            // Revertir OC a estado Confirmada
             var pedido = await db.PedidosProveedor.FindAsync(factura.PedidoProveedorId.Value);
             if (pedido is not null && pedido.Estado == EstadoPedido.Facturada)
             {
                 pedido.Estado    = EstadoPedido.Confirmada;
                 pedido.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        // ── Caso Directa: revertir stock si hubo ítems con producto ──────────
+        else
+        {
+            var stockEntries = factura.Items
+                .Where(i => i.ProductoId.HasValue)
+                .GroupBy(i => i.ProductoId!.Value)
+                .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+                .ToList();
+
+            if (stockEntries.Count > 0)
+            {
+                var productoIds = stockEntries.Select(s => s.ProductoId).ToList();
+                var productos = await db.Productos
+                    .Where(p => productoIds.Contains(p.Id))
+                    .ToListAsync();
+
+                // Validar stock disponible
+                var insuficientes = new List<string>();
+                foreach (var entry in stockEntries)
+                {
+                    var producto = productos.FirstOrDefault(p => p.Id == entry.ProductoId);
+                    if (producto is null)
+                        insuficientes.Add($"Producto #{entry.ProductoId} (no existe)");
+                    else if (producto.StockActual < entry.Cantidad)
+                        insuficientes.Add($"\"{producto.Nombre}\" (disponible: {producto.StockActual}, necesario: {entry.Cantidad})");
+                }
+                if (insuficientes.Count > 0)
+                    return Result<FacturaCompraResponse>.Failure(
+                        "No se puede anular: stock insuficiente para revertir. " + string.Join("; ", insuficientes),
+                        ErrorType.Validation);
+
+                // Aplicar reversa
+                foreach (var entry in stockEntries)
+                {
+                    var producto = productos.First(p => p.Id == entry.ProductoId);
+                    producto.StockActual -= entry.Cantidad;
+                    producto.UpdatedAt   =  DateTime.UtcNow;
+
+                    db.MovimientosStock.Add(new MovimientoStock
+                    {
+                        ProductoId = producto.Id,
+                        Tipo       = "Salida",
+                        Cantidad   = entry.Cantidad,
+                        Motivo     = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",
+                    });
+                }
             }
         }
 
@@ -252,6 +365,16 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
         MotivoAnulacion   = f.MotivoAnulacion,
         CreatedAt         = f.CreatedAt,
         TieneRecepciones  = tieneRecepciones,
+        Items             = f.Items.Select(i => new FacturaCompraItemResponse
+        {
+            Id             = i.Id,
+            ProductoId     = i.ProductoId,
+            Descripcion    = i.Descripcion,
+            Cantidad       = i.Cantidad,
+            PrecioUnitario = i.PrecioUnitario,
+            Total          = i.Total,
+            TipoIva        = i.TipoIva.ToString(),
+        }),
     };
 
     private static FacturaCompraResponse ToResponse(FacturaCompra f, HashSet<int> pedidosConRecepciones)

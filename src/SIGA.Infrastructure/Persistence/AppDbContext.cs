@@ -39,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CategoriaGasto> CategoriasGasto => Set<CategoriaGasto>();
     public DbSet<Egreso> Egresos => Set<Egreso>();
     public DbSet<FacturaCompra> FacturasCompra => Set<FacturaCompra>();
+    public DbSet<FacturaCompraItem> FacturaCompraItems => Set<FacturaCompraItem>();
     public DbSet<Honorario> Honorarios => Set<Honorario>();
     public DbSet<GastoGeneral> GastosGenerales => Set<GastoGeneral>();
     public DbSet<Servicio> Servicios => Set<Servicio>();

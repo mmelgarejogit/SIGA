@@ -14,27 +14,18 @@ public class RegistrarFacturaPedidoRequest : IValidatableObject
 
     public string? FechaVencimiento { get; set; }
 
-    [Range(0, double.MaxValue, ErrorMessage = "El monto exento no puede ser negativo.")]
-    public decimal MontoExento { get; set; }
-
-    [Range(0, double.MaxValue, ErrorMessage = "El monto gravado 5% no puede ser negativo.")]
-    public decimal MontoGravado5 { get; set; }
-
-    [Range(0, double.MaxValue, ErrorMessage = "El monto gravado 10% no puede ser negativo.")]
-    public decimal MontoGravado10 { get; set; }
-
     [Required(ErrorMessage = "La condición de venta es obligatoria.")]
     public string CondicionVenta { get; set; } = "Contado";
 
     public string? Observaciones { get; set; }
 
+    /// <summary>
+    /// Ítems de la factura. Si se omite, se copian automáticamente desde la OC con IVA 10%.
+    /// </summary>
+    public List<FacturaCompraItemRequest>? Items { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (MontoExento <= 0 && MontoGravado5 <= 0 && MontoGravado10 <= 0)
-            yield return new ValidationResult(
-                "Al menos uno de los montos debe ser mayor a 0.",
-                [nameof(MontoExento), nameof(MontoGravado5), nameof(MontoGravado10)]);
-
         if (CondicionVenta?.Equals("Credito", StringComparison.OrdinalIgnoreCase) == true
             && string.IsNullOrWhiteSpace(FechaVencimiento))
             yield return new ValidationResult(

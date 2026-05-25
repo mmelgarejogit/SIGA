@@ -18,31 +18,26 @@ public class RegistrarFacturaDirectaRequest : IValidatableObject
 
     public string? FechaVencimiento { get; set; }
 
-    [Range(0, double.MaxValue, ErrorMessage = "El monto exento no puede ser negativo.")]
-    public decimal MontoExento { get; set; }
-
-    [Range(0, double.MaxValue, ErrorMessage = "El monto gravado 5% no puede ser negativo.")]
-    public decimal MontoGravado5 { get; set; }
-
-    [Range(0, double.MaxValue, ErrorMessage = "El monto gravado 10% no puede ser negativo.")]
-    public decimal MontoGravado10 { get; set; }
-
     [Required(ErrorMessage = "La condición de venta es obligatoria.")]
     public string CondicionVenta { get; set; } = "Contado";
 
     public string? Observaciones { get; set; }
 
+    [MinLength(1, ErrorMessage = "Debe incluir al menos un ítem en la factura.")]
+    public List<FacturaCompraItemRequest> Items { get; set; } = [];
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (MontoExento <= 0 && MontoGravado5 <= 0 && MontoGravado10 <= 0)
-            yield return new ValidationResult(
-                "Al menos uno de los montos debe ser mayor a 0.",
-                [nameof(MontoExento), nameof(MontoGravado5), nameof(MontoGravado10)]);
-
         if (CondicionVenta?.Equals("Credito", StringComparison.OrdinalIgnoreCase) == true
             && string.IsNullOrWhiteSpace(FechaVencimiento))
             yield return new ValidationResult(
                 "La fecha de vencimiento es obligatoria para facturas a crédito.",
                 [nameof(FechaVencimiento)]);
+
+        var total = Items.Sum(i => i.Cantidad * i.PrecioUnitario);
+        if (total <= 0)
+            yield return new ValidationResult(
+                "El total de los ítems debe ser mayor a 0.",
+                [nameof(Items)]);
     }
 }

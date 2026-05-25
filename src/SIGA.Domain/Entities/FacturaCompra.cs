@@ -20,6 +20,8 @@ public class FacturaCompra : Egreso
 
     public string? MotivoAnulacion { get; set; }
 
+    public ICollection<FacturaCompraItem> Items { get; set; } = [];
+
     public FacturaCompra()
     {
         Tipo = TipoEgreso.FacturaCompra;
