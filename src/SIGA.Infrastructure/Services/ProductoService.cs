@@ -262,6 +262,91 @@ public class ProductoService(AppDbContext db) : IProductoService
         });
     }
 
+    public async Task<Result<ProductoResponse>> UpdateStockInfoAsync(int id, UpdateStockInfoRequest request)
+    {
+        var producto = await db.Productos
+            .Include(p => p.Marca)
+            .Include(p => p.Modelo)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null)
+            return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
+
+        if (request.PrecioCosto < 0)
+            return Result<ProductoResponse>.Failure("El precio de costo no puede ser negativo.", ErrorType.Validation);
+
+        if (request.StockMinimo < 0)
+            return Result<ProductoResponse>.Failure("El stock mínimo no puede ser negativo.", ErrorType.Validation);
+
+        var margen = await db.CategoriasProducto
+            .Where(c => c.Nombre == producto.Categoria)
+            .Select(c => c.Margen)
+            .FirstOrDefaultAsync();
+
+        producto.PrecioCosto = request.PrecioCosto;
+        producto.StockMinimo = request.StockMinimo;
+        producto.PrecioVenta = margen > 0
+            ? Math.Round(request.PrecioCosto * (1 + margen / 100m), 2)
+            : producto.PrecioVenta;
+        producto.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        var descuento = await db.CategoriasProducto
+            .Where(c => c.Nombre == producto.Categoria)
+            .Select(c => c.Descuento)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
+    }
+
+    public async Task<Result<string>> UploadImagenAsync(int id, Stream stream, string fileName)
+    {
+        var producto = await db.Productos.FindAsync(id);
+        if (producto is null)
+            return Result<string>.Failure("Producto no encontrado.", ErrorType.NotFound);
+
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+            return Result<string>.Failure("Formato no soportado. Use JPG, PNG o WEBP.", ErrorType.Validation);
+
+        var uploadsDir = Path.Combine("wwwroot", "uploads", "productos");
+        Directory.CreateDirectory(uploadsDir);
+
+        // Delete previous image file if exists
+        if (!string.IsNullOrEmpty(producto.ImagenUrl))
+        {
+            var old = Path.Combine("wwwroot", producto.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(old)) File.Delete(old);
+        }
+
+        var newFile = $"{id}{ext}";
+        var path = Path.Combine(uploadsDir, newFile);
+        await using var fs = File.Create(path);
+        await stream.CopyToAsync(fs);
+
+        producto.ImagenUrl = $"/uploads/productos/{newFile}";
+        await db.SaveChangesAsync();
+
+        return Result<string>.Success(producto.ImagenUrl);
+    }
+
+    public async Task<Result<bool>> DeleteImagenAsync(int id)
+    {
+        var producto = await db.Productos.FindAsync(id);
+        if (producto is null)
+            return Result<bool>.Failure("Producto no encontrado.", ErrorType.NotFound);
+
+        if (!string.IsNullOrEmpty(producto.ImagenUrl))
+        {
+            var path = Path.Combine("wwwroot", producto.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(path)) File.Delete(path);
+        }
+
+        producto.ImagenUrl = null;
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
     private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria = 0) => new()
     {
         Id           = p.Id,
@@ -284,6 +369,7 @@ public class ProductoService(AppDbContext db) : IProductoService
         Color        = p.Color,
         Talle        = p.Talle,
         Descripcion  = p.Descripcion,
+        ImagenUrl    = p.ImagenUrl,
     };
 
     private static MovimientoStockResponse ToMovimientoResponse(MovimientoStock m, string productoNombre) => new()
@@ -315,6 +401,7 @@ public class ProductoService(AppDbContext db) : IProductoService
             Id             = c.Id,
             Nombre         = c.Nombre,
             Descripcion    = c.Descripcion,
+            Margen         = c.Margen,
             Descuento      = c.Descuento,
             IsActive       = c.IsActive,
             TotalProductos = counts.FirstOrDefault(x => x.Nombre == c.Nombre)?.Total ?? 0,
@@ -329,6 +416,9 @@ public class ProductoService(AppDbContext db) : IProductoService
         if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre))
             return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
 
+        if (request.Margen < 0 || request.Margen > 1000)
+            return Result<CategoriaProductoResponse>.Failure("El margen debe estar entre 0 y 1000.", ErrorType.Validation);
+
         if (request.Descuento < 0 || request.Descuento > 100)
             return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
 
@@ -336,6 +426,7 @@ public class ProductoService(AppDbContext db) : IProductoService
         {
             Nombre      = nombre,
             Descripcion = request.Descripcion?.Trim(),
+            Margen      = request.Margen,
             Descuento   = request.Descuento,
             IsActive    = true,
             CreatedAt   = DateTime.UtcNow,
@@ -347,7 +438,7 @@ public class ProductoService(AppDbContext db) : IProductoService
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
         {
             Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
-            Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = 0,
+            Margen = cat.Margen, Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = 0,
         });
     }
 
@@ -361,11 +452,15 @@ public class ProductoService(AppDbContext db) : IProductoService
         if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre && c.Id != id))
             return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
 
+        if (request.Margen < 0 || request.Margen > 1000)
+            return Result<CategoriaProductoResponse>.Failure("El margen debe estar entre 0 y 1000.", ErrorType.Validation);
+
         if (request.Descuento < 0 || request.Descuento > 100)
             return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
 
         cat.Nombre      = nombre;
         cat.Descripcion = request.Descripcion?.Trim();
+        cat.Margen      = request.Margen;
         cat.Descuento   = request.Descuento;
         cat.IsActive    = request.IsActive;
 
@@ -375,7 +470,7 @@ public class ProductoService(AppDbContext db) : IProductoService
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
         {
             Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
-            Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = total,
+            Margen = cat.Margen, Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = total,
         });
     }
 

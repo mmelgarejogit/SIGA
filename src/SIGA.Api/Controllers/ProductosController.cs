@@ -82,6 +82,39 @@ public class ProductosController(IProductoService productoService) : BaseControl
         return ToHttpResponse(result);
     }
 
+    [HttpPut("{id:int}/stock")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> UpdateStockInfo(int id, [FromBody] UpdateStockInfoRequest request)
+    {
+        var result = await productoService.UpdateStockInfoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    // ── Imágenes ──────────────────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/imagen")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> UploadImagen(int id, IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "No se recibió ningún archivo." });
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest(new { message = "El archivo no puede superar los 5 MB." });
+
+        await using var stream = file.OpenReadStream();
+        var result = await productoService.UploadImagenAsync(id, stream, file.FileName);
+        return ToHttpResponse(result);
+    }
+
+    [HttpDelete("{id:int}/imagen")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> DeleteImagen(int id)
+    {
+        var result = await productoService.DeleteImagenAsync(id);
+        return ToHttpResponse(result);
+    }
+
     // ── Categorías ────────────────────────────────────────────────────────────
 
     [HttpGet("categorias")]
