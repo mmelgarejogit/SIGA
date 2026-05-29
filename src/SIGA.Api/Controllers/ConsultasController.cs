@@ -104,6 +104,14 @@ public class ConsultasController : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpPatch("{id:int}/estado")]
+    [Authorize(Policy = "editar_consulta")]
+    public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoConsultaRequest request)
+    {
+        var result = await _service.CambiarEstadoAsync(id, request.EstadoConfigId);
+        return ToHttpResponse(result);
+    }
+
     [HttpPost("{id:int}/receta")]
     [Authorize(Policy = "editar_consulta")]
     public async Task<IActionResult> CreateOrUpdateReceta(int id, [FromBody] CreateRecetaRequest request)
