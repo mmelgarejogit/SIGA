@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260529013254_024_MovimientoStockEstados")]
+    partial class _024_MovimientoStockEstados
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,36 +49,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("bloqueos_fecha", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.CargoEmpleado", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Activo")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("cargos_empleado", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.CategoriaGasto", b =>
@@ -392,9 +365,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("FechaAprobacion")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateOnly>("FechaEmision")
                         .HasColumnType("date");
 
@@ -409,14 +379,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal>("Monto")
                         .HasColumnType("numeric(18,0)");
-
-                    b.Property<string>("MotivoRechazo")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("NroComprobante")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Observaciones")
                         .HasMaxLength(1000)
@@ -435,50 +397,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasDiscriminator<int>("Tipo");
 
                     b.UseTphMappingStrategy();
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Empleado", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CargoId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly?>("FechaEgreso")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("FechaIngreso")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<decimal?>("SalarioBase")
-                        .HasColumnType("numeric(18,0)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CargoId");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("empleados", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Especialidad", b =>
@@ -1777,28 +1695,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasDiscriminator().HasValue(1);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.SalarioEmpleado", b =>
-                {
-                    b.HasBaseType("SIGA.Domain.Entities.Egreso");
-
-                    b.Property<int>("EmpleadoId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Periodo")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasIndex("EmpleadoId");
-
-                    b.ToTable("egresos", t =>
-                        {
-                            t.Property("Periodo")
-                                .HasColumnName("SalarioEmpleado_Periodo");
-                        });
-
-                    b.HasDiscriminator().HasValue(3);
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.BloqueoFecha", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Professional", "Professional")
@@ -1874,25 +1770,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Item");
 
                     b.Navigation("PedidoProveedor");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.Empleado", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.CargoEmpleado", "Cargo")
-                        .WithMany("Empleados")
-                        .HasForeignKey("CargoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SIGA.Domain.Entities.User", "User")
-                        .WithOne()
-                        .HasForeignKey("SIGA.Domain.Entities.Empleado", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Cargo");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompraItem", b =>
@@ -2312,22 +2189,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Professional");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.SalarioEmpleado", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Empleado", "Empleado")
-                        .WithMany()
-                        .HasForeignKey("EmpleadoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Empleado");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.CargoEmpleado", b =>
-                {
-                    b.Navigation("Empleados");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.CategoriaGasto", b =>

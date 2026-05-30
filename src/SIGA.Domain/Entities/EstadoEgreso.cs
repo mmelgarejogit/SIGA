@@ -6,4 +6,6 @@ public enum EstadoEgreso
     Pendiente = 1,
     Pagado    = 2,
     Anulado   = 3,
+    Aprobado  = 4,
+    Rechazado = 5,
 }

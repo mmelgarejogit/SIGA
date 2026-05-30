@@ -11,8 +11,10 @@ public interface IProductoService
     Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request);
     Task<Result<bool>> DeactivateAsync(int id);
     Task<Result<MovimientoStockResponse>> RegistrarMovimientoAsync(int productoId, CreateMovimientoStockRequest request);
+    Task<Result<MovimientoStockResponse>> AprobarRechazarMovimientoAsync(int id, AprobarRechazarMovimientoRequest request);
+    Task<Result<MovimientoStockResponse>> GetMovimientoByIdAsync(int id);
     Task<Result<IEnumerable<MovimientoStockResponse>>> GetMovimientosAsync(int productoId);
-    Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(int page, int pageSize, string? tipo);
+    Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(int page, int pageSize, string? tipo, string? estado);
 
     Task<Result<ProductoResponse>> UpdateStockInfoAsync(int id, UpdateStockInfoRequest request);
     Task<Result<string>> UploadImagenAsync(int id, Stream stream, string fileName);

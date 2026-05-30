@@ -1,14 +1,22 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Inventario;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 using SIGA.Infrastructure.Persistence;
+using System.Security.Claims;
 
 namespace SIGA.Infrastructure.Services;
 
-public class ProductoService(AppDbContext db) : IProductoService
+public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProductoService
 {
+    private string? CurrentUserId =>
+        http.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    private string? CurrentUserName =>
+        http.HttpContext?.User.FindFirstValue("name");
+
     public async Task<Result<PagedResult<ProductoResponse>>> GetAllAsync(
         int page, int pageSize, string? search, string? categoria, bool? bajoStock)
     {
@@ -189,36 +197,86 @@ public class ProductoService(AppDbContext db) : IProductoService
         if (producto is null)
             return Result<MovimientoStockResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        if (!new[] { "Entrada", "Salida", "Ajuste" }.Contains(request.Tipo))
-            return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada, Salida o Ajuste.", ErrorType.Validation);
+        if (!new[] { "Entrada", "Salida" }.Contains(request.Tipo))
+            return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada o Salida.", ErrorType.Validation);
 
         if (request.Cantidad <= 0)
             return Result<MovimientoStockResponse>.Failure("La cantidad debe ser mayor a cero.", ErrorType.Validation);
 
-        if (request.Tipo == "Salida" && producto.StockActual < request.Cantidad)
-            return Result<MovimientoStockResponse>.Failure("Stock insuficiente para registrar la salida.", ErrorType.Validation);
+        string? motivoNombre = null;
+        if (request.MotivoMovimientoId.HasValue)
+        {
+            var motivo = await db.MotivosMovimiento.FindAsync(request.MotivoMovimientoId.Value);
+            if (motivo is null)
+                return Result<MovimientoStockResponse>.Failure("Motivo no encontrado.", ErrorType.NotFound);
+            motivoNombre = motivo.Nombre;
+        }
 
         var movimiento = new MovimientoStock
         {
-            ProductoId = productoId,
-            Tipo       = request.Tipo,
-            Cantidad   = request.Cantidad,
-            Motivo     = request.Motivo?.Trim(),
+            ProductoId         = productoId,
+            Tipo               = request.Tipo,
+            Cantidad           = request.Cantidad,
+            Motivo             = motivoNombre,
+            MotivoMovimientoId = request.MotivoMovimientoId,
+            FechaMovimiento    = request.FechaMovimiento?.ToUniversalTime() ?? DateTime.UtcNow,
+            CreadoPorId        = CurrentUserId,
+            CreadoPorNombre    = CurrentUserName,
+            Estado             = "Pendiente",
         };
-
-        producto.StockActual = request.Tipo switch
-        {
-            "Entrada" => producto.StockActual + request.Cantidad,
-            "Salida"  => producto.StockActual - request.Cantidad,
-            "Ajuste"  => request.Cantidad,
-            _         => producto.StockActual,
-        };
-        producto.UpdatedAt = DateTime.UtcNow;
 
         db.MovimientosStock.Add(movimiento);
         await db.SaveChangesAsync();
 
         return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(movimiento, producto.Nombre));
+    }
+
+    public async Task<Result<MovimientoStockResponse>> AprobarRechazarMovimientoAsync(
+        int id, AprobarRechazarMovimientoRequest request)
+    {
+        if (!new[] { "Aprobado", "Rechazado" }.Contains(request.Estado))
+            return Result<MovimientoStockResponse>.Failure("Estado inválido.", ErrorType.Validation);
+
+        var movimiento = await db.MovimientosStock
+            .Include(m => m.Producto)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
+        if (movimiento is null)
+            return Result<MovimientoStockResponse>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
+
+        if (movimiento.Estado != "Pendiente")
+            return Result<MovimientoStockResponse>.Failure("Solo se pueden gestionar movimientos en estado Pendiente.", ErrorType.Validation);
+
+        if (request.Estado == "Aprobado")
+        {
+            if (movimiento.Tipo == "Salida" && movimiento.Producto.StockActual < movimiento.Cantidad)
+                return Result<MovimientoStockResponse>.Failure("Stock insuficiente para aprobar la salida.", ErrorType.Validation);
+
+            movimiento.Producto.StockActual = movimiento.Tipo switch
+            {
+                "Entrada" => movimiento.Producto.StockActual + movimiento.Cantidad,
+                "Salida"  => movimiento.Producto.StockActual - movimiento.Cantidad,
+                _         => movimiento.Producto.StockActual,
+            };
+            movimiento.Producto.UpdatedAt = DateTime.UtcNow;
+        }
+
+        movimiento.Estado                  = request.Estado;
+        movimiento.AprobadoPorNombre       = CurrentUserName;
+        movimiento.FechaAprobacion         = DateTime.UtcNow;
+        movimiento.ObservacionesAprobacion = request.Observaciones?.Trim();
+
+        await db.SaveChangesAsync();
+
+        return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(movimiento, movimiento.Producto.Nombre));
+    }
+
+    public async Task<Result<MovimientoStockResponse>> GetMovimientoByIdAsync(int id)
+    {
+        var m = await db.MovimientosStock.Include(x => x.Producto).FirstOrDefaultAsync(x => x.Id == id);
+        if (m is null)
+            return Result<MovimientoStockResponse>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
+        return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(m, m.Producto.Nombre));
     }
 
     public async Task<Result<IEnumerable<MovimientoStockResponse>>> GetMovimientosAsync(int productoId)
@@ -237,12 +295,15 @@ public class ProductoService(AppDbContext db) : IProductoService
     }
 
     public async Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(
-        int page, int pageSize, string? tipo)
+        int page, int pageSize, string? tipo, string? estado)
     {
         var query = db.MovimientosStock.Include(m => m.Producto).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(tipo))
             query = query.Where(m => m.Tipo == tipo);
+
+        if (!string.IsNullOrWhiteSpace(estado))
+            query = query.Where(m => m.Estado == estado);
 
         var totalCount = await query.CountAsync();
 
@@ -374,13 +435,20 @@ public class ProductoService(AppDbContext db) : IProductoService
 
     private static MovimientoStockResponse ToMovimientoResponse(MovimientoStock m, string productoNombre) => new()
     {
-        Id             = m.Id,
-        ProductoId     = m.ProductoId,
-        ProductoNombre = productoNombre,
-        Tipo           = m.Tipo,
-        Cantidad       = m.Cantidad,
-        Motivo         = m.Motivo,
-        CreatedAt      = m.CreatedAt,
+        Id                      = m.Id,
+        ProductoId              = m.ProductoId,
+        ProductoNombre          = productoNombre,
+        Tipo                    = m.Tipo,
+        Cantidad                = m.Cantidad,
+        Motivo                  = m.Motivo,
+        MotivoMovimientoId      = m.MotivoMovimientoId,
+        FechaMovimiento         = m.FechaMovimiento,
+        CreadoPorNombre         = m.CreadoPorNombre,
+        Estado                  = m.Estado,
+        AprobadoPorNombre       = m.AprobadoPorNombre,
+        FechaAprobacion         = m.FechaAprobacion,
+        ObservacionesAprobacion = m.ObservacionesAprobacion,
+        CreatedAt               = m.CreatedAt,
     };
 
     // ── Categorías de producto ─────────────────────────────────────────────────
