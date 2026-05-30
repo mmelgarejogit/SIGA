@@ -98,8 +98,6 @@ public class ConsultaClinicaService : IConsultaClinicaService
     {
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result<ConsultaClinicaResponse>.Failure("El motivo es obligatorio.", ErrorType.Validation);
-        if (string.IsNullOrWhiteSpace(request.DiagnosticoPrincipal))
-            return Result<ConsultaClinicaResponse>.Failure("El diagnóstico principal es obligatorio.", ErrorType.Validation);
 
         if (!await _db.Patients.AnyAsync(p => p.Id == request.PatientId))
             return Result<ConsultaClinicaResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
@@ -109,20 +107,29 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         var now = DateTime.UtcNow;
 
-        var estadoAbierta = await _db.EstadosConfig
-            .FirstOrDefaultAsync(e => e.Entidad == "Consulta" && e.CodigoInterno == "Abierta");
+        int? estadoFinal;
+        if (request.EstadoConfigId.HasValue)
+        {
+            estadoFinal = request.EstadoConfigId.Value;
+        }
+        else
+        {
+            var estadoAbierta = await _db.EstadosConfig
+                .FirstOrDefaultAsync(e => e.Entidad == "Consulta" && e.CodigoInterno == "Abierta");
+            estadoFinal = estadoAbierta?.Id;
+        }
 
         var consulta = new ConsultaClinica
         {
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
             CitaId = request.CitaId,
-            EstadoConfigId = estadoAbierta?.Id,
+            EstadoConfigId = estadoFinal,
             FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc),
             Motivo = request.Motivo.Trim(),
             Anamnesis = request.Anamnesis?.Trim(),
             ExamenFisico = request.ExamenFisico?.Trim(),
-            DiagnosticoPrincipal = request.DiagnosticoPrincipal.Trim(),
+            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? string.Empty,
             DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim(),
             PlanTratamiento = request.PlanTratamiento?.Trim(),
             Observaciones = request.Observaciones?.Trim(),
@@ -263,6 +270,27 @@ public class ConsultaClinicaService : IConsultaClinicaService
         await _db.SaveChangesAsync();
 
         return Result<RecetaResponse>.Success(ToRecetaResponse(consulta.Receta));
+    }
+
+    public async Task<Result<ConsultaClinicaResponse>> CambiarEstadoAsync(int id, int estadoConfigId)
+    {
+        var consulta = await _db.ConsultasClinicas
+            .FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
+
+        if (consulta is null)
+            return Result<ConsultaClinicaResponse>.Failure("Consulta no encontrada.", ErrorType.NotFound);
+
+        var estado = await _db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Id == estadoConfigId && e.Entidad == "Consulta");
+
+        if (estado is null)
+            return Result<ConsultaClinicaResponse>.Failure("Estado no válido para consultas.", ErrorType.Validation);
+
+        consulta.EstadoConfigId = estadoConfigId;
+        consulta.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
     }
 
     private static ConsultaClinicaResponse ToResponse(ConsultaClinica c) => new()
