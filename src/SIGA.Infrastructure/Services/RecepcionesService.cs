@@ -219,8 +219,55 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Detalle de una recepción
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public async Task<Result<RecepcionDetalleResponse>> GetByIdAsync(int id)
+    {
+        var rec = await db.RecepcionesMercaderia
+            .Include(x => x.PedidoProveedor).ThenInclude(p => p.Proveedor)
+            .Include(x => x.FacturaCompra)
+            .Include(x => x.User).ThenInclude(u => u.Person)
+            .Include(x => x.Items).ThenInclude(i => i.PedidoItem).ThenInclude(pi => pi.Producto)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (rec is null)
+            return Result<RecepcionDetalleResponse>.Failure("Recepción no encontrada.", ErrorType.NotFound);
+
+        var response = new RecepcionDetalleResponse
+        {
+            Id                = rec.Id,
+            FechaRecepcion    = rec.FechaRecepcion.ToString("yyyy-MM-dd"),
+            CreatedAt         = rec.CreatedAt,
+            PedidoProveedorId = rec.PedidoProveedorId,
+            EstadoOC          = rec.PedidoProveedor.Estado.ToString(),
+            ProveedorId       = rec.PedidoProveedor.ProveedorId,
+            ProveedorNombre   = rec.PedidoProveedor.Proveedor.Nombre,
+            FacturaCompraId   = rec.FacturaCompraId,
+            NroFactura        = rec.FacturaCompra?.NroFactura,
+            UsuarioId         = rec.UserId,
+            UsuarioNombre     = rec.User.Person is not null
+                                    ? $"{rec.User.Person.FirstName} {rec.User.Person.LastName}".Trim()
+                                    : $"Usuario #{rec.UserId}",
+            Observaciones     = rec.Observaciones,
+            Items             = rec.Items.Select(i => new RecepcionComprasItemResponse
+            {
+                PedidoItemId     = i.PedidoItemId,
+                ProductoNombre   = i.PedidoItem.Producto.Nombre,
+                Cantidad         = i.Cantidad,
+                Lote             = i.Lote,
+                FechaVencimiento = i.FechaVencimiento?.ToString("yyyy-MM-dd"),
+                Observaciones    = i.Observaciones,
+            }).ToList(),
+        };
+
+        return Result<RecepcionDetalleResponse>.Success(response);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
+
 
     private static RecepcionListResponse ToListResponse(RecepcionMercaderia r) => new()
     {

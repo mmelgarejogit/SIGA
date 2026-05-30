@@ -45,6 +45,7 @@ public class ComprasController(IComprasService comprasService) : BaseController
     }
 
     [HttpPut("{id:int}/confirmar")]
+    [Authorize(Policy = "aprobar_pedidos")]
     public async Task<IActionResult> ConfirmarPedido(int id)
     {
         var result = await comprasService.ConfirmarPedidoAsync(id);
@@ -66,6 +67,7 @@ public class ComprasController(IComprasService comprasService) : BaseController
     }
 
     [HttpPut("{id:int}/cancelar")]
+    [Authorize(Policy = "cancelar_pedido")]
     public async Task<IActionResult> CancelarPedido(int id)
     {
         var result = await comprasService.CancelarPedidoAsync(id);

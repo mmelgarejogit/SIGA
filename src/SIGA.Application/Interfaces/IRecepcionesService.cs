@@ -16,4 +16,6 @@ public interface IRecepcionesService
     Task<Result<List<FacturaDisponibleResponse>>> GetFacturasDisponiblesAsync();
 
     Task<Result<RecepcionListResponse>> RegistrarRecepcionAsync(int userId, RegistrarRecepcionRequest request);
+
+    Task<Result<RecepcionDetalleResponse>> GetByIdAsync(int id);
 }
