@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Inventario;
 using SIGA.Application.Interfaces;
+using SIGA.Application.Common;
 
 namespace SIGA.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class ProductosController(IProductoService productoService) : BaseController
+public class ProductosController(IProductoService productoService, IMovimientoStockPdfGenerator pdfGenerator) : BaseController
 {
     [HttpGet]
     [Authorize(Policy = "ver_inventario")]
@@ -76,10 +77,31 @@ public class ProductosController(IProductoService productoService) : BaseControl
     public async Task<IActionResult> GetAllMovimientos(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        [FromQuery] string? tipo = null)
+        [FromQuery] string? tipo = null,
+        [FromQuery] string? estado = null)
     {
-        var result = await productoService.GetAllMovimientosAsync(page, pageSize, tipo);
+        var result = await productoService.GetAllMovimientosAsync(page, pageSize, tipo, estado);
         return ToHttpResponse(result);
+    }
+
+    [HttpPatch("movimientos/{id:int}/estado")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> AprobarRechazar(int id, [FromBody] AprobarRechazarMovimientoRequest request)
+    {
+        var result = await productoService.AprobarRechazarMovimientoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("movimientos/{id:int}/pdf")]
+    [Authorize(Policy = "ver_inventario")]
+    public async Task<IActionResult> GetMovimientoPdf(int id)
+    {
+        var result = await productoService.GetMovimientoByIdAsync(id);
+        if (!result.IsSuccess)
+            return ToHttpResponse(result);
+
+        var pdf = pdfGenerator.Generate(result.Value!);
+        return File(pdf, "application/pdf", $"movimiento-{id}.pdf");
     }
 
     [HttpPut("{id:int}/stock")]

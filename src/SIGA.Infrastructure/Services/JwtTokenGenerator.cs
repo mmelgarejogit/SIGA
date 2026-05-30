@@ -22,7 +22,8 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Person.Email)
+            new(JwtRegisteredClaimNames.Email, user.Person.Email),
+            new("name", $"{user.Person.FirstName} {user.Person.LastName}"),
         };
 
         if (professionalId.HasValue)

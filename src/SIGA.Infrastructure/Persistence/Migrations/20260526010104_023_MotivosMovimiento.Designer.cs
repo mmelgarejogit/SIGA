@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260526010104_023_MotivosMovimiento")]
+    partial class _023_MotivosMovimiento
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -724,29 +727,10 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AprobadoPorNombre")
-                        .HasColumnType("text");
-
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CreadoPorId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreadoPorNombre")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("FechaAprobacion")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("FechaMovimiento")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Motivo")
@@ -754,9 +738,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("MotivoMovimientoId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("ObservacionesAprobacion")
-                        .HasColumnType("text");
 
                     b.Property<int>("ProductoId")
                         .HasColumnType("integer");

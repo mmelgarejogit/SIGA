@@ -65,6 +65,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Controllers
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 
 // Swagger
