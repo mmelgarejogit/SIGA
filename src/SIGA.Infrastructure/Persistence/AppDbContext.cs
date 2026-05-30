@@ -37,12 +37,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RecepcionMercaderiaItem> RecepcionesMercaderiaItems => Set<RecepcionMercaderiaItem>();
     public DbSet<ConfiguracionNegocio> ConfiguracionNegocio => Set<ConfiguracionNegocio>();
     public DbSet<EstadoConfig> EstadosConfig => Set<EstadoConfig>();
+    public DbSet<CargoEmpleado> CargosEmpleado => Set<CargoEmpleado>();
+    public DbSet<Empleado> Empleados => Set<Empleado>();
     public DbSet<CategoriaGasto> CategoriasGasto => Set<CategoriaGasto>();
     public DbSet<Egreso> Egresos => Set<Egreso>();
     public DbSet<FacturaCompra> FacturasCompra => Set<FacturaCompra>();
     public DbSet<FacturaCompraItem> FacturaCompraItems => Set<FacturaCompraItem>();
     public DbSet<Honorario> Honorarios => Set<Honorario>();
     public DbSet<GastoGeneral> GastosGenerales => Set<GastoGeneral>();
+    public DbSet<SalarioEmpleado> SalariosEmpleado => Set<SalarioEmpleado>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<Venta> Ventas => Set<Venta>();
     public DbSet<VentaLinea> VentaLineas => Set<VentaLinea>();

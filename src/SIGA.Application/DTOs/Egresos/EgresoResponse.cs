@@ -13,6 +13,9 @@ public class EgresoResponse
     public string? FechaPago { get; set; }
     public string? MetodoPago { get; set; }
     public bool EstaVencido { get; set; }
+    public string? MotivoRechazo { get; set; }
+    public string? FechaAprobacion { get; set; }
+    public string? NroComprobante { get; set; }
     public DateTime CreatedAt { get; set; }
 
     // FacturaCompra — datos de referencia
@@ -38,4 +41,8 @@ public class EgresoResponse
     // GastoGeneral
     public int? CategoriaGastoId { get; set; }
     public string? CategoriaGastoNombre { get; set; }
+
+    // SalarioEmpleado
+    public int? EmpleadoId { get; set; }
+    public string? EmpleadoNombre { get; set; }
 }

@@ -28,7 +28,8 @@ public static class DbSeeder
         "ver_notificaciones",
         "gestionar_configuracion",
         "ver_mis_turnos",
-        "ver_egresos",       "gestionar_egresos",
+        "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
+        "ver_empleados",     "gestionar_empleados",
     ];
 
     private static readonly string[] AdminPermissions =

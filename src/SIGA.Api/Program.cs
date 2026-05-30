@@ -55,7 +55,8 @@ var permissionPolicies = new[]
         "ver_dashboard",
         "ver_notificaciones",
         "gestionar_configuracion",
-        "ver_egresos",       "gestionar_egresos",
+        "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
+        "ver_empleados",     "gestionar_empleados",
 };
 
 builder.Services.AddAuthorization(options =>
