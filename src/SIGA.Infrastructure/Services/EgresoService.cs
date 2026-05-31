@@ -160,7 +160,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Pendiente,
+            Estado            = EstadoEgreso.Aprobado,
         };
         factura.Monto = factura.MontoTotal;
 
