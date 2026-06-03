@@ -21,14 +21,15 @@ public static class DbSeeder
         "editar_consulta",
         "eliminar_consulta",
         "ver_recetas",
-        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",
+        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",  "aprobar_pedidos",
         "ver_ventas",        "registrar_venta",
         "ver_reportes",
         "ver_dashboard",
         "ver_notificaciones",
         "gestionar_configuracion",
         "ver_mis_turnos",
-        "ver_egresos",       "gestionar_egresos",
+        "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
+        "ver_empleados",     "gestionar_empleados",
     ];
 
     private static readonly string[] AdminPermissions =

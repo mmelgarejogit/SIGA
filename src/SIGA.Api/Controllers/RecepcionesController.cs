@@ -28,6 +28,13 @@ public class RecepcionesController(IRecepcionesService service) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var result = await service.GetByIdAsync(id);
+        return ToHttpResponse(result);
+    }
+
     [HttpGet("facturas-disponibles")]
     public async Task<IActionResult> GetFacturasDisponibles()
     {

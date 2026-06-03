@@ -47,6 +47,13 @@ public class EgresosController(IEgresoService egresoService) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpPost("salarios")]
+    public async Task<IActionResult> CrearSalario([FromBody] CrearSalarioRequest request)
+    {
+        var result = await egresoService.CrearSalarioAsync(request);
+        return ToHttpResponse(result);
+    }
+
     [HttpPost("gastos")]
     public async Task<IActionResult> CrearGastoGeneral([FromBody] CrearGastoGeneralRequest request)
     {
@@ -54,7 +61,24 @@ public class EgresosController(IEgresoService egresoService) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpPut("{id:int}/aprobar")]
+    [Authorize(Policy = "aprobar_egresos")]
+    public async Task<IActionResult> AprobarEgreso(int id)
+    {
+        var result = await egresoService.AprobarEgresoAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/rechazar")]
+    [Authorize(Policy = "aprobar_egresos")]
+    public async Task<IActionResult> RechazarEgreso(int id, [FromBody] RechazarEgresoRequest request)
+    {
+        var result = await egresoService.RechazarEgresoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
     [HttpPut("{id:int}/pago")]
+    [Authorize(Policy = "pagar_egresos")]
     public async Task<IActionResult> RegistrarPago(int id, [FromBody] RegistrarPagoRequest request)
     {
         var result = await egresoService.RegistrarPagoAsync(id, request);

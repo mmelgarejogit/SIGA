@@ -14,7 +14,8 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
         builder.HasDiscriminator(x => x.Tipo)
             .HasValue<FacturaCompra>(TipoEgreso.FacturaCompra)
             .HasValue<Honorario>(TipoEgreso.Honorario)
-            .HasValue<GastoGeneral>(TipoEgreso.GastoGeneral);
+            .HasValue<GastoGeneral>(TipoEgreso.GastoGeneral)
+            .HasValue<SalarioEmpleado>(TipoEgreso.Salario);
 
         builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
@@ -25,6 +26,9 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
         builder.Property(x => x.FechaVencimiento);
         builder.Property(x => x.FechaPago);
         builder.Property(x => x.MetodoPago).HasConversion<int>();
+        builder.Property(x => x.MotivoRechazo).HasMaxLength(1000);
+        builder.Property(x => x.FechaAprobacion);
+        builder.Property(x => x.NroComprobante).HasMaxLength(100);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
     }

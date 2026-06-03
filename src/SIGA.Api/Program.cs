@@ -48,20 +48,27 @@ var permissionPolicies = new[]
         "editar_consulta",
         "eliminar_consulta",
         "ver_recetas",
-        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",
+        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",  "aprobar_pedidos",
         "registrar_venta",   "ver_ventas",
         "ver_reportes",
         "ver_mis_turnos",
         "ver_dashboard",
         "ver_notificaciones",
         "gestionar_configuracion",
-        "ver_egresos",       "gestionar_egresos",
+        "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
+        "ver_empleados",     "gestionar_empleados",
 };
 
 builder.Services.AddAuthorization(options =>
 {
     foreach (var perm in permissionPolicies)
         options.AddPolicy(perm, policy => policy.RequireClaim("permission", perm));
+
+    // Cancelar OC: creador (gestionar_pedidos) O aprobador (aprobar_pedidos)
+    options.AddPolicy("cancelar_pedido", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim("permission", "gestionar_pedidos") ||
+            ctx.User.HasClaim("permission", "aprobar_pedidos")));
 });
 
 // Controllers
