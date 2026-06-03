@@ -5,8 +5,10 @@ public class PedidoProveedorItem
     public int Id { get; set; }
     public int PedidoProveedorId { get; set; }
     public PedidoProveedor PedidoProveedor { get; set; } = null!;
-    public int ProductoId { get; set; }
-    public Producto Producto { get; set; } = null!;
+    public int? ProductoId { get; set; }
+    public Producto? Producto { get; set; }
+    public Guid? ProductoVarianteId { get; set; }
+    public ProductoVariante? ProductoVariante { get; set; }
     public int Cantidad { get; set; }
     public int CantidadRecibida { get; set; }
     public decimal PrecioUnitario { get; set; }

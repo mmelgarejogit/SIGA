@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Egresos;
@@ -10,6 +11,9 @@ namespace SIGA.Api.Controllers;
 [Authorize(Policy = "gestionar_egresos")]
 public class EgresosController(IEgresoService egresoService) : BaseController
 {
+    private int CurrentUserId =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
     [HttpGet]
     [Authorize(Policy = "ver_egresos")]
     public async Task<IActionResult> GetEgresos(
@@ -19,9 +23,10 @@ public class EgresosController(IEgresoService egresoService) : BaseController
         [FromQuery] string? fechaHasta = null,
         [FromQuery] bool? soloVencidos = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] Guid? sucursalId = null)
     {
-        var result = await egresoService.GetEgresosAsync(tipo, estado, fechaDesde, fechaHasta, soloVencidos, page, pageSize);
+        var result = await egresoService.GetEgresosAsync(tipo, estado, fechaDesde, fechaHasta, soloVencidos, page, pageSize, sucursalId);
         return ToHttpResponse(result);
     }
 
@@ -33,31 +38,24 @@ public class EgresosController(IEgresoService egresoService) : BaseController
         return ToHttpResponse(result);
     }
 
-    [HttpPost("facturas")]
-    public async Task<IActionResult> CrearFacturaCompra([FromBody] CrearFacturaCompraRequest request)
-    {
-        var result = await egresoService.CrearFacturaCompraAsync(request);
-        return ToHttpResponse(result);
-    }
-
     [HttpPost("honorarios")]
     public async Task<IActionResult> CrearHonorario([FromBody] CrearHonorarioRequest request)
     {
-        var result = await egresoService.CrearHonorarioAsync(request);
+        var result = await egresoService.CrearHonorarioAsync(request, CurrentUserId);
         return ToHttpResponse(result);
     }
 
     [HttpPost("salarios")]
     public async Task<IActionResult> CrearSalario([FromBody] CrearSalarioRequest request)
     {
-        var result = await egresoService.CrearSalarioAsync(request);
+        var result = await egresoService.CrearSalarioAsync(request, CurrentUserId);
         return ToHttpResponse(result);
     }
 
     [HttpPost("gastos")]
     public async Task<IActionResult> CrearGastoGeneral([FromBody] CrearGastoGeneralRequest request)
     {
-        var result = await egresoService.CrearGastoGeneralAsync(request);
+        var result = await egresoService.CrearGastoGeneralAsync(request, CurrentUserId);
         return ToHttpResponse(result);
     }
 
@@ -65,7 +63,7 @@ public class EgresosController(IEgresoService egresoService) : BaseController
     [Authorize(Policy = "aprobar_egresos")]
     public async Task<IActionResult> AprobarEgreso(int id)
     {
-        var result = await egresoService.AprobarEgresoAsync(id);
+        var result = await egresoService.AprobarEgresoAsync(id, CurrentUserId);
         return ToHttpResponse(result);
     }
 
@@ -81,7 +79,7 @@ public class EgresosController(IEgresoService egresoService) : BaseController
     [Authorize(Policy = "pagar_egresos")]
     public async Task<IActionResult> RegistrarPago(int id, [FromBody] RegistrarPagoRequest request)
     {
-        var result = await egresoService.RegistrarPagoAsync(id, request);
+        var result = await egresoService.RegistrarPagoAsync(id, request, CurrentUserId);
         return ToHttpResponse(result);
     }
 

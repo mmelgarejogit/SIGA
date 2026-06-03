@@ -4,6 +4,9 @@ public class MovimientoCaja
 {
     public int Id { get; set; }
 
+    public Guid SucursalId { get; set; }
+    public Sucursal Sucursal { get; set; } = null!;
+
     public TipoMovimientoCaja Tipo { get; set; }
     public decimal Monto { get; set; }
     public string Concepto { get; set; } = null!;

@@ -191,6 +191,7 @@ public class AuthService : IAuthService
 
         var user = await _dbContext.Users
             .Include(u => u.Person)
+            .Include(u => u.Sucursal)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
                 .ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .Include(u => u.Professional)
@@ -213,7 +214,7 @@ public class AuthService : IAuthService
             .SelectMany(ur => ur.Role.RolePermissions.Select(rp => rp.Permission.Name))
             .Distinct()
             .ToList();
-        var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions, user.Professional?.Id);
+        var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions, user.Professional?.Id, user.SucursalId);
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
@@ -223,6 +224,8 @@ public class AuthService : IAuthService
             LastName       = user.Person.LastName,
             Specialty      = user.Professional?.Especialidades.FirstOrDefault()?.Especialidad.Nombre,
             ProfessionalId = user.Professional?.Id,
+            SucursalId     = user.SucursalId,
+            SucursalNombre = user.Sucursal?.Nombre,
             RoleClaims     = roles,
             Permissions    = permissions
         });

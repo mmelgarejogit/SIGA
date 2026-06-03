@@ -8,11 +8,12 @@ public class SalarioEmpleadoConfiguration : IEntityTypeConfiguration<SalarioEmpl
 {
     public void Configure(EntityTypeBuilder<SalarioEmpleado> builder)
     {
+        builder.Property(x => x.PeriodoMes).IsRequired();
+        builder.Property(x => x.PeriodoAnio).IsRequired();
+
         builder.HasOne(x => x.Empleado)
             .WithMany()
             .HasForeignKey(x => x.EmpleadoId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.Property(x => x.Periodo).HasMaxLength(20);
     }
 }

@@ -15,6 +15,9 @@ public class User
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
+    public Guid? SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public Professional? Professional { get; set; }
     public Patient? Patient { get; set; }

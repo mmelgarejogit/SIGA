@@ -5,6 +5,9 @@ public class Venta
     public int Id { get; set; }
     public string NumeroComprobante { get; set; } = null!;
 
+    public Guid? SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int PatientId { get; set; }
     public Patient Patient { get; set; } = null!;
 

@@ -49,9 +49,15 @@ public static class DependencyInjection
         services.AddScoped<IHorarioProfesionalService, HorarioProfesionalService>();
         services.AddScoped<ITurnoService, TurnoService>();
         services.AddScoped<IProductoService, ProductoService>();
-        services.AddScoped<IMovimientoStockPdfGenerator, MovimientoStockPdfGenerator>();
         services.AddScoped<IMotivoMovimientoService, MotivoMovimientoService>();
         services.AddScoped<IMarcaService, MarcaService>();
+        services.AddScoped<ISucursalService, SucursalService>();
+        services.AddScoped<ITipoAjusteService, TipoAjusteService>();
+        services.AddScoped<IAjusteManualService, AjusteManualService>();
+        services.AddScoped<ITransferenciaService, TransferenciaService>();
+        services.AddScoped<IMovimientoInventarioService, MovimientoInventarioService>();
+        services.AddScoped<IParametroStockService, ParametroStockService>();
+        services.AddScoped<IInventarioFisicoService, InventarioFisicoService>();
         services.AddScoped<IProveedorService, ProveedorService>();
         services.AddScoped<IComprasService, ComprasService>();
         services.AddScoped<IFacturasCompraService, FacturasCompraService>();

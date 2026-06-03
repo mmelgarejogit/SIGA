@@ -10,11 +10,13 @@ public class FacturaCompraItem
     public int? ProductoId { get; set; }
     public Producto? Producto { get; set; }
 
+    public Guid? ProductoVarianteId { get; set; }
+    public ProductoVariante? ProductoVariante { get; set; }
+
     public string Descripcion { get; set; } = "";
     public int Cantidad { get; set; }
     public decimal PrecioUnitario { get; set; }
     public TipoIvaFactura TipoIva { get; set; } = TipoIvaFactura.Iva10;
 
-    // Calculado en dominio
     public decimal Total => Cantidad * PrecioUnitario;
 }

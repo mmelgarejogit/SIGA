@@ -34,7 +34,7 @@ public class VentaService(AppDbContext db) : IVentaService
         {
             Id             = l.Id,
             Tipo           = l.Tipo.ToString(),
-            ProductoId     = l.ProductoId,
+            ProductoVarianteId = l.ProductoVarianteId,
             ServicioId     = l.ServicioId,
             Descripcion    = l.Descripcion,
             Cantidad       = l.Cantidad,
@@ -73,7 +73,7 @@ public class VentaService(AppDbContext db) : IVentaService
     private IQueryable<Venta> BaseQuery() =>
         db.Ventas
             .Include(v => v.Patient).ThenInclude(p => p.User).ThenInclude(u => u!.Person)
-            .Include(v => v.Lineas).ThenInclude(l => l.Producto)
+            .Include(v => v.Lineas).ThenInclude(l => l.ProductoVariante)
             .Include(v => v.Lineas).ThenInclude(l => l.Servicio)
             .Include(v => v.Cobros)
             .Include(v => v.Factura);
@@ -155,10 +155,10 @@ public class VentaService(AppDbContext db) : IVentaService
             string descripcion = lr.Descripcion ?? "";
             if (string.IsNullOrWhiteSpace(descripcion))
             {
-                if (tipo == TipoLineaVenta.Producto && lr.ProductoId.HasValue)
+                if (tipo == TipoLineaVenta.Producto && lr.ProductoVarianteId.HasValue)
                 {
-                    var prod = await db.Productos.FindAsync(lr.ProductoId.Value);
-                    descripcion = prod?.Nombre ?? "Producto";
+                    var variante = await db.ProductoVariantes.Include(v => v.Producto).FirstOrDefaultAsync(v => v.Id == lr.ProductoVarianteId.Value);
+                    descripcion = variante?.Producto?.Nombre ?? "Producto";
                 }
                 else if (tipo == TipoLineaVenta.Servicio && lr.ServicioId.HasValue)
                 {
@@ -169,9 +169,9 @@ public class VentaService(AppDbContext db) : IVentaService
 
             venta.Lineas.Add(new VentaLinea
             {
-                Tipo           = tipo,
-                ProductoId     = lr.ProductoId,
-                ServicioId     = lr.ServicioId,
+                Tipo               = tipo,
+                ProductoVarianteId = lr.ProductoVarianteId,
+                ServicioId         = lr.ServicioId,
                 Descripcion    = descripcion,
                 Cantidad       = lr.Cantidad,
                 PrecioUnitario = lr.PrecioUnitario,

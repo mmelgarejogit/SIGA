@@ -1,50 +1,42 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
-using SIGA.Application.DTOs.Inventario;
+using SIGA.Application.DTOs.Productos;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 using SIGA.Infrastructure.Persistence;
-using System.Security.Claims;
 
 namespace SIGA.Infrastructure.Services;
 
-public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProductoService
+public class ProductoService(AppDbContext db) : IProductoService
 {
-    private string? CurrentUserId =>
-        http.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-    private string? CurrentUserName =>
-        http.HttpContext?.User.FindFirstValue("name");
+    // ── Productos ──────────────────────────────────────────────────────────────
 
     public async Task<Result<PagedResult<ProductoResponse>>> GetAllAsync(
-        int page, int pageSize, string? search, string? categoria, bool? bajoStock)
+        int page, int pageSize, string? search, int? categoriaId, bool? isActive)
     {
-        var query = db.Productos.AsQueryable();
+        var query = db.Productos
+            .Include(p => p.CategoriaProducto)
+            .Include(p => p.Marca)
+            .Include(p => p.Modelo)
+            .Include(p => p.Variantes)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             var q = search.Trim().ToLower();
-            query = query.Where(p =>
-                p.Nombre.ToLower().Contains(q) ||
-                (p.Sku != null && p.Sku.ToLower().Contains(q)));
+            query = query.Where(p => p.Nombre.ToLower().Contains(q));
         }
 
-        if (!string.IsNullOrWhiteSpace(categoria))
-            query = query.Where(p => p.Categoria == categoria);
+        if (categoriaId.HasValue)
+            query = query.Where(p => p.CategoriaProductoId == categoriaId.Value);
 
-        if (bajoStock == true)
-            query = query.Where(p => p.StockActual <= p.StockMinimo && p.IsActive);
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
 
         var totalCount = await query.CountAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var discountMap = await db.CategoriasProducto
-            .ToDictionaryAsync(c => c.Nombre, c => c.Descuento);
 
         var items = await query
-            .Include(p => p.Marca)
-            .Include(p => p.Modelo)
             .OrderBy(p => p.Nombre)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -52,270 +44,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         return Result<PagedResult<ProductoResponse>>.Success(new PagedResult<ProductoResponse>
         {
-            Items      = items.Select(p => ToResponse(p, discountMap.GetValueOrDefault(p.Categoria, 0))),
-            TotalCount = totalCount,
-            TotalActive = await db.Productos.CountAsync(p => p.IsActive),
-            Page       = page,
-            PageSize   = pageSize,
-            TotalPages = totalPages,
-        });
-    }
-
-    public async Task<Result<ProductoResponse>> GetByIdAsync(int id)
-    {
-        var producto = await db.Productos
-            .Include(p => p.Marca)
-            .Include(p => p.Modelo)
-            .FirstOrDefaultAsync(p => p.Id == id);
-        if (producto is null)
-            return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        var descuento = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
-            .FirstOrDefaultAsync();
-
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
-    }
-
-    public async Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Nombre))
-            return Result<ProductoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
-
-        if (string.IsNullOrWhiteSpace(request.Categoria))
-            return Result<ProductoResponse>.Failure("La categoría es obligatoria.", ErrorType.Validation);
-
-        if (request.PrecioCosto < 0 || request.PrecioVenta < 0)
-            return Result<ProductoResponse>.Failure("Los precios no pueden ser negativos.", ErrorType.Validation);
-
-        if (request.StockActual < 0 || request.StockMinimo < 0)
-            return Result<ProductoResponse>.Failure("El stock no puede ser negativo.", ErrorType.Validation);
-
-        if (!string.IsNullOrWhiteSpace(request.Sku))
-        {
-            var exists = await db.Productos.AnyAsync(p => p.Sku == request.Sku.Trim());
-            if (exists)
-                return Result<ProductoResponse>.Failure("Ya existe un producto con ese SKU.", ErrorType.Conflict);
-        }
-
-        var producto = new Producto
-        {
-            Nombre      = request.Nombre.Trim(),
-            Categoria   = request.Categoria.Trim(),
-            Sku         = request.Sku?.Trim(),
-            PrecioCosto = request.PrecioCosto,
-            PrecioVenta = request.PrecioVenta,
-            StockActual = request.StockActual,
-            StockMinimo = request.StockMinimo,
-            MarcaId     = request.MarcaId,
-            ModeloId    = request.ModeloId,
-            Color       = request.Color?.Trim(),
-            Talle       = request.Talle?.Trim(),
-            Descripcion = request.Descripcion?.Trim(),
-        };
-
-        db.Productos.Add(producto);
-        await db.SaveChangesAsync();
-
-        await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
-        await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
-
-        var descuentoCreate = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
-            .FirstOrDefaultAsync();
-
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoCreate));
-    }
-
-    public async Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request)
-    {
-        var producto = await db.Productos.FindAsync(id);
-        if (producto is null)
-            return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        if (string.IsNullOrWhiteSpace(request.Nombre))
-            return Result<ProductoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
-
-        if (string.IsNullOrWhiteSpace(request.Categoria))
-            return Result<ProductoResponse>.Failure("La categoría es obligatoria.", ErrorType.Validation);
-
-        if (request.PrecioCosto < 0 || request.PrecioVenta < 0)
-            return Result<ProductoResponse>.Failure("Los precios no pueden ser negativos.", ErrorType.Validation);
-
-        if (!string.IsNullOrWhiteSpace(request.Sku) && request.Sku.Trim() != producto.Sku)
-        {
-            var exists = await db.Productos.AnyAsync(p => p.Sku == request.Sku.Trim() && p.Id != id);
-            if (exists)
-                return Result<ProductoResponse>.Failure("Ya existe un producto con ese SKU.", ErrorType.Conflict);
-        }
-
-        producto.Nombre      = request.Nombre.Trim();
-        producto.Categoria   = request.Categoria.Trim();
-        producto.Sku         = request.Sku?.Trim();
-        producto.PrecioCosto = request.PrecioCosto;
-        producto.PrecioVenta = request.PrecioVenta;
-        producto.StockMinimo = request.StockMinimo;
-        producto.IsActive    = request.IsActive;
-        producto.MarcaId     = request.MarcaId;
-        producto.ModeloId    = request.ModeloId;
-        producto.Color       = request.Color?.Trim();
-        producto.Talle       = request.Talle?.Trim();
-        producto.Descripcion = request.Descripcion?.Trim();
-        producto.UpdatedAt   = DateTime.UtcNow;
-
-        await db.SaveChangesAsync();
-
-        await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
-        await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
-
-        var descuentoUpdate = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
-            .FirstOrDefaultAsync();
-
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoUpdate));
-    }
-
-    public async Task<Result<bool>> DeactivateAsync(int id)
-    {
-        var producto = await db.Productos.FindAsync(id);
-        if (producto is null)
-            return Result<bool>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        producto.IsActive  = false;
-        producto.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        return Result<bool>.Success(true);
-    }
-
-    public async Task<Result<MovimientoStockResponse>> RegistrarMovimientoAsync(
-        int productoId, CreateMovimientoStockRequest request)
-    {
-        var producto = await db.Productos.FindAsync(productoId);
-        if (producto is null)
-            return Result<MovimientoStockResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        if (!new[] { "Entrada", "Salida" }.Contains(request.Tipo))
-            return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada o Salida.", ErrorType.Validation);
-
-        if (request.Cantidad <= 0)
-            return Result<MovimientoStockResponse>.Failure("La cantidad debe ser mayor a cero.", ErrorType.Validation);
-
-        string? motivoNombre = null;
-        if (request.MotivoMovimientoId.HasValue)
-        {
-            var motivo = await db.MotivosMovimiento.FindAsync(request.MotivoMovimientoId.Value);
-            if (motivo is null)
-                return Result<MovimientoStockResponse>.Failure("Motivo no encontrado.", ErrorType.NotFound);
-            motivoNombre = motivo.Nombre;
-        }
-
-        var movimiento = new MovimientoStock
-        {
-            ProductoId         = productoId,
-            Tipo               = request.Tipo,
-            Cantidad           = request.Cantidad,
-            Motivo             = motivoNombre,
-            MotivoMovimientoId = request.MotivoMovimientoId,
-            FechaMovimiento    = request.FechaMovimiento?.ToUniversalTime() ?? DateTime.UtcNow,
-            CreadoPorId        = CurrentUserId,
-            CreadoPorNombre    = CurrentUserName,
-            Estado             = "Pendiente",
-        };
-
-        db.MovimientosStock.Add(movimiento);
-        await db.SaveChangesAsync();
-
-        return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(movimiento, producto.Nombre));
-    }
-
-    public async Task<Result<MovimientoStockResponse>> AprobarRechazarMovimientoAsync(
-        int id, AprobarRechazarMovimientoRequest request)
-    {
-        if (!new[] { "Aprobado", "Rechazado" }.Contains(request.Estado))
-            return Result<MovimientoStockResponse>.Failure("Estado inválido.", ErrorType.Validation);
-
-        var movimiento = await db.MovimientosStock
-            .Include(m => m.Producto)
-            .FirstOrDefaultAsync(m => m.Id == id);
-
-        if (movimiento is null)
-            return Result<MovimientoStockResponse>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
-
-        if (movimiento.Estado != "Pendiente")
-            return Result<MovimientoStockResponse>.Failure("Solo se pueden gestionar movimientos en estado Pendiente.", ErrorType.Validation);
-
-        if (request.Estado == "Aprobado")
-        {
-            if (movimiento.Tipo == "Salida" && movimiento.Producto.StockActual < movimiento.Cantidad)
-                return Result<MovimientoStockResponse>.Failure("Stock insuficiente para aprobar la salida.", ErrorType.Validation);
-
-            movimiento.Producto.StockActual = movimiento.Tipo switch
-            {
-                "Entrada" => movimiento.Producto.StockActual + movimiento.Cantidad,
-                "Salida"  => movimiento.Producto.StockActual - movimiento.Cantidad,
-                _         => movimiento.Producto.StockActual,
-            };
-            movimiento.Producto.UpdatedAt = DateTime.UtcNow;
-        }
-
-        movimiento.Estado                  = request.Estado;
-        movimiento.AprobadoPorNombre       = CurrentUserName;
-        movimiento.FechaAprobacion         = DateTime.UtcNow;
-        movimiento.ObservacionesAprobacion = request.Observaciones?.Trim();
-
-        await db.SaveChangesAsync();
-
-        return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(movimiento, movimiento.Producto.Nombre));
-    }
-
-    public async Task<Result<MovimientoStockResponse>> GetMovimientoByIdAsync(int id)
-    {
-        var m = await db.MovimientosStock.Include(x => x.Producto).FirstOrDefaultAsync(x => x.Id == id);
-        if (m is null)
-            return Result<MovimientoStockResponse>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
-        return Result<MovimientoStockResponse>.Success(ToMovimientoResponse(m, m.Producto.Nombre));
-    }
-
-    public async Task<Result<IEnumerable<MovimientoStockResponse>>> GetMovimientosAsync(int productoId)
-    {
-        var producto = await db.Productos.FindAsync(productoId);
-        if (producto is null)
-            return Result<IEnumerable<MovimientoStockResponse>>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        var movimientos = await db.MovimientosStock
-            .Where(m => m.ProductoId == productoId)
-            .OrderByDescending(m => m.CreatedAt)
-            .ToListAsync();
-
-        return Result<IEnumerable<MovimientoStockResponse>>.Success(
-            movimientos.Select(m => ToMovimientoResponse(m, producto.Nombre)));
-    }
-
-    public async Task<Result<PagedResult<MovimientoStockResponse>>> GetAllMovimientosAsync(
-        int page, int pageSize, string? tipo, string? estado)
-    {
-        var query = db.MovimientosStock.Include(m => m.Producto).AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(tipo))
-            query = query.Where(m => m.Tipo == tipo);
-
-        if (!string.IsNullOrWhiteSpace(estado))
-            query = query.Where(m => m.Estado == estado);
-
-        var totalCount = await query.CountAsync();
-
-        var movimientos = await query
-            .OrderByDescending(m => m.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        return Result<PagedResult<MovimientoStockResponse>>.Success(new PagedResult<MovimientoStockResponse>
-        {
-            Items      = movimientos.Select(m => ToMovimientoResponse(m, m.Producto.Nombre)).ToList(),
+            Items      = items.Select(ToResponse),
             TotalCount = totalCount,
             Page       = page,
             PageSize   = pageSize,
@@ -323,145 +52,204 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         });
     }
 
-    public async Task<Result<ProductoResponse>> UpdateStockInfoAsync(int id, UpdateStockInfoRequest request)
+    public async Task<Result<ProductoResponse>> GetByIdAsync(int id)
+    {
+        var p = await db.Productos
+            .Include(x => x.CategoriaProducto)
+            .Include(x => x.Marca)
+            .Include(x => x.Modelo)
+            .Include(x => x.Variantes)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (p is null)
+            return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
+        return Result<ProductoResponse>.Success(ToResponse(p));
+    }
+
+    public async Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Nombre))
+            return Result<ProductoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
+
+        var producto = new Producto
+        {
+            Nombre            = request.Nombre.Trim(),
+            Descripcion       = request.Descripcion?.Trim(),
+            CategoriaProductoId = request.CategoriaProductoId,
+            MarcaId           = request.MarcaId,
+            ModeloId          = request.ModeloId,
+        };
+
+        db.Productos.Add(producto);
+        await db.SaveChangesAsync();
+
+        await db.Entry(producto).Reference(p => p.CategoriaProducto).LoadAsync();
+        await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
+        await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto));
+    }
+
+    public async Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request)
     {
         var producto = await db.Productos
+            .Include(p => p.CategoriaProducto)
             .Include(p => p.Marca)
             .Include(p => p.Modelo)
+            .Include(p => p.Variantes)
             .FirstOrDefaultAsync(p => p.Id == id);
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        if (request.PrecioCosto < 0)
-            return Result<ProductoResponse>.Failure("El precio de costo no puede ser negativo.", ErrorType.Validation);
+        if (string.IsNullOrWhiteSpace(request.Nombre))
+            return Result<ProductoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
-        if (request.StockMinimo < 0)
-            return Result<ProductoResponse>.Failure("El stock mínimo no puede ser negativo.", ErrorType.Validation);
-
-        var margen = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Margen)
-            .FirstOrDefaultAsync();
-
-        producto.PrecioCosto = request.PrecioCosto;
-        producto.StockMinimo = request.StockMinimo;
-        producto.PrecioVenta = margen > 0
-            ? Math.Round(request.PrecioCosto * (1 + margen / 100m), 2)
-            : producto.PrecioVenta;
-        producto.UpdatedAt = DateTime.UtcNow;
+        producto.Nombre            = request.Nombre.Trim();
+        producto.Descripcion       = request.Descripcion?.Trim();
+        producto.CategoriaProductoId = request.CategoriaProductoId;
+        producto.MarcaId           = request.MarcaId;
+        producto.ModeloId          = request.ModeloId;
+        producto.IsActive          = request.IsActive;
+        producto.UpdatedAt         = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
-
-        var descuento = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
-            .FirstOrDefaultAsync();
-
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
+        return Result<ProductoResponse>.Success(ToResponse(producto));
     }
 
-    public async Task<Result<string>> UploadImagenAsync(int id, Stream stream, string fileName)
+    public async Task<Result<bool>> DeactivateAsync(int id)
     {
         var producto = await db.Productos.FindAsync(id);
         if (producto is null)
-            return Result<string>.Failure("Producto no encontrado.", ErrorType.NotFound);
+            return Result<bool>.Failure("Producto no encontrado.", ErrorType.NotFound);
+        producto.IsActive  = false;
+        producto.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
+    // ── Variantes ──────────────────────────────────────────────────────────────
+
+    public async Task<Result<IEnumerable<ProductoVarianteResponse>>> GetVariantesAsync(int productoId)
+    {
+        var variantes = await db.ProductoVariantes
+            .Include(v => v.Producto)
+            .Where(v => v.ProductoId == productoId)
+            .OrderBy(v => v.CreatedAt)
+            .ToListAsync();
+        return Result<IEnumerable<ProductoVarianteResponse>>.Success(variantes.Select(ToVarianteResponse));
+    }
+
+    public async Task<Result<ProductoVarianteResponse>> GetVarianteByIdAsync(Guid id)
+    {
+        var v = await db.ProductoVariantes.Include(x => x.Producto).FirstOrDefaultAsync(x => x.Id == id);
+        if (v is null)
+            return Result<ProductoVarianteResponse>.Failure("Variante no encontrada.", ErrorType.NotFound);
+        return Result<ProductoVarianteResponse>.Success(ToVarianteResponse(v));
+    }
+
+    public async Task<Result<ProductoVarianteResponse>> CreateVarianteAsync(CreateProductoVarianteRequest request)
+    {
+        var producto = await db.Productos.FindAsync(request.ProductoId);
+        if (producto is null)
+            return Result<ProductoVarianteResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
+
+        if (!string.IsNullOrWhiteSpace(request.Sku))
+        {
+            var exists = await db.ProductoVariantes.AnyAsync(v => v.Sku == request.Sku.Trim());
+            if (exists)
+                return Result<ProductoVarianteResponse>.Failure("Ya existe una variante con ese SKU.", ErrorType.Conflict);
+        }
+
+        var variante = new ProductoVariante
+        {
+            ProductoId  = request.ProductoId,
+            Sku         = request.Sku?.Trim(),
+            Color       = request.Color?.Trim(),
+            Talle       = request.Talle?.Trim(),
+            PrecioCosto = request.PrecioCosto,
+            PrecioVenta = request.PrecioVenta,
+        };
+
+        db.ProductoVariantes.Add(variante);
+        await db.SaveChangesAsync();
+
+        variante.Producto = producto;
+        return Result<ProductoVarianteResponse>.Success(ToVarianteResponse(variante));
+    }
+
+    public async Task<Result<ProductoVarianteResponse>> UpdateVarianteAsync(Guid id, UpdateProductoVarianteRequest request)
+    {
+        var variante = await db.ProductoVariantes.Include(v => v.Producto).FirstOrDefaultAsync(v => v.Id == id);
+        if (variante is null)
+            return Result<ProductoVarianteResponse>.Failure("Variante no encontrada.", ErrorType.NotFound);
+
+        if (!string.IsNullOrWhiteSpace(request.Sku) && request.Sku.Trim() != variante.Sku)
+        {
+            var exists = await db.ProductoVariantes.AnyAsync(v => v.Sku == request.Sku.Trim() && v.Id != id);
+            if (exists)
+                return Result<ProductoVarianteResponse>.Failure("Ya existe una variante con ese SKU.", ErrorType.Conflict);
+        }
+
+        variante.Sku         = request.Sku?.Trim();
+        variante.Color       = request.Color?.Trim();
+        variante.Talle       = request.Talle?.Trim();
+        variante.PrecioCosto = request.PrecioCosto;
+        variante.PrecioVenta = request.PrecioVenta;
+        variante.IsActive    = request.IsActive;
+        variante.UpdatedAt   = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+        return Result<ProductoVarianteResponse>.Success(ToVarianteResponse(variante));
+    }
+
+    public async Task<Result<bool>> DeactivateVarianteAsync(Guid id)
+    {
+        var variante = await db.ProductoVariantes.FindAsync(id);
+        if (variante is null)
+            return Result<bool>.Failure("Variante no encontrada.", ErrorType.NotFound);
+        variante.IsActive  = false;
+        variante.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<string>> UploadVarianteImagenAsync(Guid id, Stream stream, string fileName)
+    {
+        var variante = await db.ProductoVariantes.FindAsync(id);
+        if (variante is null)
+            return Result<string>.Failure("Variante no encontrada.", ErrorType.NotFound);
 
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
             return Result<string>.Failure("Formato no soportado. Use JPG, PNG o WEBP.", ErrorType.Validation);
 
-        var uploadsDir = Path.Combine("wwwroot", "uploads", "productos");
+        var uploadsDir = Path.Combine("wwwroot", "uploads", "variantes");
         Directory.CreateDirectory(uploadsDir);
 
-        // Delete previous image file if exists
-        if (!string.IsNullOrEmpty(producto.ImagenUrl))
+        if (!string.IsNullOrEmpty(variante.ImagenUrl))
         {
-            var old = Path.Combine("wwwroot", producto.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            var old = Path.Combine("wwwroot", variante.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(old)) File.Delete(old);
         }
 
         var newFile = $"{id}{ext}";
-        var path = Path.Combine(uploadsDir, newFile);
+        var path    = Path.Combine(uploadsDir, newFile);
         await using var fs = File.Create(path);
         await stream.CopyToAsync(fs);
 
-        producto.ImagenUrl = $"/uploads/productos/{newFile}";
+        variante.ImagenUrl = $"/uploads/variantes/{newFile}";
         await db.SaveChangesAsync();
-
-        return Result<string>.Success(producto.ImagenUrl);
+        return Result<string>.Success(variante.ImagenUrl);
     }
 
-    public async Task<Result<bool>> DeleteImagenAsync(int id)
-    {
-        var producto = await db.Productos.FindAsync(id);
-        if (producto is null)
-            return Result<bool>.Failure("Producto no encontrado.", ErrorType.NotFound);
-
-        if (!string.IsNullOrEmpty(producto.ImagenUrl))
-        {
-            var path = Path.Combine("wwwroot", producto.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-            if (File.Exists(path)) File.Delete(path);
-        }
-
-        producto.ImagenUrl = null;
-        await db.SaveChangesAsync();
-        return Result<bool>.Success(true);
-    }
-
-    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria = 0) => new()
-    {
-        Id           = p.Id,
-        Nombre       = p.Nombre,
-        Categoria    = p.Categoria,
-        Sku          = p.Sku,
-        PrecioCosto  = p.PrecioCosto,
-        PrecioVenta  = p.PrecioVenta,
-        StockActual  = p.StockActual,
-        StockMinimo  = p.StockMinimo,
-        BajoStock    = p.StockActual <= p.StockMinimo,
-        IsActive           = p.IsActive,
-        DescuentoCategoria = descuentoCategoria,
-        CreatedAt    = p.CreatedAt,
-        UpdatedAt    = p.UpdatedAt,
-        MarcaId      = p.MarcaId,
-        MarcaNombre  = p.Marca?.Nombre,
-        ModeloId     = p.ModeloId,
-        ModeloNombre = p.Modelo?.Nombre,
-        Color        = p.Color,
-        Talle        = p.Talle,
-        Descripcion  = p.Descripcion,
-        ImagenUrl    = p.ImagenUrl,
-    };
-
-    private static MovimientoStockResponse ToMovimientoResponse(MovimientoStock m, string productoNombre) => new()
-    {
-        Id                      = m.Id,
-        ProductoId              = m.ProductoId,
-        ProductoNombre          = productoNombre,
-        Tipo                    = m.Tipo,
-        Cantidad                = m.Cantidad,
-        Motivo                  = m.Motivo,
-        MotivoMovimientoId      = m.MotivoMovimientoId,
-        FechaMovimiento         = m.FechaMovimiento,
-        CreadoPorNombre         = m.CreadoPorNombre,
-        Estado                  = m.Estado,
-        AprobadoPorNombre       = m.AprobadoPorNombre,
-        FechaAprobacion         = m.FechaAprobacion,
-        ObservacionesAprobacion = m.ObservacionesAprobacion,
-        CreatedAt               = m.CreatedAt,
-    };
-
-    // ── Categorías de producto ─────────────────────────────────────────────────
+    // ── Categorías ─────────────────────────────────────────────────────────────
 
     public async Task<Result<IEnumerable<CategoriaProductoResponse>>> GetCategoriasAsync()
     {
-        var cats = await db.CategoriasProducto
-            .OrderBy(c => c.Nombre)
-            .ToListAsync();
-
+        var cats = await db.CategoriasProducto.OrderBy(c => c.Nombre).ToListAsync();
         var counts = await db.Productos
-            .GroupBy(p => p.Categoria)
-            .Select(g => new { Nombre = g.Key, Total = g.Count() })
+            .Where(p => p.CategoriaProductoId != null)
+            .GroupBy(p => p.CategoriaProductoId)
+            .Select(g => new { Id = g.Key, Total = g.Count() })
             .ToListAsync();
 
         var result = cats.Select(c => new CategoriaProductoResponse
@@ -472,7 +260,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             Margen         = c.Margen,
             Descuento      = c.Descuento,
             IsActive       = c.IsActive,
-            TotalProductos = counts.FirstOrDefault(x => x.Nombre == c.Nombre)?.Total ?? 0,
+            TotalProductos = counts.FirstOrDefault(x => x.Id == c.Id)?.Total ?? 0,
         });
 
         return Result<IEnumerable<CategoriaProductoResponse>>.Success(result);
@@ -484,20 +272,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre))
             return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
 
-        if (request.Margen < 0 || request.Margen > 1000)
-            return Result<CategoriaProductoResponse>.Failure("El margen debe estar entre 0 y 1000.", ErrorType.Validation);
-
-        if (request.Descuento < 0 || request.Descuento > 100)
-            return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
-
         var cat = new CategoriaProducto
         {
             Nombre      = nombre,
             Descripcion = request.Descripcion?.Trim(),
             Margen      = request.Margen,
             Descuento   = request.Descuento,
-            IsActive    = true,
-            CreatedAt   = DateTime.UtcNow,
         };
 
         db.CategoriasProducto.Add(cat);
@@ -520,12 +300,6 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre && c.Id != id))
             return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
 
-        if (request.Margen < 0 || request.Margen > 1000)
-            return Result<CategoriaProductoResponse>.Failure("El margen debe estar entre 0 y 1000.", ErrorType.Validation);
-
-        if (request.Descuento < 0 || request.Descuento > 100)
-            return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
-
         cat.Nombre      = nombre;
         cat.Descripcion = request.Descripcion?.Trim();
         cat.Margen      = request.Margen;
@@ -534,7 +308,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         await db.SaveChangesAsync();
 
-        var total = await db.Productos.CountAsync(p => p.Categoria == cat.Nombre);
+        var total = await db.Productos.CountAsync(p => p.CategoriaProductoId == id);
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
         {
             Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
@@ -547,9 +321,44 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var cat = await db.CategoriasProducto.FindAsync(id);
         if (cat is null)
             return Result<bool>.Failure("Categoría no encontrada.", ErrorType.NotFound);
-
         cat.IsActive = false;
         await db.SaveChangesAsync();
         return Result<bool>.Success(true);
     }
+
+    // ── Mappers ────────────────────────────────────────────────────────────────
+
+    private static ProductoResponse ToResponse(Producto p) => new()
+    {
+        Id                = p.Id,
+        Nombre            = p.Nombre,
+        Descripcion       = p.Descripcion,
+        IsActive          = p.IsActive,
+        CreatedAt         = p.CreatedAt,
+        UpdatedAt         = p.UpdatedAt,
+        CategoriaProductoId = p.CategoriaProductoId,
+        CategoriaNombre   = p.CategoriaProducto?.Nombre,
+        DescuentoCategoria = p.CategoriaProducto?.Descuento ?? 0,
+        MarcaId           = p.MarcaId,
+        MarcaNombre       = p.Marca?.Nombre,
+        ModeloId          = p.ModeloId,
+        ModeloNombre      = p.Modelo?.Nombre,
+        TotalVariantes    = p.Variantes?.Count ?? 0,
+    };
+
+    private static ProductoVarianteResponse ToVarianteResponse(ProductoVariante v) => new()
+    {
+        Id             = v.Id,
+        ProductoId     = v.ProductoId,
+        ProductoNombre = v.Producto?.Nombre ?? "",
+        Sku            = v.Sku,
+        Color          = v.Color,
+        Talle          = v.Talle,
+        PrecioCosto    = v.PrecioCosto,
+        PrecioVenta    = v.PrecioVenta,
+        ImagenUrl      = v.ImagenUrl,
+        IsActive       = v.IsActive,
+        CreatedAt      = v.CreatedAt,
+        UpdatedAt      = v.UpdatedAt,
+    };
 }

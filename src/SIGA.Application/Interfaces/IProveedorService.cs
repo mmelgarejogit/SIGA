@@ -1,5 +1,5 @@
 using SIGA.Application.Common;
-using SIGA.Application.DTOs.Inventario;
+using SIGA.Application.DTOs.Productos;
 
 namespace SIGA.Application.Interfaces;
 

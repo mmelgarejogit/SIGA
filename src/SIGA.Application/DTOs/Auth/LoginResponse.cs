@@ -8,6 +8,8 @@ public class LoginResponse
     public string LastName { get; set; } = string.Empty;
     public string? Specialty { get; set; }
     public int? ProfessionalId { get; set; }
+    public Guid? SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public List<string> RoleClaims { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
 }

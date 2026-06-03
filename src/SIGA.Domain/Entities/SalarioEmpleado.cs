@@ -4,7 +4,8 @@ public class SalarioEmpleado : Egreso
 {
     public int EmpleadoId { get; set; }
     public Empleado Empleado { get; set; } = null!;
-    public string? Periodo { get; set; }
+    public int PeriodoMes { get; set; }
+    public int PeriodoAnio { get; set; }
 
     public SalarioEmpleado()
     {

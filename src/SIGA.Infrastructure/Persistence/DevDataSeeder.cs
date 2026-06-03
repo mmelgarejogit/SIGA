@@ -372,57 +372,39 @@ public static class DevDataSeeder
 
     private static async Task SeedInventarioAsync(AppDbContext db)
     {
-        var now      = DateTime.UtcNow;
-        var productos = new List<Producto>();
+        var now = DateTime.UtcNow;
 
-        foreach (var (nombre, cat, costo, venta, min, act) in ProductosSeed)
+        var productos = new List<Producto>();
+        foreach (var (nombre, _, _, _, _, _) in ProductosSeed)
         {
             productos.Add(new Producto
             {
-                Nombre      = nombre,
-                Categoria   = cat,
-                Sku         = GenSku(cat, nombre),
-                PrecioCosto = costo,
-                PrecioVenta = venta,
-                StockMinimo = min,
-                StockActual = act,
-                IsActive    = true,
-                CreatedAt   = now.AddDays(-Rng.Next(30, 365)),
-                UpdatedAt   = now,
+                Nombre    = nombre,
+                IsActive  = true,
+                CreatedAt = now.AddDays(-Rng.Next(30, 365)),
+                UpdatedAt = now,
             });
         }
 
         db.Productos.AddRange(productos);
         await db.SaveChangesAsync();
 
-        var tiposMovimiento = new[] { "Entrada", "Salida", "Salida", "Ajuste" };
-        string[] motivosMov =
-        [
-            "Compra a proveedor", "Venta al cliente", "Pérdida / rotura",
-            "Ajuste de inventario", "Devolución de cliente", "Ingreso inicial",
-        ];
-
-        var movimientos = new List<MovimientoStock>();
-        foreach (var prod in productos)
+        var variantes = new List<ProductoVariante>();
+        foreach (var (prod, (_, cat, costo, venta, _, _)) in productos.Zip(ProductosSeed))
         {
-            int qty = Rng.Next(3, 8);
-            for (int m = 0; m < qty; m++)
+            variantes.Add(new ProductoVariante
             {
-                var tipo     = tiposMovimiento[Rng.Next(tiposMovimiento.Length)];
-                var cantidad = tipo == "Ajuste" ? Rng.Next(5, 30) : Rng.Next(1, 12);
-
-                movimientos.Add(new MovimientoStock
-                {
-                    ProductoId = prod.Id,
-                    Tipo       = tipo,
-                    Cantidad   = cantidad,
-                    Motivo     = motivosMov[Rng.Next(motivosMov.Length)],
-                    CreatedAt  = now.AddDays(-Rng.Next(1, 180)),
-                });
-            }
+                ProductoId  = prod.Id,
+                Sku         = GenSku(cat, prod.Nombre),
+                PrecioCosto = costo,
+                PrecioVenta = venta,
+                IsActive    = true,
+                CreatedAt   = prod.CreatedAt,
+                UpdatedAt   = now,
+            });
         }
 
-        db.MovimientosStock.AddRange(movimientos);
+        db.ProductoVariantes.AddRange(variantes);
         await db.SaveChangesAsync();
     }
 

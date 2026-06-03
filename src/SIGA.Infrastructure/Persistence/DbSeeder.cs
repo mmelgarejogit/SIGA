@@ -194,7 +194,20 @@ public static class DbSeeder
             await db.SaveChangesAsync();
         }
 
-        // 7. Marcas
+        // 7. Tipos de ajuste (defaults del spec)
+        var existingTipos = await db.TiposAjuste.Select(t => t.Nombre).ToHashSetAsync();
+        var nuevosTipos = TiposAjusteIniciales
+            .Where(t => !existingTipos.Contains(t.Nombre))
+            .Select(t => new TipoAjuste { Nombre = t.Nombre, Impacto = t.Impacto, Activo = true })
+            .ToList();
+
+        if (nuevosTipos.Count > 0)
+        {
+            db.TiposAjuste.AddRange(nuevosTipos);
+            await db.SaveChangesAsync();
+        }
+
+        // 8. Marcas
         var existingMarcas = await db.Marcas.Select(m => m.Nombre).ToHashSetAsync();
         var nuevasMarcas = MarcasIniciales
             .Where(n => !existingMarcas.Contains(n))
@@ -230,6 +243,16 @@ public static class DbSeeder
             await db.SaveChangesAsync();
         }
     }
+
+    private static readonly (string Nombre, ImpactoAjuste Impacto)[] TiposAjusteIniciales =
+    [
+        ("Merma / pérdida",      ImpactoAjuste.Negativo),
+        ("Corrección de conteo", ImpactoAjuste.Ambos),
+        ("Daño parcial",         ImpactoAjuste.Negativo),
+        ("Robo / extravío",      ImpactoAjuste.Negativo),
+        ("Inventario inicial",   ImpactoAjuste.Positivo),
+        ("Muestra / préstamo",   ImpactoAjuste.Negativo),
+    ];
 
     private static readonly string[] MarcasIniciales =
     [

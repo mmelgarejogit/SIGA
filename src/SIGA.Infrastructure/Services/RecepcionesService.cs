@@ -183,18 +183,7 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
                 Observaciones    = string.IsNullOrWhiteSpace(rec.Observaciones) ? null : rec.Observaciones.Trim(),
             });
 
-            // Actualizar stock + recepcion acumulada en el ítem de la OC
-            item.CantidadRecibida    += rec.CantidadRecibida;
-            item.Producto.StockActual += rec.CantidadRecibida;
-            item.Producto.UpdatedAt   =  DateTime.UtcNow;
-
-            db.MovimientosStock.Add(new MovimientoStock
-            {
-                ProductoId = item.ProductoId,
-                Tipo       = "Entrada",
-                Cantidad   = rec.CantidadRecibida,
-                Motivo     = $"Recepción — OC #{pedido.Id} / Fact. {factura.NroFactura}",
-            });
+            item.CantidadRecibida += rec.CantidadRecibida;
         }
 
         db.RecepcionesMercaderia.Add(recepcion);

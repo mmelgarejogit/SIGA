@@ -3,6 +3,11 @@ namespace SIGA.Application.DTOs.Egresos;
 public class EgresoResponse
 {
     public int Id { get; set; }
+    public Guid SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
+    public int CreadoPorUserId { get; set; }
+    public string? CreadoPorUserNombre { get; set; }
+    public DateTime FechaCreacion { get; set; }
     public string Tipo { get; set; } = "";
     public string Estado { get; set; } = "";
     public decimal Monto { get; set; }
@@ -14,9 +19,20 @@ public class EgresoResponse
     public string? MetodoPago { get; set; }
     public bool EstaVencido { get; set; }
     public string? MotivoRechazo { get; set; }
+    public int? AprobadoPorUserId { get; set; }
+    public string? AprobadoPorUserNombre { get; set; }
     public string? FechaAprobacion { get; set; }
     public string? NroComprobante { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // EgresoPago
+    public int? EgresoPagoId { get; set; }
+    public string? EgresoPagoFechaPago { get; set; }
+    public string? EgresoPagoMetodoPago { get; set; }
+    public string? EgresoPagoNumeroComprobante { get; set; }
+    public string? EgresoPagoObservaciones { get; set; }
+    public int? EgresoPagoRegistradoPorUserId { get; set; }
+    public string? EgresoPagoRegistradoPorUserNombre { get; set; }
 
     // FacturaCompra — datos de referencia
     public string? NroFactura { get; set; }
@@ -36,7 +52,8 @@ public class EgresoResponse
     // Honorario
     public int? ProfessionalId { get; set; }
     public string? ProfessionalNombre { get; set; }
-    public string? Periodo { get; set; }
+    public int? PeriodoMes { get; set; }
+    public int? PeriodoAnio { get; set; }
 
     // GastoGeneral
     public int? CategoriaGastoId { get; set; }

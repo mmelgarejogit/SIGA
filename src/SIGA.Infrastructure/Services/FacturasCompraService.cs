@@ -216,20 +216,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 .Where(p => stockEntries.Select(s => s.ProductoId).Contains(p.Id))
                 .ToListAsync();
 
-            foreach (var entry in stockEntries)
-            {
-                var producto = productos.First(p => p.Id == entry.ProductoId);
-                producto.StockActual += entry.Cantidad;
-                producto.UpdatedAt   =  DateTime.UtcNow;
-
-                db.MovimientosStock.Add(new MovimientoStock
-                {
-                    ProductoId = producto.Id,
-                    Tipo       = "Entrada",
-                    Cantidad   = entry.Cantidad,
-                    Motivo     = $"Factura directa {nroFactura} — {proveedor.Nombre}",
-                });
-            }
+            // Stock movements will be generated via MovimientoInventarioService when integrated
         }
 
         db.FacturasCompra.Add(factura);
@@ -297,36 +284,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                     .Where(p => productoIds.Contains(p.Id))
                     .ToListAsync();
 
-                // Validar stock disponible
-                var insuficientes = new List<string>();
-                foreach (var entry in stockEntries)
-                {
-                    var producto = productos.FirstOrDefault(p => p.Id == entry.ProductoId);
-                    if (producto is null)
-                        insuficientes.Add($"Producto #{entry.ProductoId} (no existe)");
-                    else if (producto.StockActual < entry.Cantidad)
-                        insuficientes.Add($"\"{producto.Nombre}\" (disponible: {producto.StockActual}, necesario: {entry.Cantidad})");
-                }
-                if (insuficientes.Count > 0)
-                    return Result<FacturaCompraResponse>.Failure(
-                        "No se puede anular: stock insuficiente para revertir. " + string.Join("; ", insuficientes),
-                        ErrorType.Validation);
-
-                // Aplicar reversa
-                foreach (var entry in stockEntries)
-                {
-                    var producto = productos.First(p => p.Id == entry.ProductoId);
-                    producto.StockActual -= entry.Cantidad;
-                    producto.UpdatedAt   =  DateTime.UtcNow;
-
-                    db.MovimientosStock.Add(new MovimientoStock
-                    {
-                        ProductoId = producto.Id,
-                        Tipo       = "Salida",
-                        Cantidad   = entry.Cantidad,
-                        Motivo     = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",
-                    });
-                }
+                // Stock reversal will be handled via MovimientoInventarioService when integrated
             }
         }
 

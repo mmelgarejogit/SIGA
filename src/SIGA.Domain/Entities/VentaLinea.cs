@@ -9,8 +9,8 @@ public class VentaLinea
 
     public TipoLineaVenta Tipo { get; set; }
 
-    public int? ProductoId { get; set; }
-    public Producto? Producto { get; set; }
+    public Guid? ProductoVarianteId { get; set; }
+    public ProductoVariante? ProductoVariante { get; set; }
 
     public int? ServicioId { get; set; }
     public Servicio? Servicio { get; set; }

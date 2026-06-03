@@ -9,13 +9,14 @@ namespace SIGA.Infrastructure.Services;
 
 public class EgresoService(AppDbContext db) : IEgresoService
 {
-    // ── Helpers ──────────────────────────────────────────────────────────────────
-
-    private static EgresoResponse Map(Egreso e)
+    private static EgresoResponse Map(Egreso e, EgresoPago? pago = null)
     {
         var r = new EgresoResponse
         {
             Id               = e.Id,
+            SucursalId       = e.SucursalId,
+            CreadoPorUserId   = e.CreadoPorUserId,
+            FechaCreacion     = e.FechaCreacion,
             Tipo             = e.Tipo.ToString(),
             Estado           = e.Estado.ToString(),
             Monto            = e.Monto,
@@ -27,10 +28,30 @@ public class EgresoService(AppDbContext db) : IEgresoService
             MetodoPago       = e.MetodoPago?.ToString(),
             EstaVencido      = e.EstaVencido(),
             MotivoRechazo    = e.MotivoRechazo,
+            AprobadoPorUserId = e.AprobadoPorUserId,
             FechaAprobacion  = e.FechaAprobacion?.ToString("yyyy-MM-dd"),
             NroComprobante   = e.NroComprobante,
             CreatedAt        = e.CreatedAt,
         };
+
+        if (e.Sucursal != null)
+            r.SucursalNombre = e.Sucursal.Nombre;
+        if (e.CreadoPorUser?.Person != null)
+            r.CreadoPorUserNombre = $"{e.CreadoPorUser.Person.FirstName} {e.CreadoPorUser.Person.LastName}".Trim();
+        if (e.AprobadoPorUser?.Person != null)
+            r.AprobadoPorUserNombre = $"{e.AprobadoPorUser.Person.FirstName} {e.AprobadoPorUser.Person.LastName}".Trim();
+
+        if (pago != null)
+        {
+            r.EgresoPagoId = pago.Id;
+            r.EgresoPagoFechaPago = pago.FechaPago.ToString("yyyy-MM-dd");
+            r.EgresoPagoMetodoPago = pago.MetodoPago.ToString();
+            r.EgresoPagoNumeroComprobante = pago.NumeroComprobante;
+            r.EgresoPagoObservaciones = pago.Observaciones;
+            r.EgresoPagoRegistradoPorUserId = pago.RegistradoPorUserId;
+            if (pago.RegistradoPorUser?.Person != null)
+                r.EgresoPagoRegistradoPorUserNombre = $"{pago.RegistradoPorUser.Person.FirstName} {pago.RegistradoPorUser.Person.LastName}".Trim();
+        }
 
         if (e is FacturaCompra fc)
         {
@@ -50,7 +71,8 @@ public class EgresoService(AppDbContext db) : IEgresoService
         {
             r.ProfessionalId     = h.ProfessionalId;
             r.ProfessionalNombre = $"{h.Professional?.User?.Person?.FirstName} {h.Professional?.User?.Person?.LastName}".Trim();
-            r.Periodo            = h.Periodo;
+            r.PeriodoMes          = h.PeriodoMes;
+            r.PeriodoAnio         = h.PeriodoAnio;
         }
         else if (e is GastoGeneral g)
         {
@@ -61,7 +83,8 @@ public class EgresoService(AppDbContext db) : IEgresoService
         {
             r.EmpleadoId     = s.EmpleadoId;
             r.EmpleadoNombre = $"{s.Empleado?.User?.Person?.FirstName} {s.Empleado?.User?.Person?.LastName}".Trim();
-            r.Periodo        = s.Periodo;
+            r.PeriodoMes     = s.PeriodoMes;
+            r.PeriodoAnio    = s.PeriodoAnio;
         }
 
         return r;
@@ -77,6 +100,9 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
     private IQueryable<Egreso> BaseQuery() =>
         db.Egresos
+            .Include(e => e.Sucursal)
+            .Include(e => e.CreadoPorUser).ThenInclude(u => u!.Person)
+            .Include(e => e.AprobadoPorUser).ThenInclude(u => u!.Person)
             .Include(e => (e as FacturaCompra)!.Proveedor)
             .Include(e => (e as Honorario)!.Professional)
                 .ThenInclude(p => p!.User)
@@ -85,8 +111,6 @@ public class EgresoService(AppDbContext db) : IEgresoService
             .Include(e => (e as SalarioEmpleado)!.Empleado)
                 .ThenInclude(emp => emp!.User)
                     .ThenInclude(u => u!.Person);
-
-    // ── Categorías ───────────────────────────────────────────────────────────────
 
     public async Task<Result<IEnumerable<CategoriaGastoResponse>>> GetCategoriasAsync()
     {
@@ -125,56 +149,27 @@ public class EgresoService(AppDbContext db) : IEgresoService
         return Result<CategoriaGastoResponse>.Success(MapCategoria(categoria));
     }
 
-    // ── Crear Egresos ─────────────────────────────────────────────────────────────
-
-    public async Task<Result<EgresoResponse>> CrearFacturaCompraAsync(CrearFacturaCompraRequest request)
+    public async Task<Result<EgresoResponse>> CrearFacturaCompraAsync(CrearFacturaCompraRequest request, int userId)
     {
-        if (!DateOnly.TryParse(request.FechaEmision, out var fechaEmision))
-            return Result<EgresoResponse>.Failure("Fecha de emisión inválida.", ErrorType.Validation);
-
-        DateOnly? fechaVencimiento = null;
-        if (!string.IsNullOrWhiteSpace(request.FechaVencimiento))
-        {
-            if (!DateOnly.TryParse(request.FechaVencimiento, out var fv))
-                return Result<EgresoResponse>.Failure("Fecha de vencimiento inválida.", ErrorType.Validation);
-            fechaVencimiento = fv;
-        }
-
-        if (!Enum.TryParse<CondicionVenta>(request.CondicionVenta, ignoreCase: true, out var condicion))
-            return Result<EgresoResponse>.Failure("Condición de venta inválida. Valores válidos: Contado, Credito.", ErrorType.Validation);
-
-        var proveedorExists = await db.Proveedores.AnyAsync(p => p.Id == request.ProveedorId);
-        if (!proveedorExists)
-            return Result<EgresoResponse>.Failure("Proveedor no encontrado.", ErrorType.NotFound);
-
-        var factura = new FacturaCompra
-        {
-            ProveedorId       = request.ProveedorId,
-            PedidoProveedorId = request.PedidoProveedorId,
-            NroFactura        = request.NroFactura?.Trim(),
-            MontoExento       = request.MontoExento,
-            MontoGravado5     = request.MontoGravado5,
-            MontoGravado10    = request.MontoGravado10,
-            CondicionVenta    = condicion,
-            Concepto          = request.Concepto.Trim(),
-            Observaciones     = request.Observaciones?.Trim(),
-            FechaEmision      = fechaEmision,
-            FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Aprobado,
-        };
-        factura.Monto = factura.MontoTotal;
-
-        db.FacturasCompra.Add(factura);
-        await db.SaveChangesAsync();
-
-        await db.Entry(factura).Reference(f => f.Proveedor).LoadAsync();
-        return Result<EgresoResponse>.Success(Map(factura));
+        return Result<EgresoResponse>.Failure(
+            "No se pueden crear facturas de compra nuevas. Este tipo es solo de lectura.",
+            ErrorType.Validation);
     }
 
-    public async Task<Result<EgresoResponse>> CrearHonorarioAsync(CrearHonorarioRequest request)
+    public async Task<Result<EgresoResponse>> CrearHonorarioAsync(CrearHonorarioRequest request, int userId)
     {
+        if (request.SucursalId == Guid.Empty)
+            return Result<EgresoResponse>.Failure("La sucursal es obligatoria.", ErrorType.Validation);
+
         if (!DateOnly.TryParse(request.FechaEmision, out var fechaEmision))
             return Result<EgresoResponse>.Failure("Fecha de emisión inválida.", ErrorType.Validation);
+
+        if (request.PeriodoMes < 1 || request.PeriodoMes > 12)
+            return Result<EgresoResponse>.Failure("El mes del período debe estar entre 1 y 12.", ErrorType.Validation);
+
+        var sucursal = await db.Sucursales.FindAsync(request.SucursalId);
+        if (sucursal is null)
+            return Result<EgresoResponse>.Failure("Sucursal no encontrada.", ErrorType.NotFound);
 
         DateOnly? fechaVencimiento = null;
         if (!string.IsNullOrWhiteSpace(request.FechaVencimiento))
@@ -192,26 +187,38 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var honorario = new Honorario
         {
-            ProfessionalId   = request.ProfessionalId,
-            Monto            = request.Monto,
-            Concepto         = request.Concepto.Trim(),
-            Periodo          = request.Periodo?.Trim(),
-            Observaciones    = request.Observaciones?.Trim(),
-            FechaEmision     = fechaEmision,
+            SucursalId     = request.SucursalId,
+            CreadoPorUserId = userId,
+            FechaCreacion   = DateTime.UtcNow,
+            ProfessionalId = request.ProfessionalId,
+            Monto          = request.Monto,
+            Concepto       = request.Concepto.Trim(),
+            PeriodoMes     = request.PeriodoMes,
+            PeriodoAnio    = request.PeriodoAnio,
+            Observaciones  = request.Observaciones?.Trim(),
+            FechaEmision   = fechaEmision,
             FechaVencimiento = fechaVencimiento,
-            Estado           = EstadoEgreso.Pendiente,
+            Estado         = EstadoEgreso.Pendiente,
         };
         db.Honorarios.Add(honorario);
         await db.SaveChangesAsync();
 
         honorario.Professional = professional;
+        honorario.Sucursal = sucursal;
         return Result<EgresoResponse>.Success(Map(honorario));
     }
 
-    public async Task<Result<EgresoResponse>> CrearGastoGeneralAsync(CrearGastoGeneralRequest request)
+    public async Task<Result<EgresoResponse>> CrearGastoGeneralAsync(CrearGastoGeneralRequest request, int userId)
     {
+        if (request.SucursalId == Guid.Empty)
+            return Result<EgresoResponse>.Failure("La sucursal es obligatoria.", ErrorType.Validation);
+
         if (!DateOnly.TryParse(request.FechaEmision, out var fechaEmision))
             return Result<EgresoResponse>.Failure("Fecha de emisión inválida.", ErrorType.Validation);
+
+        var sucursal = await db.Sucursales.FindAsync(request.SucursalId);
+        if (sucursal is null)
+            return Result<EgresoResponse>.Failure("Sucursal no encontrada.", ErrorType.NotFound);
 
         DateOnly? fechaVencimiento = null;
         if (!string.IsNullOrWhiteSpace(request.FechaVencimiento))
@@ -227,6 +234,9 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var gasto = new GastoGeneral
         {
+            SucursalId       = request.SucursalId,
+            CreadoPorUserId  = userId,
+            FechaCreacion    = DateTime.UtcNow,
             CategoriaGastoId = request.CategoriaGastoId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -239,13 +249,24 @@ public class EgresoService(AppDbContext db) : IEgresoService
         await db.SaveChangesAsync();
 
         gasto.CategoriaGasto = categoria;
+        gasto.Sucursal = sucursal;
         return Result<EgresoResponse>.Success(Map(gasto));
     }
 
-    public async Task<Result<EgresoResponse>> CrearSalarioAsync(CrearSalarioRequest request)
+    public async Task<Result<EgresoResponse>> CrearSalarioAsync(CrearSalarioRequest request, int userId)
     {
+        if (request.SucursalId == Guid.Empty)
+            return Result<EgresoResponse>.Failure("La sucursal es obligatoria.", ErrorType.Validation);
+
         if (!DateOnly.TryParse(request.FechaEmision, out var fechaEmision))
             return Result<EgresoResponse>.Failure("Fecha de emisión inválida.", ErrorType.Validation);
+
+        if (request.PeriodoMes < 1 || request.PeriodoMes > 12)
+            return Result<EgresoResponse>.Failure("El mes del período debe estar entre 1 y 12.", ErrorType.Validation);
+
+        var sucursal = await db.Sucursales.FindAsync(request.SucursalId);
+        if (sucursal is null)
+            return Result<EgresoResponse>.Failure("Sucursal no encontrada.", ErrorType.NotFound);
 
         DateOnly? fechaVencimiento = null;
         if (!string.IsNullOrWhiteSpace(request.FechaVencimiento))
@@ -263,25 +284,28 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var salario = new SalarioEmpleado
         {
-            EmpleadoId       = request.EmpleadoId,
-            Monto            = request.Monto,
-            Concepto         = request.Concepto.Trim(),
-            Periodo          = request.Periodo?.Trim(),
-            Observaciones    = request.Observaciones?.Trim(),
-            FechaEmision     = fechaEmision,
+            SucursalId     = request.SucursalId,
+            CreadoPorUserId = userId,
+            FechaCreacion  = DateTime.UtcNow,
+            EmpleadoId     = request.EmpleadoId,
+            Monto          = request.Monto,
+            Concepto       = request.Concepto.Trim(),
+            PeriodoMes     = request.PeriodoMes,
+            PeriodoAnio    = request.PeriodoAnio,
+            Observaciones  = request.Observaciones?.Trim(),
+            FechaEmision   = fechaEmision,
             FechaVencimiento = fechaVencimiento,
-            Estado           = EstadoEgreso.Pendiente,
+            Estado         = EstadoEgreso.Pendiente,
         };
         db.SalariosEmpleado.Add(salario);
         await db.SaveChangesAsync();
 
         salario.Empleado = empleado;
+        salario.Sucursal = sucursal;
         return Result<EgresoResponse>.Success(Map(salario));
     }
 
-    // ── Transiciones de estado ────────────────────────────────────────────────────
-
-    public async Task<Result<EgresoResponse>> RegistrarPagoAsync(int id, RegistrarPagoRequest request)
+    public async Task<Result<EgresoResponse>> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int userId)
     {
         var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
         if (egreso is null)
@@ -293,30 +317,48 @@ public class EgresoService(AppDbContext db) : IEgresoService
         if (!DateOnly.TryParse(request.FechaPago, out var fechaPago))
             return Result<EgresoResponse>.Failure("Fecha de pago inválida.", ErrorType.Validation);
 
-        if (!string.IsNullOrWhiteSpace(request.Observaciones))
-            egreso.Observaciones = (egreso.Observaciones is not null
-                ? egreso.Observaciones + " | " : "") + request.Observaciones.Trim();
-
-        try
-        {
-            egreso.RegistrarPago(metodo, fechaPago, request.NroComprobante);
-        }
+        try { egreso.RegistrarPago(metodo, fechaPago, request.NroComprobante); }
         catch (InvalidOperationException ex)
+        { return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict); }
+
+        var pago = new EgresoPago
         {
-            return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict);
-        }
+            EgresoId              = egreso.Id,
+            FechaPago             = fechaPago,
+            MetodoPago            = metodo,
+            NumeroComprobante     = request.NroComprobante?.Trim(),
+            Observaciones         = request.Observaciones?.Trim(),
+            RegistradoPorUserId   = userId,
+        };
+        db.EgresosPagos.Add(pago);
+
+        var movimiento = new MovimientoCaja
+        {
+            SucursalId = egreso.SucursalId,
+            Tipo       = TipoMovimientoCaja.Egreso,
+            Monto      = egreso.Monto,
+            Concepto   = $"Pago egreso #{egreso.Id}: {egreso.Concepto}",
+            MetodoPago = metodo,
+            EgresoId   = egreso.Id,
+            Fecha      = fechaPago,
+            Referencia = request.NroComprobante?.Trim(),
+            CreatedAt  = DateTime.UtcNow,
+        };
+        db.MovimientosCaja.Add(movimiento);
 
         await db.SaveChangesAsync();
-        return Result<EgresoResponse>.Success(Map(egreso));
+
+        pago.RegistradoPorUser = await db.Users.Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == userId);
+        return Result<EgresoResponse>.Success(Map(egreso, pago));
     }
 
-    public async Task<Result<EgresoResponse>> AprobarEgresoAsync(int id)
+    public async Task<Result<EgresoResponse>> AprobarEgresoAsync(int id, int userId)
     {
         var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
         if (egreso is null)
             return Result<EgresoResponse>.Failure("Egreso no encontrado.", ErrorType.NotFound);
 
-        try { egreso.Aprobar(); }
+        try { egreso.Aprobar(userId); }
         catch (InvalidOperationException ex)
         { return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict); }
 
@@ -363,21 +405,27 @@ public class EgresoService(AppDbContext db) : IEgresoService
         return Result<EgresoResponse>.Success(Map(egreso));
     }
 
-    // ── Consultas ─────────────────────────────────────────────────────────────────
-
     public async Task<Result<EgresoResponse>> GetEgresoByIdAsync(int id)
     {
         var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
         if (egreso is null)
             return Result<EgresoResponse>.Failure("Egreso no encontrado.", ErrorType.NotFound);
-        return Result<EgresoResponse>.Success(Map(egreso));
+
+        var pago = await db.EgresosPagos
+            .Include(p => p.RegistradoPorUser).ThenInclude(u => u!.Person)
+            .FirstOrDefaultAsync(p => p.EgresoId == id);
+
+        return Result<EgresoResponse>.Success(Map(egreso, pago));
     }
 
     public async Task<Result<PagedResult<EgresoResponse>>> GetEgresosAsync(
         string? tipo, string? estado, string? fechaDesde, string? fechaHasta,
-        bool? soloVencidos, int page, int pageSize)
+        bool? soloVencidos, int page, int pageSize, Guid? sucursalId = null)
     {
         var query = BaseQuery();
+
+        if (sucursalId.HasValue)
+            query = query.Where(e => e.SucursalId == sucursalId.Value);
 
         if (!string.IsNullOrWhiteSpace(tipo) && Enum.TryParse<TipoEgreso>(tipo, ignoreCase: true, out var t))
             query = query.Where(e => e.Tipo == t);
@@ -410,7 +458,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         return Result<PagedResult<EgresoResponse>>.Success(new PagedResult<EgresoResponse>
         {
-            Items      = items.Select(Map),
+            Items      = items.Select(e => Map(e)),
             TotalCount = total,
             Page       = page,
             PageSize   = pageSize,

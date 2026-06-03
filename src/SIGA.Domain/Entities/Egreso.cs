@@ -3,20 +3,28 @@ namespace SIGA.Domain.Entities;
 public abstract class Egreso
 {
     public int Id { get; set; }
+    public Guid SucursalId { get; set; }
+    public Sucursal Sucursal { get; set; } = null!;
+    public int CreadoPorUserId { get; set; }
+    public User? CreadoPorUser { get; set; }
+    public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
     public TipoEgreso Tipo { get; set; }
-    public EstadoEgreso Estado { get; set; } = EstadoEgreso.Borrador;
+    public EstadoEgreso Estado { get; set; } = EstadoEgreso.Pendiente;
     public decimal Monto { get; set; }
     public string Concepto { get; set; } = "";
     public string? Observaciones { get; set; }
     public DateOnly FechaEmision { get; set; }
     public DateOnly? FechaVencimiento { get; set; }
-    public DateOnly? FechaPago { get; set; }
     public MetodoPago? MetodoPago { get; set; }
-    public string? MotivoRechazo { get; set; }
-    public DateTime? FechaAprobacion { get; set; }
+    public DateOnly? FechaPago { get; set; }
     public string? NroComprobante { get; set; }
+    public int? AprobadoPorUserId { get; set; }
+    public User? AprobadoPorUser { get; set; }
+    public DateTime? FechaAprobacion { get; set; }
+    public string? MotivoRechazo { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public EgresoPago? Pago { get; set; }
 
     public bool EstaVencido() =>
         Estado != EstadoEgreso.Pagado &&
@@ -25,12 +33,13 @@ public abstract class Egreso
         FechaVencimiento.HasValue &&
         FechaVencimiento.Value < DateOnly.FromDateTime(DateTime.UtcNow);
 
-    public void Aprobar()
+    public void Aprobar(int userId)
     {
         if (Estado != EstadoEgreso.Pendiente)
             throw new InvalidOperationException("Solo se puede aprobar un egreso pendiente.");
 
         Estado = EstadoEgreso.Aprobado;
+        AprobadoPorUserId = userId;
         FechaAprobacion = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

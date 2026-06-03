@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
-using SIGA.Application.DTOs.Inventario;
+using SIGA.Application.DTOs.Productos;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 using SIGA.Infrastructure.Persistence;

@@ -1,7 +1,7 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using SIGA.Application.DTOs.Inventario;
+using SIGA.Application.DTOs.Productos;
 using SIGA.Application.Interfaces;
 
 namespace SIGA.Infrastructure.Services;

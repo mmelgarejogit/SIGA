@@ -4,6 +4,8 @@ namespace SIGA.Application.DTOs.Egresos;
 
 public class CrearFacturaCompraRequest : IValidatableObject
 {
+    public Guid? SucursalId { get; set; }
+
     [Required(ErrorMessage = "El proveedor es obligatorio.")]
     public int ProveedorId { get; set; }
 

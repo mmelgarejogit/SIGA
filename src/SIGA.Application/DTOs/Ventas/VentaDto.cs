@@ -4,7 +4,7 @@ public class VentaLineaDto
 {
     public int Id { get; set; }
     public string Tipo { get; set; } = "";
-    public int? ProductoId { get; set; }
+    public Guid? ProductoVarianteId { get; set; }
     public int? ServicioId { get; set; }
     public string Descripcion { get; set; } = "";
     public int Cantidad { get; set; }

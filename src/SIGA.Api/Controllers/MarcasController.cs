@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SIGA.Application.DTOs.Inventario;
+using SIGA.Application.DTOs.Productos;
 using SIGA.Application.Interfaces;
 
 namespace SIGA.Api.Controllers;

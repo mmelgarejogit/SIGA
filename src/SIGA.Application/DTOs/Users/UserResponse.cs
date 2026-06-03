@@ -12,5 +12,12 @@ public class UserResponse
     public bool IsActive { get; set; }
     public string Type { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = [];
+    public Guid? SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public class AssignSucursalRequest
+{
+    public Guid? SucursalId { get; set; }
 }

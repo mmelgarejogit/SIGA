@@ -64,4 +64,12 @@ public class BaseController : ControllerBase
             _                      => StatusCode(500, result.Error)
         };
     }
+
+    // Si el usuario tiene una sucursal asignada en el JWT, devuelve ese ID.
+    // Null significa que el usuario es Admin y puede ver todas las sucursales.
+    protected Guid? ForcedSucursalId =>
+        Guid.TryParse(User.FindFirst("sucursal_id")?.Value, out var id) ? id : null;
+
+    protected int CurrentUserId =>
+        int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
 }

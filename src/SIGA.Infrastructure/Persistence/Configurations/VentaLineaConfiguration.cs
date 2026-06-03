@@ -19,7 +19,7 @@ public class VentaLineaConfiguration : IEntityTypeConfiguration<VentaLinea>
 
         builder.Ignore(x => x.Subtotal);
 
-        builder.HasOne(x => x.Producto).WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductoVariante).WithMany(v => v.VentaLineas).HasForeignKey(x => x.ProductoVarianteId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Servicio).WithMany().HasForeignKey(x => x.ServicioId).OnDelete(DeleteBehavior.Restrict);
     }
 }

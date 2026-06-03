@@ -249,17 +249,6 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         db.DevolucionesProveedor.Add(devolucion);
 
-        item.Producto.StockActual -= request.Cantidad;
-        item.Producto.UpdatedAt   =  DateTime.UtcNow;
-
-        db.MovimientosStock.Add(new MovimientoStock
-        {
-            ProductoId = item.ProductoId,
-            Tipo       = "Salida",
-            Cantidad   = request.Cantidad,
-            Motivo     = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
-        });
-
         await db.SaveChangesAsync();
 
         return Result<DevolucionResponse>.Success(new DevolucionResponse
@@ -422,8 +411,8 @@ public class ComprasService(AppDbContext db) : IComprasService
         Items = p.Items.Select(i => new PedidoItemResponse
         {
             Id               = i.Id,
-            ProductoId       = i.ProductoId,
-            ProductoNombre   = i.Producto.Nombre,
+            ProductoId       = i.ProductoId ?? 0,
+            ProductoNombre   = i.Producto?.Nombre ?? "",
             Cantidad         = i.Cantidad,
             CantidadRecibida = i.CantidadRecibida,
             PrecioUnitario   = i.PrecioUnitario,
