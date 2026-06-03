@@ -35,6 +35,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DevolucionProveedor> DevolucionesProveedor => Set<DevolucionProveedor>();
     public DbSet<RecepcionMercaderia> RecepcionesMercaderia => Set<RecepcionMercaderia>();
     public DbSet<RecepcionMercaderiaItem> RecepcionesMercaderiaItems => Set<RecepcionMercaderiaItem>();
+    public DbSet<StockLote> StockLotes => Set<StockLote>();
+    public DbSet<ConteoInventario> ConteosInventario => Set<ConteoInventario>();
+    public DbSet<ConteoInventarioLinea> ConteoInventarioLineas => Set<ConteoInventarioLinea>();
     public DbSet<ConfiguracionNegocio> ConfiguracionNegocio => Set<ConfiguracionNegocio>();
     public DbSet<EstadoConfig> EstadosConfig => Set<EstadoConfig>();
     public DbSet<CategoriaGasto> CategoriasGasto => Set<CategoriaGasto>();

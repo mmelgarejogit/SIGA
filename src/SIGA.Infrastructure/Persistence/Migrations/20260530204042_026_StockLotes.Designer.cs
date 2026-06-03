@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260530204042_026_StockLotes")]
+    partial class _026_StockLotes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -263,80 +266,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProfessionalId");
 
                     b.ToTable("consultas_clinicas", (string)null);
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.ConteoInventario", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AprobadoPorNombre")
-                        .HasColumnType("text");
-
-                    b.Property<int>("CreadoPorId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("CreadoPorNombre")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("FechaAprobacion")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("FechaConteo")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Observaciones")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ObservacionesAprobacion")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ConteosInventario");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.ConteoInventarioLinea", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CantidadFisica")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("CantidadSistema")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ConteoId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Diferencia")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ProductoId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConteoId");
-
-                    b.HasIndex("ProductoId");
-
-                    b.ToTable("ConteoInventarioLineas");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.DatosFacturacion", b =>
@@ -1102,9 +1031,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("StockActual")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("StockMaximo")
-                        .HasColumnType("integer");
-
                     b.Property<int>("StockMinimo")
                         .HasColumnType("integer");
 
@@ -1856,25 +1782,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Professional");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.ConteoInventarioLinea", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.ConteoInventario", "Conteo")
-                        .WithMany("Lineas")
-                        .HasForeignKey("ConteoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SIGA.Domain.Entities.Producto", "Producto")
-                        .WithMany()
-                        .HasForeignKey("ProductoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Conteo");
-
-                    b.Navigation("Producto");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.DatosFacturacion", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Patient", "Patient")
@@ -2356,11 +2263,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SIGA.Domain.Entities.ConsultaClinica", b =>
                 {
                     b.Navigation("Receta");
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.ConteoInventario", b =>
-                {
-                    b.Navigation("Lineas");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Especialidad", b =>

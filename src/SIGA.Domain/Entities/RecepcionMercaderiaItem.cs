@@ -17,4 +17,6 @@ public class RecepcionMercaderiaItem
 
     /// <summary>Observaciones particulares de esta línea recibida.</summary>
     public string? Observaciones { get; set; }
+
+    public StockLote? StockLote { get; set; }
 }

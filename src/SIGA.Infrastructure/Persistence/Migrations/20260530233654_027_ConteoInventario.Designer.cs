@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260530233654_027_ConteoInventario")]
+    partial class _027_ConteoInventario
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,12 +330,24 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("Diferencia")
                         .HasColumnType("integer");
 
+                    b.Property<string>("FechaVencimiento")
+                        .HasColumnType("text");
+
+                    b.Property<int>("LoteId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LoteNumero")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int>("ProductoId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ConteoId");
+
+                    b.HasIndex("LoteId");
 
                     b.HasIndex("ProductoId");
 
@@ -1102,9 +1117,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("StockActual")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("StockMaximo")
-                        .HasColumnType("integer");
-
                     b.Property<int>("StockMinimo")
                         .HasColumnType("integer");
 
@@ -1864,6 +1876,12 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SIGA.Domain.Entities.StockLote", "Lote")
+                        .WithMany()
+                        .HasForeignKey("LoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("SIGA.Domain.Entities.Producto", "Producto")
                         .WithMany()
                         .HasForeignKey("ProductoId")
@@ -1871,6 +1889,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Conteo");
+
+                    b.Navigation("Lote");
 
                     b.Navigation("Producto");
                 });

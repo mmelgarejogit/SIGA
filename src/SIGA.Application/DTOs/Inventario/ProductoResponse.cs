@@ -10,6 +10,7 @@ public class ProductoResponse
     public decimal PrecioVenta { get; set; }
     public int StockActual { get; set; }
     public int StockMinimo { get; set; }
+    public int? StockMaximo { get; set; }
     public bool BajoStock { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }

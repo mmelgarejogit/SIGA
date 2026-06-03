@@ -174,19 +174,30 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
                     $"Para \"{item.Producto.Nombre}\": si se completa lote o vencimiento, ambos son obligatorios.",
                     ErrorType.Validation);
 
-            recepcion.Items.Add(new RecepcionMercaderiaItem
+            var recepcionItem = new RecepcionMercaderiaItem
             {
                 PedidoItemId     = item.Id,
                 Cantidad         = rec.CantidadRecibida,
                 Lote             = tieneLote ? loteTrim : null,
                 FechaVencimiento = venc,
                 Observaciones    = string.IsNullOrWhiteSpace(rec.Observaciones) ? null : rec.Observaciones.Trim(),
-            });
+                // StockLote asignado por navegación: EF resuelve el FK orden en un único SaveChanges
+                StockLote        = tieneLote ? new StockLote
+                {
+                    ProductoId       = item.ProductoId,
+                    Lote             = loteTrim!,
+                    FechaVencimiento = venc,
+                    CantidadInicial  = rec.CantidadRecibida,
+                    FechaIngreso     = fechaRecepcion,
+                } : null,
+            };
+            recepcion.Items.Add(recepcionItem);
 
             // Actualizar stock + recepcion acumulada en el ítem de la OC
-            item.CantidadRecibida    += rec.CantidadRecibida;
+            item.CantidadRecibida     += rec.CantidadRecibida;
             item.Producto.StockActual += rec.CantidadRecibida;
-            item.Producto.UpdatedAt   =  DateTime.UtcNow;
+            item.Producto.PrecioCosto  =  item.PrecioUnitario;
+            item.Producto.UpdatedAt    =  DateTime.UtcNow;
 
             db.MovimientosStock.Add(new MovimientoStock
             {
@@ -204,7 +215,7 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
             ? EstadoPedido.RecibidaTotal
             : EstadoPedido.RecibidaParcial;
         pedido.UpdatedAt = DateTime.UtcNow;
-
+        
         await db.SaveChangesAsync();
 
         // Recargar con joins para mapear la respuesta

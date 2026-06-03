@@ -10,6 +10,7 @@ public class Producto
     public decimal PrecioVenta { get; set; }
     public int StockActual { get; set; }
     public int StockMinimo { get; set; }
+    public int? StockMaximo { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

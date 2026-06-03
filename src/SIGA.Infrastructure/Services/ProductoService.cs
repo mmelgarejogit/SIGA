@@ -338,6 +338,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (request.StockMinimo < 0)
             return Result<ProductoResponse>.Failure("El stock mínimo no puede ser negativo.", ErrorType.Validation);
 
+        if (request.StockMaximo.HasValue && request.StockMaximo < request.StockMinimo)
+            return Result<ProductoResponse>.Failure("El stock máximo no puede ser menor al stock mínimo.", ErrorType.Validation);
+
         var margen = await db.CategoriasProducto
             .Where(c => c.Nombre == producto.Categoria)
             .Select(c => c.Margen)
@@ -345,6 +348,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         producto.PrecioCosto = request.PrecioCosto;
         producto.StockMinimo = request.StockMinimo;
+        producto.StockMaximo = request.StockMaximo;
         producto.PrecioVenta = margen > 0
             ? Math.Round(request.PrecioCosto * (1 + margen / 100m), 2)
             : producto.PrecioVenta;
@@ -418,6 +422,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         PrecioVenta  = p.PrecioVenta,
         StockActual  = p.StockActual,
         StockMinimo  = p.StockMinimo,
+        StockMaximo  = p.StockMaximo,
         BajoStock    = p.StockActual <= p.StockMinimo,
         IsActive           = p.IsActive,
         DescuentoCategoria = descuentoCategoria,
