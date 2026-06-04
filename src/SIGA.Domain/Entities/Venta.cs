@@ -34,8 +34,9 @@ public class Venta
     public decimal TotalCobrado   => Cobros.Where(c => !c.Anulado).Sum(c => c.Monto);
     public decimal SaldoPendiente => Total - TotalCobrado;
 
-    public bool EstaPagada()    => SaldoPendiente <= 0;
-    public bool PuedeAnularse() => Estado != EstadoVenta.Pagada
-                                && Estado != EstadoVenta.Cobrada
-                                && Estado != EstadoVenta.Anulada;
+    public bool EstaPagada()               => SaldoPendiente <= 0;
+    public bool PuedeSolicitarAnulacion()  => Estado != EstadoVenta.Pagada
+                                           && Estado != EstadoVenta.Cobrada
+                                           && Estado != EstadoVenta.Anulada
+                                           && Estado != EstadoVenta.AnulacionPendiente;
 }

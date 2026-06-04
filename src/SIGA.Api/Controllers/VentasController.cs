@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Ventas;
@@ -10,6 +11,12 @@ namespace SIGA.Api.Controllers;
 [Authorize]
 public class VentasController(IVentaService ventaService) : BaseController
 {
+    private int CurrentUserId =>
+        int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+    private string CurrentUserName =>
+        User.FindFirst("name")?.Value ?? $"Usuario #{CurrentUserId}";
+
     [HttpGet]
     [Authorize(Policy = "ver_ventas")]
     public async Task<IActionResult> GetVentas(
@@ -64,12 +71,32 @@ public class VentasController(IVentaService ventaService) : BaseController
         return ToHttpResponse(result);
     }
 
-    [HttpPut("{id:int}/anular")]
+    // ── Anulación con aprobación ──────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/solicitar-anulacion")]
     [Authorize(Policy = "registrar_venta")]
-    public async Task<IActionResult> AnularVenta(int id, [FromBody] AnularVentaRequest request)
+    public async Task<IActionResult> SolicitarAnulacion(int id, [FromBody] SolicitarAnulacionRequest request)
     {
         request.VentaId = id;
-        var result = await ventaService.AnularVentaAsync(request);
+        var result = await ventaService.SolicitarAnulacionAsync(CurrentUserId, CurrentUserName, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("anulaciones")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> GetSolicitudesAnulacion([FromQuery] string? estado = null)
+    {
+        var result = await ventaService.GetSolicitudesAnulacionAsync(estado);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("anulaciones/{solicitudId:int}/gestionar")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> GestionarAnulacion(
+        int solicitudId, [FromBody] GestionarAnulacionVentaRequest request)
+    {
+        var result = await ventaService.GestionarAnulacionAsync(
+            solicitudId, CurrentUserId, CurrentUserName, request);
         return ToHttpResponse(result);
     }
 }

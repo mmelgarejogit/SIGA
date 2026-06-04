@@ -285,20 +285,115 @@ public class VentaService(AppDbContext db) : IVentaService
         return await GetVentaByIdAsync(request.VentaId);
     }
 
-    public async Task<Result<VentaDto>> AnularVentaAsync(AnularVentaRequest request)
+    // ── Anulación con aprobación ──────────────────────────────────────────────────
+
+    public async Task<Result<SolicitudAnulacionVentaDto>> SolicitarAnulacionAsync(
+        int userId, string userName, SolicitarAnulacionRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+            return Result<SolicitudAnulacionVentaDto>.Failure("El motivo es obligatorio.", ErrorType.Validation);
+
         var venta = await BaseQuery().FirstOrDefaultAsync(v => v.Id == request.VentaId);
-        if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
-        if (!venta.PuedeAnularse()) return Result<VentaDto>.Failure("La venta no puede anularse en su estado actual", ErrorType.Conflict);
+        if (venta is null)
+            return Result<SolicitudAnulacionVentaDto>.Failure("Venta no encontrada.", ErrorType.NotFound);
 
-        venta.Estado      = EstadoVenta.Anulada;
-        venta.Observaciones = string.IsNullOrWhiteSpace(venta.Observaciones)
-            ? $"Anulada: {request.Motivo}"
-            : $"{venta.Observaciones} | Anulada: {request.Motivo}";
-        venta.UpdatedAt   = DateTime.UtcNow;
+        if (!venta.PuedeSolicitarAnulacion())
+            return Result<SolicitudAnulacionVentaDto>.Failure(
+                "No se puede solicitar la anulación en el estado actual de la venta.", ErrorType.Conflict);
 
+        var solicitud = new SolicitudAnulacionVenta
+        {
+            VentaId              = venta.Id,
+            Motivo               = request.Motivo.Trim(),
+            SolicitadoPorId      = userId,
+            SolicitadoPorNombre  = userName,
+            EstadoPrevioVenta    = venta.Estado.ToString(),
+        };
+
+        venta.Estado    = EstadoVenta.AnulacionPendiente;
+        venta.UpdatedAt = DateTime.UtcNow;
+
+        db.SolicitudesAnulacionVenta.Add(solicitud);
         await db.SaveChangesAsync();
 
-        return await GetVentaByIdAsync(request.VentaId);
+        return Result<SolicitudAnulacionVentaDto>.Success(MapSolicitud(solicitud, venta));
     }
+
+    public async Task<Result<List<SolicitudAnulacionVentaDto>>> GetSolicitudesAnulacionAsync(string? estado)
+    {
+        var query = db.SolicitudesAnulacionVenta
+            .Include(s => s.Venta).ThenInclude(v => v.Patient).ThenInclude(p => p.User).ThenInclude(u => u!.Person)
+            .Include(s => s.Venta).ThenInclude(v => v.Lineas)
+            .Include(s => s.Venta).ThenInclude(v => v.Cobros)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(estado))
+            query = query.Where(s => s.Estado == estado);
+
+        var items = await query.OrderByDescending(s => s.CreatedAt).ToListAsync();
+        return Result<List<SolicitudAnulacionVentaDto>>.Success(
+            items.Select(s => MapSolicitud(s, s.Venta)).ToList());
+    }
+
+    public async Task<Result<SolicitudAnulacionVentaDto>> GestionarAnulacionAsync(
+        int solicitudId, int userId, string userName, GestionarAnulacionVentaRequest request)
+    {
+        if (request.Accion != "Aprobada" && request.Accion != "Rechazada")
+            return Result<SolicitudAnulacionVentaDto>.Failure(
+                "Acción inválida. Use 'Aprobada' o 'Rechazada'.", ErrorType.Validation);
+
+        var solicitud = await db.SolicitudesAnulacionVenta
+            .Include(s => s.Venta).ThenInclude(v => v.Patient).ThenInclude(p => p.User).ThenInclude(u => u!.Person)
+            .Include(s => s.Venta).ThenInclude(v => v.Lineas)
+            .Include(s => s.Venta).ThenInclude(v => v.Cobros)
+            .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+        if (solicitud is null)
+            return Result<SolicitudAnulacionVentaDto>.Failure("Solicitud no encontrada.", ErrorType.NotFound);
+
+        if (solicitud.Estado != "Pendiente")
+            return Result<SolicitudAnulacionVentaDto>.Failure(
+                "Solo se pueden gestionar solicitudes en estado Pendiente.", ErrorType.Conflict);
+
+        solicitud.Estado               = request.Accion;
+        solicitud.RevisadoPorNombre    = userName;
+        solicitud.ObservacionesRevision = request.ObservacionesRevision?.Trim();
+        solicitud.FechaRevision        = DateTime.UtcNow;
+
+        if (request.Accion == "Aprobada")
+        {
+            solicitud.Venta.Estado = EstadoVenta.Anulada;
+            solicitud.Venta.Observaciones = string.IsNullOrWhiteSpace(solicitud.Venta.Observaciones)
+                ? $"Anulada: {solicitud.Motivo}"
+                : $"{solicitud.Venta.Observaciones} | Anulada: {solicitud.Motivo}";
+        }
+        else
+        {
+            // Restaurar estado previo
+            if (Enum.TryParse<EstadoVenta>(solicitud.EstadoPrevioVenta, out var estadoPrevio))
+                solicitud.Venta.Estado = estadoPrevio;
+        }
+
+        solicitud.Venta.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        return Result<SolicitudAnulacionVentaDto>.Success(MapSolicitud(solicitud, solicitud.Venta));
+    }
+
+    private static SolicitudAnulacionVentaDto MapSolicitud(SolicitudAnulacionVenta s, Venta v) => new()
+    {
+        Id                    = s.Id,
+        VentaId               = s.VentaId,
+        NumeroComprobante     = v.NumeroComprobante,
+        PacienteNombre        = $"{v.Patient?.User?.Person?.FirstName} {v.Patient?.User?.Person?.LastName}".Trim(),
+        TotalVenta            = v.Total,
+        EstadoVenta           = v.Estado.ToString(),
+        Motivo                = s.Motivo,
+        Estado                = s.Estado,
+        SolicitadoPorNombre   = s.SolicitadoPorNombre,
+        RevisadoPorNombre     = s.RevisadoPorNombre,
+        ObservacionesRevision = s.ObservacionesRevision,
+        FechaRevision         = s.FechaRevision,
+        CreatedAt             = s.CreatedAt,
+    };
 }

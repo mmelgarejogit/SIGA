@@ -33,12 +33,17 @@ public sealed class TurnoReminderService : BackgroundService
             {
                 await SendRemindersAsync(stoppingToken);
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en TurnoReminderService");
             }
 
-            await Task.Delay(Interval, stoppingToken);
+            await Task.Delay(Interval, stoppingToken)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
     }
 
