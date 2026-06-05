@@ -104,11 +104,11 @@ public class ProductosController(IProductoService productoService, IMovimientoSt
         return File(pdf, "application/pdf", $"movimiento-{id}.pdf");
     }
 
-    [HttpPut("{id:int}/stock")]
+    [HttpPut("{id:int}/stock-config")]
     [Authorize(Policy = "gestionar_inventario")]
-    public async Task<IActionResult> UpdateStockInfo(int id, [FromBody] UpdateStockInfoRequest request)
+    public async Task<IActionResult> UpdateStockConfig(int id, [FromBody] UpdateStockConfigRequest request)
     {
-        var result = await productoService.UpdateStockInfoAsync(id, request);
+        var result = await productoService.UpdateStockConfigAsync(id, request);
         return ToHttpResponse(result);
     }
 

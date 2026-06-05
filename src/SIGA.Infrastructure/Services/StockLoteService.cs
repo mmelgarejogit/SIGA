@@ -61,15 +61,19 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
             Observaciones   = request.Observaciones?.Trim(),
         };
 
+        var stockMap = await db.StockActual
+            .Where(s => productoIds.Contains(s.ProductoId))
+            .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
+
         foreach (var req in request.Items)
         {
-            var producto  = productos.First(p => p.Id == req.ProductoId);
-            var diferencia = req.CantidadFisica - producto.StockActual;
+            var stockSistema = stockMap.GetValueOrDefault(req.ProductoId, 0);
+            var diferencia   = req.CantidadFisica - stockSistema;
 
             conteo.Lineas.Add(new ConteoInventarioLinea
             {
-                ProductoId      = producto.Id,
-                CantidadSistema = producto.StockActual,
+                ProductoId      = req.ProductoId,
+                CantidadSistema = stockSistema,
                 CantidadFisica  = req.CantidadFisica,
                 Diferencia      = diferencia,
             });
@@ -157,8 +161,7 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
                     ObservacionesAprobacion = request.Observaciones?.Trim(),
                 });
 
-                linea.Producto.StockActual += linea.Diferencia;
-                linea.Producto.UpdatedAt    = DateTime.UtcNow;
+                linea.Producto.UpdatedAt = DateTime.UtcNow;
             }
         }
 

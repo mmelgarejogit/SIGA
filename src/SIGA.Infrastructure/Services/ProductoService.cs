@@ -34,7 +34,19 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             query = query.Where(p => p.Categoria == categoria);
 
         if (bajoStock == true)
-            query = query.Where(p => p.StockActual <= p.StockMinimo && p.IsActive);
+        {
+            query = query.Where(p =>
+                (db.StockActual
+                    .Where(s => s.ProductoId == p.Id)
+                    .Select(s => (int?)s.StockActual)
+                    .FirstOrDefault() ?? 0)
+                <=
+                (db.ProductosStockConfig
+                    .Where(c => c.ProductoId == p.Id)
+                    .Select(c => (int?)c.StockMinimo)
+                    .FirstOrDefault() ?? 0)
+                && p.IsActive);
+        }
 
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -42,22 +54,31 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var discountMap = await db.CategoriasProducto
             .ToDictionaryAsync(c => c.Nombre, c => c.Descuento);
 
-        var items = await query
+        var productos = await query
             .Include(p => p.Marca)
             .Include(p => p.Modelo)
+            .Include(p => p.StockConfig)
             .OrderBy(p => p.Nombre)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
+        var productoIds = productos.Select(p => p.Id).ToList();
+        var stockMap = await db.StockActual
+            .Where(s => productoIds.Contains(s.ProductoId))
+            .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
+
         return Result<PagedResult<ProductoResponse>>.Success(new PagedResult<ProductoResponse>
         {
-            Items      = items.Select(p => ToResponse(p, discountMap.GetValueOrDefault(p.Categoria, 0))),
-            TotalCount = totalCount,
+            Items = productos.Select(p => ToResponse(
+                p,
+                discountMap.GetValueOrDefault(p.Categoria, 0),
+                stockMap.GetValueOrDefault(p.Id, 0))),
+            TotalCount  = totalCount,
             TotalActive = await db.Productos.CountAsync(p => p.IsActive),
-            Page       = page,
-            PageSize   = pageSize,
-            TotalPages = totalPages,
+            Page        = page,
+            PageSize    = pageSize,
+            TotalPages  = totalPages,
         });
     }
 
@@ -66,6 +87,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var producto = await db.Productos
             .Include(p => p.Marca)
             .Include(p => p.Modelo)
+            .Include(p => p.StockConfig)
             .FirstOrDefaultAsync(p => p.Id == id);
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
@@ -75,7 +97,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(c => c.Descuento)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
+        var stockActual = await db.StockActual
+            .Where(s => s.ProductoId == id)
+            .Select(s => s.StockActual)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuento, stockActual));
     }
 
     public async Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request)
@@ -89,8 +116,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (request.PrecioCosto < 0 || request.PrecioVenta < 0)
             return Result<ProductoResponse>.Failure("Los precios no pueden ser negativos.", ErrorType.Validation);
 
-        if (request.StockActual < 0 || request.StockMinimo < 0)
-            return Result<ProductoResponse>.Failure("El stock no puede ser negativo.", ErrorType.Validation);
+        if (request.StockMinimo < 0)
+            return Result<ProductoResponse>.Failure("El stock mínimo no puede ser negativo.", ErrorType.Validation);
 
         if (!string.IsNullOrWhiteSpace(request.Sku))
         {
@@ -106,13 +133,16 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             Sku         = request.Sku?.Trim(),
             PrecioCosto = request.PrecioCosto,
             PrecioVenta = request.PrecioVenta,
-            StockActual = request.StockActual,
-            StockMinimo = request.StockMinimo,
             MarcaId     = request.MarcaId,
             ModeloId    = request.ModeloId,
             Color       = request.Color?.Trim(),
             Talle       = request.Talle?.Trim(),
             Descripcion = request.Descripcion?.Trim(),
+            StockConfig = new ProductoStockConfig
+            {
+                StockMinimo = request.StockMinimo,
+                UpdatedAt   = DateTime.UtcNow,
+            },
         };
 
         db.Productos.Add(producto);
@@ -126,12 +156,14 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(c => c.Descuento)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoCreate));
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoCreate, 0));
     }
 
     public async Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request)
     {
-        var producto = await db.Productos.FindAsync(id);
+        var producto = await db.Productos
+            .Include(p => p.StockConfig)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
@@ -156,7 +188,6 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         producto.Sku         = request.Sku?.Trim();
         producto.PrecioCosto = request.PrecioCosto;
         producto.PrecioVenta = request.PrecioVenta;
-        producto.StockMinimo = request.StockMinimo;
         producto.IsActive    = request.IsActive;
         producto.MarcaId     = request.MarcaId;
         producto.ModeloId    = request.ModeloId;
@@ -175,7 +206,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(c => c.Descuento)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoUpdate));
+        var stockActualUpdate = await db.StockActual
+            .Where(s => s.ProductoId == id)
+            .Select(s => s.StockActual)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoUpdate, stockActualUpdate));
     }
 
     public async Task<Result<bool>> DeactivateAsync(int id)
@@ -197,8 +233,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (producto is null)
             return Result<MovimientoStockResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        if (!new[] { "Entrada", "Salida" }.Contains(request.Tipo))
-            return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada o Salida.", ErrorType.Validation);
+        if (!new[] { "Entrada", "Salida", "Ajuste" }.Contains(request.Tipo))
+            return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada, Salida o Ajuste.", ErrorType.Validation);
 
         if (request.Cantidad <= 0)
             return Result<MovimientoStockResponse>.Failure("La cantidad debe ser mayor a cero.", ErrorType.Validation);
@@ -249,16 +285,37 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         if (request.Estado == "Aprobado")
         {
-            if (movimiento.Tipo == "Salida" && movimiento.Producto.StockActual < movimiento.Cantidad)
+            var stockActual = await db.StockActual
+                .Where(s => s.ProductoId == movimiento.ProductoId)
+                .Select(s => s.StockActual)
+                .FirstOrDefaultAsync();
+
+            if (movimiento.Tipo == "Salida" && stockActual < movimiento.Cantidad)
                 return Result<MovimientoStockResponse>.Failure("Stock insuficiente para aprobar la salida.", ErrorType.Validation);
 
-            movimiento.Producto.StockActual = movimiento.Tipo switch
+            if (movimiento.Tipo == "Ajuste")
             {
-                "Entrada" => movimiento.Producto.StockActual + movimiento.Cantidad,
-                "Salida"  => movimiento.Producto.StockActual - movimiento.Cantidad,
-                _         => movimiento.Producto.StockActual,
-            };
-            movimiento.Producto.UpdatedAt = DateTime.UtcNow;
+                // Convertir Ajuste a delta: registrar movimiento compensatorio aprobado
+                var delta = movimiento.Cantidad - stockActual;
+                if (delta != 0)
+                {
+                    var compensatorio = new MovimientoStock
+                    {
+                        ProductoId      = movimiento.ProductoId,
+                        Tipo            = delta > 0 ? "Entrada" : "Salida",
+                        Cantidad        = Math.Abs(delta),
+                        Motivo          = $"Ajuste #{movimiento.Id}",
+                        FechaMovimiento = DateTime.UtcNow,
+                        CreadoPorId     = CurrentUserId,
+                        CreadoPorNombre = CurrentUserName,
+                        Estado                  = "Aprobado",
+                        AprobadoPorNombre       = CurrentUserName,
+                        FechaAprobacion         = DateTime.UtcNow,
+                        ObservacionesAprobacion = request.Observaciones?.Trim(),
+                    };
+                    db.MovimientosStock.Add(compensatorio);
+                }
+            }
         }
 
         movimiento.Estado                  = request.Estado;
@@ -323,11 +380,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         });
     }
 
-    public async Task<Result<ProductoResponse>> UpdateStockInfoAsync(int id, UpdateStockInfoRequest request)
+    public async Task<Result<ProductoResponse>> UpdateStockConfigAsync(int id, UpdateStockConfigRequest request)
     {
         var producto = await db.Productos
             .Include(p => p.Marca)
             .Include(p => p.Modelo)
+            .Include(p => p.StockConfig)
             .FirstOrDefaultAsync(p => p.Id == id);
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
@@ -347,12 +405,27 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .FirstOrDefaultAsync();
 
         producto.PrecioCosto = request.PrecioCosto;
-        producto.StockMinimo = request.StockMinimo;
-        producto.StockMaximo = request.StockMaximo;
         producto.PrecioVenta = margen > 0
             ? Math.Round(request.PrecioCosto * (1 + margen / 100m), 2)
             : producto.PrecioVenta;
         producto.UpdatedAt = DateTime.UtcNow;
+
+        if (producto.StockConfig is null)
+        {
+            producto.StockConfig = new ProductoStockConfig
+            {
+                ProductoId  = id,
+                StockMinimo = request.StockMinimo,
+                StockMaximo = request.StockMaximo,
+                UpdatedAt   = DateTime.UtcNow,
+            };
+        }
+        else
+        {
+            producto.StockConfig.StockMinimo = request.StockMinimo;
+            producto.StockConfig.StockMaximo = request.StockMaximo;
+            producto.StockConfig.UpdatedAt   = DateTime.UtcNow;
+        }
 
         await db.SaveChangesAsync();
 
@@ -361,7 +434,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(c => c.Descuento)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento));
+        var stockActual = await db.StockActual
+            .Where(s => s.ProductoId == id)
+            .Select(s => s.StockActual)
+            .FirstOrDefaultAsync();
+
+        return Result<ProductoResponse>.Success(ToResponse(producto, descuento, stockActual));
     }
 
     public async Task<Result<string>> UploadImagenAsync(int id, Stream stream, string fileName)
@@ -377,7 +455,6 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var uploadsDir = Path.Combine("wwwroot", "uploads", "productos");
         Directory.CreateDirectory(uploadsDir);
 
-        // Delete previous image file if exists
         if (!string.IsNullOrEmpty(producto.ImagenUrl))
         {
             var old = Path.Combine("wwwroot", producto.ImagenUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
@@ -412,30 +489,30 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         return Result<bool>.Success(true);
     }
 
-    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria = 0) => new()
+    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria, int stockActual) => new()
     {
-        Id           = p.Id,
-        Nombre       = p.Nombre,
-        Categoria    = p.Categoria,
-        Sku          = p.Sku,
-        PrecioCosto  = p.PrecioCosto,
-        PrecioVenta  = p.PrecioVenta,
-        StockActual  = p.StockActual,
-        StockMinimo  = p.StockMinimo,
-        StockMaximo  = p.StockMaximo,
-        BajoStock    = p.StockActual <= p.StockMinimo,
+        Id                 = p.Id,
+        Nombre             = p.Nombre,
+        Categoria          = p.Categoria,
+        Sku                = p.Sku,
+        PrecioCosto        = p.PrecioCosto,
+        PrecioVenta        = p.PrecioVenta,
+        StockActual        = stockActual,
+        StockMinimo        = p.StockConfig?.StockMinimo ?? 0,
+        StockMaximo        = p.StockConfig?.StockMaximo,
+        BajoStock          = stockActual <= (p.StockConfig?.StockMinimo ?? 0),
         IsActive           = p.IsActive,
         DescuentoCategoria = descuentoCategoria,
-        CreatedAt    = p.CreatedAt,
-        UpdatedAt    = p.UpdatedAt,
-        MarcaId      = p.MarcaId,
-        MarcaNombre  = p.Marca?.Nombre,
-        ModeloId     = p.ModeloId,
-        ModeloNombre = p.Modelo?.Nombre,
-        Color        = p.Color,
-        Talle        = p.Talle,
-        Descripcion  = p.Descripcion,
-        ImagenUrl    = p.ImagenUrl,
+        CreatedAt          = p.CreatedAt,
+        UpdatedAt          = p.UpdatedAt,
+        MarcaId            = p.MarcaId,
+        MarcaNombre        = p.Marca?.Nombre,
+        ModeloId           = p.ModeloId,
+        ModeloNombre       = p.Modelo?.Nombre,
+        Color              = p.Color,
+        Talle              = p.Talle,
+        Descripcion        = p.Descripcion,
+        ImagenUrl          = p.ImagenUrl,
     };
 
     private static MovimientoStockResponse ToMovimientoResponse(MovimientoStock m, string productoNombre) => new()

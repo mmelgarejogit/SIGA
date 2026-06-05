@@ -54,6 +54,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<ProveedorResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
+        if (!request.Contactos.Any(c => !string.IsNullOrWhiteSpace(c.Nombre)))
+            return Result<ProveedorResponse>.Failure("Debe registrar al menos un contacto.", ErrorType.Validation);
+
         var proveedor = new Proveedor
         {
             Nombre     = request.Nombre.Trim(),
@@ -91,6 +94,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<ProveedorResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
+
+        if (!request.Contactos.Any(c => !string.IsNullOrWhiteSpace(c.Nombre)))
+            return Result<ProveedorResponse>.Failure("Debe registrar al menos un contacto.", ErrorType.Validation);
 
         proveedor.Nombre      = request.Nombre.Trim();
         proveedor.RazonSocial = request.RazonSocial?.Trim();

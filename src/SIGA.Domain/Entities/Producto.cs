@@ -8,9 +8,6 @@ public class Producto
     public string? Sku { get; set; }
     public decimal PrecioCosto { get; set; }
     public decimal PrecioVenta { get; set; }
-    public int StockActual { get; set; }
-    public int StockMinimo { get; set; }
-    public int? StockMaximo { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -28,6 +25,8 @@ public class Producto
 
     public int? ModeloId { get; set; }
     public Modelo? Modelo { get; set; }
+
+    public ProductoStockConfig? StockConfig { get; set; }
 
     public ICollection<MovimientoStock> Movimientos { get; set; } = [];
     public ICollection<PedidoProveedorItem> PedidoItems { get; set; } = [];

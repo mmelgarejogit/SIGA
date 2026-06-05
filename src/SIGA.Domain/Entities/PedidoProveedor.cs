@@ -7,6 +7,7 @@ public class PedidoProveedor
     public Proveedor Proveedor { get; set; } = null!;
     public EstadoPedido Estado { get; set; } = EstadoPedido.Borrador;
     public string? Observaciones { get; set; }
+    public DateOnly? FechaOrden { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

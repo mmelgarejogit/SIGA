@@ -384,15 +384,31 @@ public static class DevDataSeeder
                 Sku         = GenSku(cat, nombre),
                 PrecioCosto = costo,
                 PrecioVenta = venta,
-                StockMinimo = min,
-                StockActual = act,
                 IsActive    = true,
                 CreatedAt   = now.AddDays(-Rng.Next(30, 365)),
                 UpdatedAt   = now,
+                StockConfig = new ProductoStockConfig { StockMinimo = min, UpdatedAt = now },
             });
         }
 
         db.Productos.AddRange(productos);
+        await db.SaveChangesAsync();
+
+        // Stock inicial como movimientos aprobados
+        var movimientosIniciales = ProductosSeed
+            .Zip(productos, (seed, p) => (p, act: seed.Item6))
+            .Where(x => x.act > 0)
+            .Select(x => new MovimientoStock
+            {
+                ProductoId      = x.p.Id,
+                Tipo            = "Entrada",
+                Cantidad        = x.act,
+                Motivo          = "Ingreso inicial",
+                Estado          = "Aprobado",
+                FechaMovimiento = x.p.CreatedAt,
+                FechaAprobacion = x.p.CreatedAt,
+            });
+        db.MovimientosStock.AddRange(movimientosIniciales);
         await db.SaveChangesAsync();
 
         var tiposMovimiento = new[] { "Entrada", "Salida", "Salida", "Ajuste" };
