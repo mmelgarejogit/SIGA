@@ -19,6 +19,9 @@ public class Venta
     public DateOnly? FechaConfirmacion { get; set; }
     public DateOnly? FechaComprobante { get; set; }
 
+    /// <summary>Días de validez del presupuesto, contados desde FechaVenta.</summary>
+    public int ValidezDias { get; set; } = 15;
+
     public string? Observaciones { get; set; }
 
     public ICollection<VentaLinea> Lineas { get; set; } = new List<VentaLinea>();

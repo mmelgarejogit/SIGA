@@ -69,6 +69,7 @@ public class VentaDto
     public string Tipo { get; set; } = "";
     public string CondicionVenta { get; set; } = "";
     public string FechaVenta { get; set; } = "";
+    public int ValidezDias { get; set; }
     public string? FechaConfirmacion { get; set; }
     public string? FechaComprobante { get; set; }
     public decimal MontoExento { get; set; }

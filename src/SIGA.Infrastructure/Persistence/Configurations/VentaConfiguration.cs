@@ -17,6 +17,7 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Property(x => x.FechaVenta).IsRequired();
         builder.Property(x => x.FechaConfirmacion);
         builder.Property(x => x.FechaComprobante);
+        builder.Property(x => x.ValidezDias).HasDefaultValue(15);
         builder.Property(x => x.Observaciones).HasMaxLength(1000);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();

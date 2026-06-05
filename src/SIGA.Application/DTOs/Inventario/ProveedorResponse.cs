@@ -7,7 +7,9 @@ public class ProveedorResponse
     public string? RazonSocial { get; set; }
     public string Ruc { get; set; } = "";
     public string? Direccion { get; set; }
-    public string? Ciudad { get; set; }
+    public int? CiudadId { get; set; }
+    public string? CiudadNombre { get; set; }
+    public string? DepartamentoNombre { get; set; }
     public string? SitioWeb { get; set; }
     public string? Facebook { get; set; }
     public string? Instagram { get; set; }

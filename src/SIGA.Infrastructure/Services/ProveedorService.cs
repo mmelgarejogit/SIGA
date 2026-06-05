@@ -14,7 +14,10 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         page     = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = db.Proveedores.Include(p => p.Contactos).AsQueryable();
+        var query = db.Proveedores
+            .Include(p => p.Contactos)
+            .Include(p => p.Ciudad).ThenInclude(c => c!.Departamento)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -63,7 +66,7 @@ public class ProveedorService(AppDbContext db) : IProveedorService
             RazonSocial = request.RazonSocial?.Trim(),
             Ruc        = request.Ruc.Trim(),
             Direccion  = request.Direccion?.Trim(),
-            Ciudad     = request.Ciudad?.Trim(),
+            CiudadId   = request.CiudadId,
             SitioWeb   = request.SitioWeb?.Trim(),
             Facebook   = request.Facebook?.Trim(),
             Instagram  = request.Instagram?.Trim(),
@@ -84,6 +87,7 @@ public class ProveedorService(AppDbContext db) : IProveedorService
 
         db.Proveedores.Add(proveedor);
         await db.SaveChangesAsync();
+        await LoadCiudadAsync(proveedor);
         return Result<ProveedorResponse>.Success(ToResponse(proveedor));
     }
 
@@ -103,7 +107,7 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         proveedor.RazonSocial = request.RazonSocial?.Trim();
         proveedor.Ruc         = request.Ruc.Trim();
         proveedor.Direccion   = request.Direccion?.Trim();
-        proveedor.Ciudad      = request.Ciudad?.Trim();
+        proveedor.CiudadId    = request.CiudadId;
         proveedor.SitioWeb    = request.SitioWeb?.Trim();
         proveedor.Facebook    = request.Facebook?.Trim();
         proveedor.Instagram   = request.Instagram?.Trim();
@@ -127,7 +131,17 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         }
 
         await db.SaveChangesAsync();
+        await LoadCiudadAsync(proveedor);
         return Result<ProveedorResponse>.Success(ToResponse(proveedor));
+    }
+
+    private async Task LoadCiudadAsync(Proveedor proveedor)
+    {
+        if (proveedor.CiudadId.HasValue)
+            await db.Entry(proveedor).Reference(p => p.Ciudad).Query()
+                .Include(c => c.Departamento).LoadAsync();
+        else
+            proveedor.Ciudad = null;
     }
 
     public async Task<Result<bool>> DeactivateAsync(int id)
@@ -159,7 +173,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         RazonSocial = p.RazonSocial,
         Ruc         = p.Ruc,
         Direccion   = p.Direccion,
-        Ciudad      = p.Ciudad,
+        CiudadId    = p.CiudadId,
+        CiudadNombre = p.Ciudad?.Nombre,
+        DepartamentoNombre = p.Ciudad?.Departamento?.Nombre,
         SitioWeb    = p.SitioWeb,
         Facebook    = p.Facebook,
         Instagram   = p.Instagram,

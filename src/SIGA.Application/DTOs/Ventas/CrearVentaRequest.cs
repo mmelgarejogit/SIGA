@@ -7,6 +7,7 @@ public class CrearVentaRequest
     public string Tipo { get; set; } = "Directa";
     public string CondicionVenta { get; set; } = "Contado";
     public string FechaVenta { get; set; } = null!;
+    public int ValidezDias { get; set; } = 15;
     public string? Observaciones { get; set; }
     public List<AgregarLineaRequest> Lineas { get; set; } = new();
 }
