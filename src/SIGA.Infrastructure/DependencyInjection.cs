@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IVentaService, VentaService>();
         services.AddScoped<ICajaService, CajaService>();
         services.AddScoped<IStockLoteService, StockLoteService>();
+        services.AddScoped<IUbicacionService, UbicacionService>();
 
         services.AddHostedService<TurnoReminderService>();
 

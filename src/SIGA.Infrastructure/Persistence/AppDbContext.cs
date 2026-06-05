@@ -41,6 +41,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ConteoInventario> ConteosInventario => Set<ConteoInventario>();
     public DbSet<ConteoInventarioLinea> ConteoInventarioLineas => Set<ConteoInventarioLinea>();
     public DbSet<ConfiguracionNegocio> ConfiguracionNegocio => Set<ConfiguracionNegocio>();
+    public DbSet<Departamento> Departamentos => Set<Departamento>();
+    public DbSet<Ciudad> Ciudades => Set<Ciudad>();
     public DbSet<EstadoConfig> EstadosConfig => Set<EstadoConfig>();
     public DbSet<CargoEmpleado> CargosEmpleado => Set<CargoEmpleado>();
     public DbSet<Empleado> Empleados => Set<Empleado>();
