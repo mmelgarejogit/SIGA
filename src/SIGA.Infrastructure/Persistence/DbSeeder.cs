@@ -9,6 +9,7 @@ public static class DbSeeder
     private static readonly string[] AllPermissions =
     [
         "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
+        "ver_clientes",      "crear_cliente",       "editar_cliente",     "desactivar_cliente",
         "ver_profesionales", "crear_profesional",   "editar_profesional",
         "ver_especialidades", "gestionar_especialidades",
         "ver_agenda",         "gestionar_agenda",   "ver_recepcion",

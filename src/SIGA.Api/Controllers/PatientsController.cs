@@ -56,14 +56,6 @@ public class PatientsController : BaseController
         return ToHttpResponse(result);
     }
 
-    [HttpPut("{id:int}/facturacion")]
-    [Authorize(Policy = "editar_paciente")]
-    public async Task<IActionResult> UpsertFacturacion(int id, [FromBody] UpsertDatosFacturacionRequest request)
-    {
-        var result = await _patientService.UpsertDatosFacturacionAsync(id, request);
-        return ToHttpResponse(result);
-    }
-
     [HttpDelete("{id:int}")]
     [Authorize(Policy = "desactivar_paciente")]
     public async Task<IActionResult> Delete(int id)
