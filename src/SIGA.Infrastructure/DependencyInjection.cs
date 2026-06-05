@@ -52,6 +52,8 @@ public static class DependencyInjection
         services.AddScoped<IMovimientoStockPdfGenerator, MovimientoStockPdfGenerator>();
         services.AddScoped<IMotivoMovimientoService, MotivoMovimientoService>();
         services.AddScoped<IMarcaService, MarcaService>();
+        services.AddScoped<ITipoLenteService, TipoLenteService>();
+        services.AddScoped<ITratamientoService, TratamientoService>();
         services.AddScoped<IProveedorService, ProveedorService>();
         services.AddScoped<IComprasService, ComprasService>();
         services.AddScoped<IFacturasCompraService, FacturasCompraService>();

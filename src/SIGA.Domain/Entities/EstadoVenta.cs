@@ -2,11 +2,10 @@ namespace SIGA.Domain.Entities;
 
 public enum EstadoVenta
 {
-    Abierta              = 0,
-    Confirmada           = 1,
-    PendienteDePago      = 2,
-    Pagada               = 3,
-    Cobrada              = 4,
-    Anulada              = 5,
-    AnulacionPendiente   = 6,
+    Borrador           = 1,
+    Confirmada         = 2,
+    EnProceso          = 3,
+    ListaParaCobrar    = 4,
+    ComprobanteEmitido = 5,
+    Cancelada          = 6,
 }

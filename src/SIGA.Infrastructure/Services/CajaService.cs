@@ -37,7 +37,7 @@ public class CajaService(AppDbContext db) : ICajaService
         var egresos  = movimientos.Where(m => m.Tipo == TipoMovimientoCaja.Egreso).ToList();
 
         var cantidadVentas = await db.Ventas
-            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Anulada);
+            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Cancelada);
 
         var resumen = new ResumenCajaDto
         {

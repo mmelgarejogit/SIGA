@@ -6,6 +6,7 @@ namespace SIGA.Application.Interfaces;
 public interface IProveedorService
 {
     Task<Result<PagedResult<ProveedorResponse>>> GetAllAsync(int page, int pageSize, string? search, bool? isActive);
+    Task<Result<List<ProveedorResponse>>> GetLaboratoriosAsync();
     Task<Result<ProveedorResponse>> CreateAsync(CreateProveedorRequest request);
     Task<Result<ProveedorResponse>> UpdateAsync(int id, CreateProveedorRequest request);
     Task<Result<bool>> DeactivateAsync(int id);
