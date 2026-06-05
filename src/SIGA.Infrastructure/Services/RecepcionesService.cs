@@ -193,18 +193,19 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
             };
             recepcion.Items.Add(recepcionItem);
 
-            // Actualizar stock + recepcion acumulada en el ítem de la OC
+            // Actualizar recepcion acumulada en el ítem de la OC
             item.CantidadRecibida     += rec.CantidadRecibida;
-            item.Producto.StockActual += rec.CantidadRecibida;
             item.Producto.PrecioCosto  =  item.PrecioUnitario;
             item.Producto.UpdatedAt    =  DateTime.UtcNow;
 
             db.MovimientosStock.Add(new MovimientoStock
             {
-                ProductoId = item.ProductoId,
-                Tipo       = "Entrada",
-                Cantidad   = rec.CantidadRecibida,
-                Motivo     = $"Recepción — OC #{pedido.Id} / Fact. {factura.NroFactura}",
+                ProductoId      = item.ProductoId,
+                Tipo            = "Entrada",
+                Cantidad        = rec.CantidadRecibida,
+                Motivo          = $"Recepción — OC #{pedido.Id} / Fact. {factura.NroFactura}",
+                Estado          = "Aprobado",
+                FechaAprobacion = DateTime.UtcNow,
             });
         }
 

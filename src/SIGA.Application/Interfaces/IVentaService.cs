@@ -13,6 +13,7 @@ public interface IVentaService
     Task<Result<VentaDto>> CrearVentaAsync(CrearVentaRequest request);
     Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId);
     Task<Result<VentaDto>> CancelarVentaAsync(int id, CancelarVentaRequest request);
+    Task<Result<bool>> EliminarPresupuestoAsync(int id);
     Task<Result<VentaDto>> RegistrarCobroAsync(RegistrarCobroRequest request, int userId);
     Task<Result<VentaDto>> EmitirComprobanteAsync(int ventaId, int userId);
     Task<Result<VentaDto>> EmitirFacturaAsync(EmitirFacturaRequest request);

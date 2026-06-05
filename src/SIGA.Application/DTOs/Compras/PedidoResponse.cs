@@ -7,6 +7,7 @@ public class PedidoResponse
     public string ProveedorNombre { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? Observaciones { get; set; }
+    public DateOnly? FechaOrden { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public IEnumerable<PedidoItemResponse> Items { get; set; } = [];

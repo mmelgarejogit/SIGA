@@ -256,6 +256,18 @@ public class VentaService(AppDbContext db) : IVentaService
         return await GetVentaByIdAsync(id);
     }
 
+    public async Task<Result<bool>> EliminarPresupuestoAsync(int id)
+    {
+        var venta = await db.Ventas.FindAsync(id);
+        if (venta == null) return Result<bool>.Failure("Venta no encontrada.", ErrorType.NotFound);
+        if (venta.Estado != EstadoVenta.Borrador)
+            return Result<bool>.Failure("Solo se pueden eliminar presupuestos en estado Borrador.", ErrorType.Conflict);
+
+        db.Ventas.Remove(venta);
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
     public async Task<Result<VentaDto>> RegistrarCobroAsync(RegistrarCobroRequest request, int userId)
     {
         if (!request.Lineas.Any())
@@ -334,21 +346,16 @@ public class VentaService(AppDbContext db) : IVentaService
         // Egreso de stock por cada línea de producto
         foreach (var linea in venta.Lineas.Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue))
         {
-            var producto = await db.Productos.FindAsync(linea.ProductoId!.Value);
-            if (producto != null)
+            db.MovimientosStock.Add(new MovimientoStock
             {
-                producto.StockActual -= linea.Cantidad;
-                db.MovimientosStock.Add(new MovimientoStock
-                {
-                    ProductoId      = linea.ProductoId!.Value,
-                    Tipo            = "Salida",
-                    Cantidad        = linea.Cantidad,
-                    Motivo          = $"Comprobante venta {venta.NumeroComprobante}",
-                    FechaMovimiento = now,
-                    Estado          = "Aprobado",
-                    CreatedAt       = now,
-                });
-            }
+                ProductoId      = linea.ProductoId!.Value,
+                Tipo            = "Salida",
+                Cantidad        = linea.Cantidad,
+                Motivo          = $"Comprobante venta {venta.NumeroComprobante}",
+                FechaMovimiento = now,
+                Estado          = "Aprobado",
+                CreatedAt       = now,
+            });
         }
 
         // Movimiento de caja solo para ventas CONTADO (crédito ya tiene sus cobros)
@@ -823,40 +830,30 @@ public class VentaService(AppDbContext db) : IVentaService
         foreach (var linea in devolucion.Lineas)
         {
             // INGRESO stock del producto devuelto
-            var prodDevuelto = await db.Productos.FindAsync(linea.ProductoDevueltoId);
-            if (prodDevuelto != null)
+            db.MovimientosStock.Add(new MovimientoStock
             {
-                prodDevuelto.StockActual += linea.CantidadDevuelta;
-                db.MovimientosStock.Add(new MovimientoStock
-                {
-                    ProductoId      = linea.ProductoDevueltoId,
-                    Tipo            = "Entrada",
-                    Cantidad        = linea.CantidadDevuelta,
-                    Motivo          = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
-                    FechaMovimiento = now,
-                    Estado          = "Aprobado",
-                    CreatedAt       = now,
-                });
-            }
+                ProductoId      = linea.ProductoDevueltoId,
+                Tipo            = "Entrada",
+                Cantidad        = linea.CantidadDevuelta,
+                Motivo          = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
+                FechaMovimiento = now,
+                Estado          = "Aprobado",
+                CreatedAt       = now,
+            });
 
             // EGRESO stock del producto nuevo (solo para Cambio)
             if (devolucion.Tipo == TipoDevolucion.Cambio && linea.ProductoNuevoId.HasValue)
             {
-                var prodNuevo = await db.Productos.FindAsync(linea.ProductoNuevoId.Value);
-                if (prodNuevo != null)
+                db.MovimientosStock.Add(new MovimientoStock
                 {
-                    prodNuevo.StockActual -= linea.CantidadNueva ?? 0;
-                    db.MovimientosStock.Add(new MovimientoStock
-                    {
-                        ProductoId      = linea.ProductoNuevoId.Value,
-                        Tipo            = "Salida",
-                        Cantidad        = linea.CantidadNueva ?? 0,
-                        Motivo          = $"Cambio #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
-                        FechaMovimiento = now,
-                        Estado          = "Aprobado",
-                        CreatedAt       = now,
-                    });
-                }
+                    ProductoId      = linea.ProductoNuevoId.Value,
+                    Tipo            = "Salida",
+                    Cantidad        = linea.CantidadNueva ?? 0,
+                    Motivo          = $"Cambio #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
+                    FechaMovimiento = now,
+                    Estado          = "Aprobado",
+                    CreatedAt       = now,
+                });
             }
         }
 

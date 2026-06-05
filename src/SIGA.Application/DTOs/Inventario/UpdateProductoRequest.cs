@@ -7,7 +7,6 @@ public class UpdateProductoRequest
     public string? Sku { get; set; }
     public decimal PrecioCosto { get; set; }
     public decimal PrecioVenta { get; set; }
-    public int StockMinimo { get; set; }
     public bool IsActive { get; set; } = true;
 
     public int? MarcaId { get; set; }

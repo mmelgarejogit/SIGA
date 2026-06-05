@@ -56,6 +56,14 @@ public class VentasController(IVentaService ventaService) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> EliminarPresupuesto(int id)
+    {
+        var result = await ventaService.EliminarPresupuestoAsync(id);
+        return ToHttpResponse(result);
+    }
+
     [HttpPut("{id:int}/cancelar")]
     [Authorize(Policy = "registrar_venta")]
     public async Task<IActionResult> CancelarVenta(int id, [FromBody] CancelarVentaRequest request)

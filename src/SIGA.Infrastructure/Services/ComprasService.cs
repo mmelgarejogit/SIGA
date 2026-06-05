@@ -41,6 +41,7 @@ public class ComprasService(AppDbContext db) : IComprasService
             ProveedorId   = request.ProveedorId,
             Estado        = EstadoPedido.Borrador,
             Observaciones = request.Observaciones?.Trim(),
+            FechaOrden    = request.FechaOrden,
             Items         = items.Select(i => new PedidoProveedorItem
             {
                 ProductoId     = i.ProductoId,
@@ -94,6 +95,7 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         pedido.ProveedorId   = request.ProveedorId;
         pedido.Observaciones = request.Observaciones?.Trim();
+        pedido.FechaOrden    = request.FechaOrden;
         pedido.UpdatedAt     = DateTime.UtcNow;
 
         // Reemplazar ítems completamente (más simple y predecible que diffing)
@@ -249,15 +251,14 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         db.DevolucionesProveedor.Add(devolucion);
 
-        item.Producto.StockActual -= request.Cantidad;
-        item.Producto.UpdatedAt   =  DateTime.UtcNow;
-
         db.MovimientosStock.Add(new MovimientoStock
         {
-            ProductoId = item.ProductoId,
-            Tipo       = "Salida",
-            Cantidad   = request.Cantidad,
-            Motivo     = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
+            ProductoId      = item.ProductoId,
+            Tipo            = "Salida",
+            Cantidad        = request.Cantidad,
+            Motivo          = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
+            Estado          = "Aprobado",
+            FechaAprobacion = DateTime.UtcNow,
         });
 
         await db.SaveChangesAsync();
@@ -417,6 +418,7 @@ public class ComprasService(AppDbContext db) : IComprasService
         ProveedorNombre = p.Proveedor.Nombre,
         Estado          = p.Estado.ToString(),
         Observaciones   = p.Observaciones,
+        FechaOrden      = p.FechaOrden,
         CreatedAt       = p.CreatedAt,
         UpdatedAt       = p.UpdatedAt,
         Items = p.Items.Select(i => new PedidoItemResponse

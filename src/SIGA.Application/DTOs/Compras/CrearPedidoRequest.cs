@@ -4,6 +4,7 @@ public class CrearPedidoRequest
 {
     public int ProveedorId { get; set; }
     public string? Observaciones { get; set; }
+    public DateOnly? FechaOrden { get; set; }
     public IEnumerable<ItemPedidoRequest> Items { get; set; } = [];
 }
 

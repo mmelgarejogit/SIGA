@@ -219,15 +219,16 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
             foreach (var entry in stockEntries)
             {
                 var producto = productos.First(p => p.Id == entry.ProductoId);
-                producto.StockActual += entry.Cantidad;
-                producto.UpdatedAt   =  DateTime.UtcNow;
+                producto.UpdatedAt = DateTime.UtcNow;
 
                 db.MovimientosStock.Add(new MovimientoStock
                 {
-                    ProductoId = producto.Id,
-                    Tipo       = "Entrada",
-                    Cantidad   = entry.Cantidad,
-                    Motivo     = $"Factura directa {nroFactura} — {proveedor.Nombre}",
+                    ProductoId      = producto.Id,
+                    Tipo            = "Entrada",
+                    Cantidad        = entry.Cantidad,
+                    Motivo          = $"Factura directa {nroFactura} — {proveedor.Nombre}",
+                    Estado          = "Aprobado",
+                    FechaAprobacion = DateTime.UtcNow,
                 });
             }
         }
@@ -297,15 +298,23 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                     .Where(p => productoIds.Contains(p.Id))
                     .ToListAsync();
 
-                // Validar stock disponible
+                // Validar stock disponible desde vista
+                var stockActualMap = await db.StockActual
+                    .Where(s => productoIds.Contains(s.ProductoId))
+                    .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
+
                 var insuficientes = new List<string>();
                 foreach (var entry in stockEntries)
                 {
                     var producto = productos.FirstOrDefault(p => p.Id == entry.ProductoId);
                     if (producto is null)
                         insuficientes.Add($"Producto #{entry.ProductoId} (no existe)");
-                    else if (producto.StockActual < entry.Cantidad)
-                        insuficientes.Add($"\"{producto.Nombre}\" (disponible: {producto.StockActual}, necesario: {entry.Cantidad})");
+                    else
+                    {
+                        var disponible = stockActualMap.GetValueOrDefault(entry.ProductoId, 0);
+                        if (disponible < entry.Cantidad)
+                            insuficientes.Add($"\"{producto.Nombre}\" (disponible: {disponible}, necesario: {entry.Cantidad})");
+                    }
                 }
                 if (insuficientes.Count > 0)
                     return Result<FacturaCompraResponse>.Failure(
@@ -316,15 +325,16 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 foreach (var entry in stockEntries)
                 {
                     var producto = productos.First(p => p.Id == entry.ProductoId);
-                    producto.StockActual -= entry.Cantidad;
-                    producto.UpdatedAt   =  DateTime.UtcNow;
+                    producto.UpdatedAt = DateTime.UtcNow;
 
                     db.MovimientosStock.Add(new MovimientoStock
                     {
-                        ProductoId = producto.Id,
-                        Tipo       = "Salida",
-                        Cantidad   = entry.Cantidad,
-                        Motivo     = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",
+                        ProductoId      = producto.Id,
+                        Tipo            = "Salida",
+                        Cantidad        = entry.Cantidad,
+                        Motivo          = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",
+                        Estado          = "Aprobado",
+                        FechaAprobacion = DateTime.UtcNow,
                     });
                 }
             }
