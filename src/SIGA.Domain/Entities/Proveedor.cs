@@ -13,6 +13,7 @@ public class Proveedor
     public string? Facebook { get; set; }
     public string? Instagram { get; set; }
     public string? WhatsApp { get; set; }
+    public bool EsLaboratorio { get; set; } = false;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

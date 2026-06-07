@@ -246,8 +246,40 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateOnly>("FechaCobro")
+                    b.Property<DateOnly>("Fecha")
                         .HasColumnType("date");
+
+                    b.Property<decimal>("MontoTotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("RegistradoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegistradoPorId");
+
+                    b.HasIndex("VentaId");
+
+                    b.ToTable("cobros", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.CobroLinea", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CobroId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("MetodoPago")
                         .HasColumnType("integer");
@@ -255,18 +287,59 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("Monto")
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("Referencia")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                    b.HasKey("Id");
+
+                    b.HasIndex("CobroId");
+
+                    b.ToTable("cobro_lineas", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Comprobante", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AnuladoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EmitidoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaAnulacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FechaEmision")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MotivoAnulacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
 
                     b.Property<int>("VentaId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("VentaId");
+                    b.HasIndex("AnuladoPorId");
 
-                    b.ToTable("cobros", (string)null);
+                    b.HasIndex("EmitidoPorId");
+
+                    b.HasIndex("VentaId")
+                        .IsUnique();
+
+                    b.ToTable("comprobantes", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.ConfiguracionNegocio", b =>
@@ -483,6 +556,89 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("departamentos", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Devolucion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ConfirmadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaRevision")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ObservacionesRevision")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("SolicitadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConfirmadoPorId");
+
+                    b.HasIndex("SolicitadoPorId");
+
+                    b.HasIndex("VentaId");
+
+                    b.ToTable("devoluciones", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.DevolucionLinea", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CantidadDevuelta")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CantidadNueva")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DevolucionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProductoDevueltoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ProductoNuevoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DevolucionId");
+
+                    b.HasIndex("ProductoDevueltoId");
+
+                    b.HasIndex("ProductoNuevoId");
+
+                    b.ToTable("devolucion_lineas", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.DevolucionProveedor", b =>
@@ -727,6 +883,52 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProductoId");
 
                     b.ToTable("FacturaCompraItems", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.FacturaLaboratorio", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EmitidoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("FechaEmision")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Monto")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("NumeroFactura")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Timbrado")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("TrabajoPedidoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmitidoPorId");
+
+                    b.HasIndex("TrabajoPedidoId")
+                        .IsUnique();
+
+                    b.ToTable("facturas_laboratorio", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaVenta", b =>
@@ -1364,6 +1566,9 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasMaxLength(400)
                         .HasColumnType("character varying(400)");
 
+                    b.Property<bool>("EsLaboratorio")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Facebook")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -1669,55 +1874,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("servicios", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.SolicitudAnulacionVenta", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("EstadoPrevioVenta")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("FechaRevision")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Motivo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ObservacionesRevision")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RevisadoPorNombre")
-                        .HasColumnType("text");
-
-                    b.Property<int>("SolicitadoPorId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SolicitadoPorNombre")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("VentaId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("VentaId");
-
-                    b.ToTable("SolicitudesAnulacionVenta");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.StockActualView", b =>
                 {
                     b.Property<int>("ProductoId")
@@ -1771,6 +1927,127 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("StockLotes");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.TipoLente", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("tipos_lente", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.TrabajoPedido", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AprobadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ArmazonProductoId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("FechaEnvio")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaRecepcion")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LaboratorioProveedorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Observacion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ObservacionAprobacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("RecetaId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TipoLenteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AprobadoPorId");
+
+                    b.HasIndex("ArmazonProductoId");
+
+                    b.HasIndex("LaboratorioProveedorId");
+
+                    b.HasIndex("RecetaId");
+
+                    b.HasIndex("TipoLenteId");
+
+                    b.HasIndex("VentaId")
+                        .IsUnique();
+
+                    b.ToTable("trabajos_pedido", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Tratamiento", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("tratamientos", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Turno", b =>
@@ -1901,7 +2178,10 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
 
-                    b.Property<DateOnly?>("FechaVencimiento")
+                    b.Property<DateOnly?>("FechaComprobante")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaConfirmacion")
                         .HasColumnType("date");
 
                     b.Property<DateOnly>("FechaVenta")
@@ -1922,8 +2202,16 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RecetaId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ValidezDias")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(15);
 
                     b.HasKey("Id");
 
@@ -1980,6 +2268,21 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasIndex("VentaId");
 
                     b.ToTable("venta_lineas", (string)null);
+                });
+
+            modelBuilder.Entity("TrabajoPedidoTratamiento", b =>
+                {
+                    b.Property<int>("TrabajosPedidoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TratamientosId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TrabajosPedidoId", "TratamientosId");
+
+                    b.HasIndex("TratamientosId");
+
+                    b.ToTable("trabajos_pedido_tratamientos", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>
@@ -2104,11 +2407,56 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SIGA.Domain.Entities.Cobro", b =>
                 {
+                    b.HasOne("SIGA.Domain.Entities.User", "RegistradoPor")
+                        .WithMany()
+                        .HasForeignKey("RegistradoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SIGA.Domain.Entities.Venta", "Venta")
                         .WithMany("Cobros")
                         .HasForeignKey("VentaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("RegistradoPor");
+
+                    b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.CobroLinea", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.Cobro", "Cobro")
+                        .WithMany("Lineas")
+                        .HasForeignKey("CobroId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cobro");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Comprobante", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.User", "AnuladoPor")
+                        .WithMany()
+                        .HasForeignKey("AnuladoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SIGA.Domain.Entities.User", "EmitidoPor")
+                        .WithMany()
+                        .HasForeignKey("EmitidoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Venta", "Venta")
+                        .WithOne("Comprobante")
+                        .HasForeignKey("SIGA.Domain.Entities.Comprobante", "VentaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AnuladoPor");
+
+                    b.Navigation("EmitidoPor");
 
                     b.Navigation("Venta");
                 });
@@ -2155,6 +2503,58 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Conteo");
 
                     b.Navigation("Producto");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Devolucion", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.User", "ConfirmadoPor")
+                        .WithMany()
+                        .HasForeignKey("ConfirmadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SIGA.Domain.Entities.User", "SolicitadoPor")
+                        .WithMany()
+                        .HasForeignKey("SolicitadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Venta", "Venta")
+                        .WithMany("Devoluciones")
+                        .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ConfirmadoPor");
+
+                    b.Navigation("SolicitadoPor");
+
+                    b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.DevolucionLinea", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.Devolucion", "Devolucion")
+                        .WithMany("Lineas")
+                        .HasForeignKey("DevolucionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Producto", "ProductoDevuelto")
+                        .WithMany()
+                        .HasForeignKey("ProductoDevueltoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Producto", "ProductoNuevo")
+                        .WithMany()
+                        .HasForeignKey("ProductoNuevoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Devolucion");
+
+                    b.Navigation("ProductoDevuelto");
+
+                    b.Navigation("ProductoNuevo");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.DevolucionProveedor", b =>
@@ -2211,6 +2611,25 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("FacturaCompra");
 
                     b.Navigation("Producto");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.FacturaLaboratorio", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.User", "EmitidoPor")
+                        .WithMany()
+                        .HasForeignKey("EmitidoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.TrabajoPedido", "TrabajoPedido")
+                        .WithOne("Factura")
+                        .HasForeignKey("SIGA.Domain.Entities.FacturaLaboratorio", "TrabajoPedidoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmitidoPor");
+
+                    b.Navigation("TrabajoPedido");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaVenta", b =>
@@ -2497,17 +2916,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.SolicitudAnulacionVenta", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.Venta", "Venta")
-                        .WithMany()
-                        .HasForeignKey("VentaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Venta");
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.StockLote", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Producto", "Producto")
@@ -2525,6 +2933,54 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Producto");
 
                     b.Navigation("RecepcionItem");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.TrabajoPedido", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.User", "AprobadoPor")
+                        .WithMany()
+                        .HasForeignKey("AprobadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SIGA.Domain.Entities.Producto", "ArmazonProducto")
+                        .WithMany()
+                        .HasForeignKey("ArmazonProductoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SIGA.Domain.Entities.Proveedor", "LaboratorioProveedor")
+                        .WithMany()
+                        .HasForeignKey("LaboratorioProveedorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Receta", "Receta")
+                        .WithMany()
+                        .HasForeignKey("RecetaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SIGA.Domain.Entities.TipoLente", "TipoLente")
+                        .WithMany("TrabajosPedido")
+                        .HasForeignKey("TipoLenteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Venta", "Venta")
+                        .WithOne("TrabajoPedido")
+                        .HasForeignKey("SIGA.Domain.Entities.TrabajoPedido", "VentaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AprobadoPor");
+
+                    b.Navigation("ArmazonProducto");
+
+                    b.Navigation("LaboratorioProveedor");
+
+                    b.Navigation("Receta");
+
+                    b.Navigation("TipoLente");
+
+                    b.Navigation("Venta");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Turno", b =>
@@ -2625,6 +3081,21 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Venta");
                 });
 
+            modelBuilder.Entity("TrabajoPedidoTratamiento", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.TrabajoPedido", null)
+                        .WithMany()
+                        .HasForeignKey("TrabajosPedidoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SIGA.Domain.Entities.Tratamiento", null)
+                        .WithMany()
+                        .HasForeignKey("TratamientosId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.PedidoProveedor", "PedidoProveedor")
@@ -2691,6 +3162,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("Productos");
                 });
 
+            modelBuilder.Entity("SIGA.Domain.Entities.Cobro", b =>
+                {
+                    b.Navigation("Lineas");
+                });
+
             modelBuilder.Entity("SIGA.Domain.Entities.ConsultaClinica", b =>
                 {
                     b.Navigation("Receta");
@@ -2704,6 +3180,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SIGA.Domain.Entities.Departamento", b =>
                 {
                     b.Navigation("Ciudades");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.Devolucion", b =>
+                {
+                    b.Navigation("Lineas");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Especialidad", b =>
@@ -2804,6 +3285,16 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("UserRoles");
                 });
 
+            modelBuilder.Entity("SIGA.Domain.Entities.TipoLente", b =>
+                {
+                    b.Navigation("TrabajosPedido");
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.TrabajoPedido", b =>
+                {
+                    b.Navigation("Factura");
+                });
+
             modelBuilder.Entity("SIGA.Domain.Entities.User", b =>
                 {
                     b.Navigation("Patient");
@@ -2817,9 +3308,15 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Cobros");
 
+                    b.Navigation("Comprobante");
+
+                    b.Navigation("Devoluciones");
+
                     b.Navigation("Factura");
 
                     b.Navigation("Lineas");
+
+                    b.Navigation("TrabajoPedido");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>

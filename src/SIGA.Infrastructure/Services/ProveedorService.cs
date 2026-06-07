@@ -70,7 +70,8 @@ public class ProveedorService(AppDbContext db) : IProveedorService
             SitioWeb   = request.SitioWeb?.Trim(),
             Facebook   = request.Facebook?.Trim(),
             Instagram  = request.Instagram?.Trim(),
-            WhatsApp   = request.WhatsApp?.Trim(),
+            WhatsApp      = request.WhatsApp?.Trim(),
+            EsLaboratorio = request.EsLaboratorio,
         };
 
         foreach (var c in request.Contactos.Where(c => !string.IsNullOrWhiteSpace(c.Nombre)))
@@ -110,8 +111,9 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         proveedor.SitioWeb    = request.SitioWeb?.Trim();
         proveedor.Facebook    = request.Facebook?.Trim();
         proveedor.Instagram   = request.Instagram?.Trim();
-        proveedor.WhatsApp    = request.WhatsApp?.Trim();
-        proveedor.UpdatedAt   = DateTime.UtcNow;
+        proveedor.WhatsApp      = request.WhatsApp?.Trim();
+        proveedor.EsLaboratorio = request.EsLaboratorio;
+        proveedor.UpdatedAt     = DateTime.UtcNow;
 
         // Reemplaza todos los contactos
         db.Set<ProveedorContacto>().RemoveRange(proveedor.Contactos);
@@ -154,6 +156,16 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         return Result<bool>.Success(true);
     }
 
+    public async Task<Result<List<ProveedorResponse>>> GetLaboratoriosAsync()
+    {
+        var labs = await db.Proveedores
+            .Include(p => p.Contactos)
+            .Where(p => p.EsLaboratorio && p.IsActive)
+            .OrderBy(p => p.Nombre)
+            .ToListAsync();
+        return Result<List<ProveedorResponse>>.Success(labs.Select(ToResponse).ToList());
+    }
+
     private static ProveedorResponse ToResponse(Proveedor p) => new()
     {
         Id          = p.Id,
@@ -168,6 +180,7 @@ public class ProveedorService(AppDbContext db) : IProveedorService
         Facebook    = p.Facebook,
         Instagram   = p.Instagram,
         WhatsApp    = p.WhatsApp,
+        EsLaboratorio = p.EsLaboratorio,
         IsActive    = p.IsActive,
         CreatedAt   = p.CreatedAt,
         Contactos   = p.Contactos.Select(c => new ProveedorContactoDto

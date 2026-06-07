@@ -16,7 +16,12 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
         services.AddDbContext<AppDbContext>(opt =>
-            opt.UseNpgsql(config.GetConnectionString("DefaultConnection")));
+            opt.UseNpgsql(
+                config.GetConnectionString("DefaultConnection"),
+                npgsql => npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null)));
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
@@ -53,6 +58,8 @@ public static class DependencyInjection
         services.AddScoped<IMovimientoStockPdfGenerator, MovimientoStockPdfGenerator>();
         services.AddScoped<IMotivoMovimientoService, MotivoMovimientoService>();
         services.AddScoped<IMarcaService, MarcaService>();
+        services.AddScoped<ITipoLenteService, TipoLenteService>();
+        services.AddScoped<ITratamientoService, TratamientoService>();
         services.AddScoped<IProveedorService, ProveedorService>();
         services.AddScoped<IComprasService, ComprasService>();
         services.AddScoped<IFacturasCompraService, FacturasCompraService>();

@@ -22,6 +22,14 @@ public class ProveedoresController(IProveedorService proveedorService) : BaseCon
         return ToHttpResponse(result);
     }
 
+    [HttpGet("laboratorios")]
+    [Authorize(Policy = "ver_inventario")]
+    public async Task<IActionResult> GetLaboratorios()
+    {
+        var result = await proveedorService.GetLaboratoriosAsync();
+        return ToHttpResponse(result);
+    }
+
     [HttpPost]
     [Authorize(Policy = "gestionar_pedidos")]
     public async Task<IActionResult> Create([FromBody] CreateProveedorRequest request)

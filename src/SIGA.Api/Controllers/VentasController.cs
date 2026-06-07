@@ -20,14 +20,15 @@ public class VentasController(IVentaService ventaService) : BaseController
     [HttpGet]
     [Authorize(Policy = "ver_ventas")]
     public async Task<IActionResult> GetVentas(
-        [FromQuery] string? estado = null,
+        [FromQuery] string? estado    = null,
+        [FromQuery] string? tipo      = null,
         [FromQuery] string? fechaDesde = null,
         [FromQuery] string? fechaHasta = null,
-        [FromQuery] int? patientId = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int?    patientId  = null,
+        [FromQuery] int     page       = 1,
+        [FromQuery] int     pageSize   = 10)
     {
-        var result = await ventaService.GetVentasAsync(estado, fechaDesde, fechaHasta, patientId, page, pageSize);
+        var result = await ventaService.GetVentasAsync(estado, tipo, fechaDesde, fechaHasta, patientId, page, pageSize);
         return ToHttpResponse(result);
     }
 
@@ -51,7 +52,31 @@ public class VentasController(IVentaService ventaService) : BaseController
     [Authorize(Policy = "registrar_venta")]
     public async Task<IActionResult> ConfirmarVenta(int id)
     {
-        var result = await ventaService.ConfirmarVentaAsync(id);
+        var result = await ventaService.ConfirmarVentaAsync(id, CurrentUserId);
+        return ToHttpResponse(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> EliminarPresupuesto(int id)
+    {
+        var result = await ventaService.EliminarPresupuestoAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/cancelar")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> CancelarVenta(int id, [FromBody] CancelarVentaRequest request)
+    {
+        var result = await ventaService.CancelarVentaAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("cobros-pendientes")]
+    [Authorize(Policy = "ver_ventas")]
+    public async Task<IActionResult> GetCobrosPendientes()
+    {
+        var result = await ventaService.GetCobrosPendientesAsync();
         return ToHttpResponse(result);
     }
 
@@ -59,7 +84,15 @@ public class VentasController(IVentaService ventaService) : BaseController
     [Authorize(Policy = "registrar_venta")]
     public async Task<IActionResult> RegistrarCobro([FromBody] RegistrarCobroRequest request)
     {
-        var result = await ventaService.RegistrarCobroAsync(request);
+        var result = await ventaService.RegistrarCobroAsync(request, CurrentUserId);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("{id:int}/comprobante")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> EmitirComprobante(int id)
+    {
+        var result = await ventaService.EmitirComprobanteAsync(id, CurrentUserId);
         return ToHttpResponse(result);
     }
 
@@ -71,32 +104,82 @@ public class VentasController(IVentaService ventaService) : BaseController
         return ToHttpResponse(result);
     }
 
-    // ── Anulación con aprobación ──────────────────────────────────────────────────
+    // ── Trabajo a pedido — vistas globales ───────────────────────────────────────
 
-    [HttpPost("{id:int}/solicitar-anulacion")]
+    [HttpGet("trabajos-pedido")]
+    [Authorize(Policy = "ver_ventas")]
+    public async Task<IActionResult> GetTrabajosPedido([FromQuery] string? estado = null)
+    {
+        var result = await ventaService.GetTrabajosPedidoAsync(estado);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("trabajos-pedido/{id:int}/gestionar")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> GestionarAprobacion(int id, [FromBody] GestionarTrabajoPedidoRequest request)
+    {
+        var result = await ventaService.GestionarAprobacionAsync(id, request, CurrentUserId, CurrentUserName);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("trabajos-pedido/{id:int}/enviar")]
     [Authorize(Policy = "registrar_venta")]
-    public async Task<IActionResult> SolicitarAnulacion(int id, [FromBody] SolicitarAnulacionRequest request)
+    public async Task<IActionResult> RegistrarEnvioLab(int id)
     {
-        request.VentaId = id;
-        var result = await ventaService.SolicitarAnulacionAsync(CurrentUserId, CurrentUserName, request);
+        var result = await ventaService.RegistrarEnvioLabAsync(id);
         return ToHttpResponse(result);
     }
 
-    [HttpGet("anulaciones")]
-    [Authorize(Policy = "gestionar_ventas")]
-    public async Task<IActionResult> GetSolicitudesAnulacion([FromQuery] string? estado = null)
+    [HttpPut("trabajos-pedido/{id:int}/recibir")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> RegistrarRecepcionLab(int id)
     {
-        var result = await ventaService.GetSolicitudesAnulacionAsync(estado);
+        var result = await ventaService.RegistrarRecepcionLabAsync(id);
         return ToHttpResponse(result);
     }
 
-    [HttpPost("anulaciones/{solicitudId:int}/gestionar")]
-    [Authorize(Policy = "gestionar_ventas")]
-    public async Task<IActionResult> GestionarAnulacion(
-        int solicitudId, [FromBody] GestionarAnulacionVentaRequest request)
+    [HttpPost("trabajos-pedido/{id:int}/factura")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> EmitirFacturaLaboratorio(int id, [FromBody] EmitirFacturaLaboratorioRequest request)
     {
-        var result = await ventaService.GestionarAnulacionAsync(
-            solicitudId, CurrentUserId, CurrentUserName, request);
+        var result = await ventaService.EmitirFacturaLaboratorioAsync(id, request, CurrentUserId);
+        return ToHttpResponse(result);
+    }
+
+    // ── Trabajo a pedido — desde venta ───────────────────────────────────────────
+
+    [HttpPost("{id:int}/trabajo-pedido")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> CrearTrabajoPedido(int id, [FromBody] CrearTrabajoPedidoRequest request)
+    {
+        var result = await ventaService.CrearTrabajoPedidoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+
+    // ── Devoluciones ──────────────────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/devoluciones")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> SolicitarDevolucion(int id, [FromBody] SolicitarDevolucionRequest request)
+    {
+        var result = await ventaService.SolicitarDevolucionAsync(id, request, CurrentUserId, CurrentUserName);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("{id:int}/devoluciones")]
+    [Authorize(Policy = "ver_ventas")]
+    public async Task<IActionResult> GetDevoluciones(int id)
+    {
+        var result = await ventaService.GetDevolucionesAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("devoluciones/{devolucionId:int}/gestionar")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> GestionarDevolucion(int devolucionId, [FromBody] GestionarDevolucionRequest request)
+    {
+        var result = await ventaService.GestionarDevolucionAsync(devolucionId, request, CurrentUserId, CurrentUserName);
         return ToHttpResponse(result);
     }
 }

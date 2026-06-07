@@ -19,6 +19,7 @@ public class CreateProveedorRequest
     public string? Facebook { get; set; }
     public string? Instagram { get; set; }
     public string? WhatsApp { get; set; }
+    public bool EsLaboratorio { get; set; } = false;
 
     public List<CreateProveedorContactoDto> Contactos { get; set; } = [];
 }

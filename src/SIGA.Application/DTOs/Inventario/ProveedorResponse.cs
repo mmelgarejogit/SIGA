@@ -14,6 +14,7 @@ public class ProveedorResponse
     public string? Facebook { get; set; }
     public string? Instagram { get; set; }
     public string? WhatsApp { get; set; }
+    public bool EsLaboratorio { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ProveedorContactoDto> Contactos { get; set; } = [];

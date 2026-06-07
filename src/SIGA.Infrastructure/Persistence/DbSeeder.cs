@@ -230,7 +230,55 @@ public static class DbSeeder
             db.Modelos.AddRange(nuevosModelos);
             await db.SaveChangesAsync();
         }
+
+        // 9. Tipos de lente
+        var existingTiposLente = await db.TiposLente.Select(t => t.Nombre).ToHashSetAsync();
+        var nuevosTiposLente = TiposLenteIniciales
+            .Where(n => !existingTiposLente.Contains(n))
+            .Select(n => new TipoLente { Nombre = n, IsActive = true, CreatedAt = DateTime.UtcNow })
+            .ToList();
+
+        if (nuevosTiposLente.Count > 0)
+        {
+            db.TiposLente.AddRange(nuevosTiposLente);
+            await db.SaveChangesAsync();
+        }
+
+        // 10. Tratamientos
+        var existingTratamientos = await db.Tratamientos.Select(t => t.Nombre).ToHashSetAsync();
+        var nuevosTratamientos = TratamientosIniciales
+            .Where(n => !existingTratamientos.Contains(n))
+            .Select(n => new Tratamiento { Nombre = n, IsActive = true, CreatedAt = DateTime.UtcNow })
+            .ToList();
+
+        if (nuevosTratamientos.Count > 0)
+        {
+            db.Tratamientos.AddRange(nuevosTratamientos);
+            await db.SaveChangesAsync();
+        }
     }
+
+    private static readonly string[] TiposLenteIniciales =
+    [
+        "Monofocal",
+        "Bifocal",
+        "Progresivo",
+        "Ocupacional / Oficina",
+        "Lente de Contacto Blando",
+        "Lente de Contacto Rígido",
+    ];
+
+    private static readonly string[] TratamientosIniciales =
+    [
+        "Antirreflejo",
+        "Fotocromático (Transitions)",
+        "Polarizado",
+        "Filtro Luz Azul",
+        "UV 400",
+        "Endurecimiento Superficial",
+        "Hidrofóbico / Antihumedad",
+        "Antirayaduras",
+    ];
 
     private static readonly string[] MarcasIniciales =
     [

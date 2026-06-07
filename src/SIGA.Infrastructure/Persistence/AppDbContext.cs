@@ -55,9 +55,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SalarioEmpleado> SalariosEmpleado => Set<SalarioEmpleado>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<Venta> Ventas => Set<Venta>();
-    public DbSet<SolicitudAnulacionVenta> SolicitudesAnulacionVenta => Set<SolicitudAnulacionVenta>();
     public DbSet<VentaLinea> VentaLineas => Set<VentaLinea>();
     public DbSet<Cobro> Cobros => Set<Cobro>();
+    public DbSet<CobroLinea> CobroLineas => Set<CobroLinea>();
+    public DbSet<Comprobante> Comprobantes => Set<Comprobante>();
+    public DbSet<TipoLente> TiposLente => Set<TipoLente>();
+    public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
+    public DbSet<TrabajoPedido> TrabajosPedido => Set<TrabajoPedido>();
+    public DbSet<FacturaLaboratorio> FacturasLaboratorio => Set<FacturaLaboratorio>();
+    public DbSet<Devolucion> Devoluciones => Set<Devolucion>();
+    public DbSet<DevolucionLinea> DevolucionLineas => Set<DevolucionLinea>();
     public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
 
