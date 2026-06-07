@@ -69,7 +69,6 @@ public class PatientService : IPatientService
     {
         var patient = await _dbContext.Patients
             .Include(p => p.Person)
-            .Include(p => p.DatosFacturacion)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (patient is null)
@@ -164,7 +163,6 @@ public class PatientService : IPatientService
 
         var patient = await _dbContext.Patients
             .Include(p => p.Person)
-            .Include(p => p.DatosFacturacion)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (patient is null)
@@ -210,47 +208,6 @@ public class PatientService : IPatientService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<PatientResponse>> UpsertDatosFacturacionAsync(int id, UpsertDatosFacturacionRequest request)
-    {
-        var patient = await _dbContext.Patients
-            .Include(p => p.Person)
-            .Include(p => p.DatosFacturacion)
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (patient is null)
-            return Result<PatientResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
-
-        var now = DateTime.UtcNow;
-
-        if (patient.DatosFacturacion is null)
-        {
-            patient.DatosFacturacion = new DatosFacturacion
-            {
-                PatientId = patient.Id,
-                RucCiFiscal = request.RucCiFiscal?.Trim(),
-                RazonSocial = request.RazonSocial?.Trim(),
-                Direccion   = request.Direccion?.Trim(),
-                Email       = request.Email?.Trim().ToLower(),
-                Telefono    = request.Telefono?.Trim(),
-                CreatedAt   = now,
-                UpdatedAt   = now
-            };
-        }
-        else
-        {
-            patient.DatosFacturacion.RucCiFiscal = request.RucCiFiscal?.Trim();
-            patient.DatosFacturacion.RazonSocial = request.RazonSocial?.Trim();
-            patient.DatosFacturacion.Direccion   = request.Direccion?.Trim();
-            patient.DatosFacturacion.Email       = request.Email?.Trim().ToLower();
-            patient.DatosFacturacion.Telefono    = request.Telefono?.Trim();
-            patient.DatosFacturacion.UpdatedAt   = now;
-        }
-
-        await _dbContext.SaveChangesAsync();
-
-        return Result<PatientResponse>.Success(ToResponse(patient));
-    }
-
     private static PatientResponse ToResponse(Patient p) => new()
     {
         Id          = p.Id,
@@ -265,13 +222,5 @@ public class PatientService : IPatientService
         IsActive    = p.IsActive,
         CreatedAt   = p.CreatedAt,
         UpdatedAt   = p.UpdatedAt,
-        DatosFacturacion = p.DatosFacturacion is null ? null : new DatosFacturacionResponse
-        {
-            RucCiFiscal = p.DatosFacturacion.RucCiFiscal,
-            RazonSocial = p.DatosFacturacion.RazonSocial,
-            Direccion   = p.DatosFacturacion.Direccion,
-            Email       = p.DatosFacturacion.Email,
-            Telefono    = p.DatosFacturacion.Telefono,
-        }
     };
 }

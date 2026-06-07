@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IProfessionalService, ProfessionalService>();
         services.AddScoped<IPatientService, PatientService>();
+        services.AddScoped<IClienteService, ClienteService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IConsultaClinicaService, ConsultaClinicaService>();
