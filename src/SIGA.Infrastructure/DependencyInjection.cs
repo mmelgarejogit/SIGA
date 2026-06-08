@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IEgresoService, EgresoService>();
         services.AddScoped<IEmpleadoService, EmpleadoService>();
         services.AddScoped<IVentaService, VentaService>();
+        services.AddScoped<ILaboratorioService, LaboratorioService>();
         services.AddScoped<ICajaService, CajaService>();
         services.AddScoped<IStockLoteService, StockLoteService>();
         services.AddScoped<IUbicacionService, UbicacionService>();

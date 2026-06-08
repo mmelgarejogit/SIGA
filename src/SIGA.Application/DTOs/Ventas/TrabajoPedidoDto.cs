@@ -29,6 +29,7 @@ public class TrabajoPedidoDto
 
 public class CrearTrabajoPedidoRequest
 {
+    public int VentaId { get; set; }
     public int? RecetaId { get; set; }
     public int TipoLenteId { get; set; }
     public List<int> TratamientoIds { get; set; } = new();
