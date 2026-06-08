@@ -5,7 +5,7 @@ namespace SIGA.Application.Interfaces;
 
 public interface IProductoService
 {
-    Task<Result<PagedResult<ProductoResponse>>> GetAllAsync(int page, int pageSize, string? search, string? categoria, bool? bajoStock);
+    Task<Result<PagedResult<ProductoResponse>>> GetAllAsync(int page, int pageSize, string? search, string? categoria, bool? bajoStock, string? tipoCategoria);
     Task<Result<ProductoResponse>> GetByIdAsync(int id);
     Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request);
     Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request);

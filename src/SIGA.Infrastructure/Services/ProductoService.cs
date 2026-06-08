@@ -18,7 +18,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         http.HttpContext?.User.FindFirstValue("name");
 
     public async Task<Result<PagedResult<ProductoResponse>>> GetAllAsync(
-        int page, int pageSize, string? search, string? categoria, bool? bajoStock)
+        int page, int pageSize, string? search, string? categoria, bool? bajoStock, string? tipoCategoria)
     {
         var query = db.Productos.AsQueryable();
 
@@ -32,6 +32,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         if (!string.IsNullOrWhiteSpace(categoria))
             query = query.Where(p => p.Categoria == categoria);
+
+        if (!string.IsNullOrWhiteSpace(tipoCategoria) && Enum.TryParse<TipoCategoriaProducto>(tipoCategoria, true, out var tc))
+        {
+            var nombresTipo = await db.CategoriasProducto.Where(c => c.Tipo == tc).Select(c => c.Nombre).ToListAsync();
+            query = query.Where(p => nombresTipo.Contains(p.Categoria));
+        }
 
         if (bajoStock == true)
         {
@@ -51,8 +57,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
-        var discountMap = await db.CategoriasProducto
-            .ToDictionaryAsync(c => c.Nombre, c => c.Descuento);
+        var cats = await db.CategoriasProducto.ToListAsync();
+        var discountMap = cats.ToDictionary(c => c.Nombre, c => c.Descuento);
+        var tipoMap     = cats.ToDictionary(c => c.Nombre, c => c.Tipo);
 
         var productos = await query
             .Include(p => p.Marca)
@@ -73,7 +80,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             Items = productos.Select(p => ToResponse(
                 p,
                 discountMap.GetValueOrDefault(p.Categoria, 0),
-                stockMap.GetValueOrDefault(p.Id, 0))),
+                stockMap.GetValueOrDefault(p.Id, 0),
+                tipoMap.GetValueOrDefault(p.Categoria, TipoCategoriaProducto.Generico))),
             TotalCount  = totalCount,
             TotalActive = await db.Productos.CountAsync(p => p.IsActive),
             Page        = page,
@@ -92,9 +100,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (producto is null)
             return Result<ProductoResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        var descuento = await db.CategoriasProducto
+        var catById = await db.CategoriasProducto
             .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
+            .Select(c => new { c.Descuento, c.Tipo })
             .FirstOrDefaultAsync();
 
         var stockActual = await db.StockActual
@@ -102,7 +110,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(s => s.StockActual)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento, stockActual));
+        return Result<ProductoResponse>.Success(ToResponse(
+            producto, catById?.Descuento ?? 0, stockActual, catById?.Tipo ?? TipoCategoriaProducto.Generico));
     }
 
     public async Task<Result<ProductoResponse>> CreateAsync(CreateProductoRequest request)
@@ -151,12 +160,13 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
         await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
 
-        var descuentoCreate = await db.CategoriasProducto
+        var catCreate = await db.CategoriasProducto
             .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
+            .Select(c => new { c.Descuento, c.Tipo })
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoCreate, 0));
+        return Result<ProductoResponse>.Success(ToResponse(
+            producto, catCreate?.Descuento ?? 0, 0, catCreate?.Tipo ?? TipoCategoriaProducto.Generico));
     }
 
     public async Task<Result<ProductoResponse>> UpdateAsync(int id, UpdateProductoRequest request)
@@ -201,9 +211,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
         await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
 
-        var descuentoUpdate = await db.CategoriasProducto
+        var catUpdate = await db.CategoriasProducto
             .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
+            .Select(c => new { c.Descuento, c.Tipo })
             .FirstOrDefaultAsync();
 
         var stockActualUpdate = await db.StockActual
@@ -211,7 +221,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(s => s.StockActual)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuentoUpdate, stockActualUpdate));
+        return Result<ProductoResponse>.Success(ToResponse(
+            producto, catUpdate?.Descuento ?? 0, stockActualUpdate, catUpdate?.Tipo ?? TipoCategoriaProducto.Generico));
     }
 
     public async Task<Result<bool>> DeactivateAsync(int id)
@@ -429,9 +440,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         await db.SaveChangesAsync();
 
-        var descuento = await db.CategoriasProducto
+        var catStock = await db.CategoriasProducto
             .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => c.Descuento)
+            .Select(c => new { c.Descuento, c.Tipo })
             .FirstOrDefaultAsync();
 
         var stockActual = await db.StockActual
@@ -439,7 +450,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             .Select(s => s.StockActual)
             .FirstOrDefaultAsync();
 
-        return Result<ProductoResponse>.Success(ToResponse(producto, descuento, stockActual));
+        return Result<ProductoResponse>.Success(ToResponse(
+            producto, catStock?.Descuento ?? 0, stockActual, catStock?.Tipo ?? TipoCategoriaProducto.Generico));
     }
 
     public async Task<Result<string>> UploadImagenAsync(int id, Stream stream, string fileName)
@@ -489,11 +501,12 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         return Result<bool>.Success(true);
     }
 
-    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria, int stockActual) => new()
+    private static ProductoResponse ToResponse(Producto p, decimal descuentoCategoria, int stockActual, TipoCategoriaProducto tipoCategoria) => new()
     {
         Id                 = p.Id,
         Nombre             = p.Nombre,
         Categoria          = p.Categoria,
+        TipoCategoria      = tipoCategoria.ToString(),
         Sku                = p.Sku,
         PrecioCosto        = p.PrecioCosto,
         PrecioVenta        = p.PrecioVenta,
@@ -551,6 +564,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             Id             = c.Id,
             Nombre         = c.Nombre,
             Descripcion    = c.Descripcion,
+            Tipo           = c.Tipo.ToString(),
             Margen         = c.Margen,
             Descuento      = c.Descuento,
             IsActive       = c.IsActive,
@@ -572,10 +586,13 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         if (request.Descuento < 0 || request.Descuento > 100)
             return Result<CategoriaProductoResponse>.Failure("El descuento debe estar entre 0 y 100.", ErrorType.Validation);
 
+        var tipo = Enum.TryParse<TipoCategoriaProducto>(request.Tipo, true, out var t) ? t : TipoCategoriaProducto.Generico;
+
         var cat = new CategoriaProducto
         {
             Nombre      = nombre,
             Descripcion = request.Descripcion?.Trim(),
+            Tipo        = tipo,
             Margen      = request.Margen,
             Descuento   = request.Descuento,
             IsActive    = true,
@@ -587,7 +604,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
         {
-            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
+            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion, Tipo = cat.Tipo.ToString(),
             Margen = cat.Margen, Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = 0,
         });
     }
@@ -610,6 +627,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
 
         cat.Nombre      = nombre;
         cat.Descripcion = request.Descripcion?.Trim();
+        cat.Tipo        = Enum.TryParse<TipoCategoriaProducto>(request.Tipo, true, out var t) ? t : TipoCategoriaProducto.Generico;
         cat.Margen      = request.Margen;
         cat.Descuento   = request.Descuento;
         cat.IsActive    = request.IsActive;
@@ -619,7 +637,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         var total = await db.Productos.CountAsync(p => p.Categoria == cat.Nombre);
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse
         {
-            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion,
+            Id = cat.Id, Nombre = cat.Nombre, Descripcion = cat.Descripcion, Tipo = cat.Tipo.ToString(),
             Margen = cat.Margen, Descuento = cat.Descuento, IsActive = cat.IsActive, TotalProductos = total,
         });
     }

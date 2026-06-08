@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IConsultaClinicaService, ConsultaClinicaService>();
+        services.AddScoped<IRecetaService, RecetaService>();
         services.AddScoped<IRecetaPdfGenerator, RecetaPdfGenerator>();
         services.AddScoped<IConfiguracionNegocioService, ConfiguracionNegocioService>();
         services.AddScoped<IEmailService, ResendEmailService>();

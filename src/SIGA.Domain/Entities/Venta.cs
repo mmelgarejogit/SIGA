@@ -5,8 +5,8 @@ public class Venta
     public int Id { get; set; }
     public string NumeroComprobante { get; set; } = null!;
 
-    public int PatientId { get; set; }
-    public Patient Patient { get; set; } = null!;
+    public int? ClienteId { get; set; }
+    public Cliente? Cliente { get; set; }
 
     public int? RecetaId { get; set; }
     public Receta? Receta { get; set; }

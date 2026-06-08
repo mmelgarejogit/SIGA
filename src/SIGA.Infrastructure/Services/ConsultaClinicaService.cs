@@ -139,8 +139,14 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         if (request.Receta is not null)
         {
+            var personIdReceta = await _db.Patients
+                .Where(p => p.Id == request.PatientId)
+                .Select(p => (int?)p.PersonId)
+                .FirstOrDefaultAsync();
+
             consulta.Receta = new Receta
             {
+                PersonId = personIdReceta,
                 FechaEmision = request.Receta.FechaEmision,
                 OdEsferico = request.Receta.OdEsferico,
                 OdCilindro = request.Receta.OdCilindro,
@@ -228,9 +234,15 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         if (consulta.Receta is null)
         {
+            var personIdReceta = await _db.Patients
+                .Where(p => p.Id == consulta.PatientId)
+                .Select(p => (int?)p.PersonId)
+                .FirstOrDefaultAsync();
+
             consulta.Receta = new Receta
             {
                 ConsultaClinicaId = consultaId,
+                PersonId = personIdReceta,
                 FechaEmision = request.FechaEmision,
                 OdEsferico = request.OdEsferico,
                 OdCilindro = request.OdCilindro,
@@ -368,6 +380,8 @@ public class ConsultaClinicaService : IConsultaClinicaService
     {
         Id = r.Id,
         ConsultaClinicaId = r.ConsultaClinicaId,
+        PersonId = r.PersonId,
+        EsExterna = r.ConsultaClinicaId == null,
         FechaEmision = r.FechaEmision,
         OdEsferico = r.OdEsferico,
         OdCilindro = r.OdCilindro,

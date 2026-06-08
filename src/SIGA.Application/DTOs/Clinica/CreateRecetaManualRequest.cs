@@ -1,11 +1,11 @@
 namespace SIGA.Application.DTOs.Clinica;
 
-public class RecetaResponse
+/// <summary>
+/// Alta de una receta externa/de mostrador (sin consulta clínica), vinculada a un cliente.
+/// </summary>
+public class CreateRecetaManualRequest
 {
-    public int Id { get; set; }
-    public int? ConsultaClinicaId { get; set; }
-    public int? PersonId { get; set; }
-    public bool EsExterna { get; set; }
+    public int ClienteId { get; set; }
     public DateOnly FechaEmision { get; set; }
     public decimal? OdEsferico { get; set; }
     public decimal? OdCilindro { get; set; }
@@ -19,6 +19,4 @@ public class RecetaResponse
     public string? AvSinCorreccion { get; set; }
     public string? AvConCorreccion { get; set; }
     public string? Observaciones { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
 }

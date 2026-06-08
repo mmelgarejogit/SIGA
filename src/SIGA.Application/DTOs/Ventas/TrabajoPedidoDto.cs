@@ -10,13 +10,16 @@ public class TrabajoPedidoDto
 {
     public int Id { get; set; }
     public int? RecetaId { get; set; }
-    public int TipoLenteId { get; set; }
-    public string TipoLenteNombre { get; set; } = "";
+    public int? TipoLenteId { get; set; }
+    public string? TipoLenteNombre { get; set; }
+    public int? CristalProductoId { get; set; }
+    public string? CristalProductoNombre { get; set; }
     public List<TrabajoPedidoTratamientoDto> Tratamientos { get; set; } = new();
     public int? ArmazonProductoId { get; set; }
     public string? ArmazonProductoNombre { get; set; }
-    public int LaboratorioProveedorId { get; set; }
-    public string LaboratorioNombre { get; set; } = "";
+    public bool ArmazonDelCliente { get; set; }
+    public int? LaboratorioProveedorId { get; set; }
+    public string? LaboratorioNombre { get; set; }
     public string Estado { get; set; } = "";
     public string? FechaEnvio { get; set; }
     public string? FechaRecepcion { get; set; }

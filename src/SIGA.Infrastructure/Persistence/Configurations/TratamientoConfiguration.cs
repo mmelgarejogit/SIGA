@@ -11,6 +11,7 @@ public class TratamientoConfiguration : IEntityTypeConfiguration<Tratamiento>
         builder.ToTable("tratamientos");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Nombre).IsRequired().HasMaxLength(100);
+        builder.Property(x => x.Precio).HasColumnType("numeric(14,2)").HasDefaultValue(0m);
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.HasIndex(x => x.Nombre).IsUnique();

@@ -15,8 +15,10 @@ public class VentaService(AppDbContext db) : IVentaService
     {
         Id                = v.Id,
         NumeroComprobante = v.NumeroComprobante,
-        PatientId         = v.PatientId,
-        PacienteNombre    = $"{v.Patient?.User?.Person?.FirstName} {v.Patient?.User?.Person?.LastName}".Trim(),
+        ClienteId         = v.ClienteId,
+        ClienteNombre     = v.Cliente == null
+            ? "Consumidor Final"
+            : $"{v.Cliente.Person?.FirstName} {v.Cliente.Person?.LastName}".Trim(),
         RecetaId          = v.RecetaId,
         Estado            = v.Estado.ToString(),
         Tipo              = v.Tipo.ToString(),
@@ -92,7 +94,7 @@ public class VentaService(AppDbContext db) : IVentaService
 
     private IQueryable<Venta> BaseQuery() =>
         db.Ventas
-            .Include(v => v.Patient).ThenInclude(p => p.User).ThenInclude(u => u!.Person)
+            .Include(v => v.Cliente).ThenInclude(c => c!.Person)
             .Include(v => v.Lineas).ThenInclude(l => l.Producto)
             .Include(v => v.Lineas).ThenInclude(l => l.Servicio)
             .Include(v => v.Cobros).ThenInclude(c => c.Lineas)
@@ -102,6 +104,7 @@ public class VentaService(AppDbContext db) : IVentaService
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.Tratamientos)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.LaboratorioProveedor)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.ArmazonProducto)
+            .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.CristalProducto)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.Factura).ThenInclude(f => f!.EmitidoPor).ThenInclude(u => u.Person)
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoDevuelto)
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
@@ -119,7 +122,7 @@ public class VentaService(AppDbContext db) : IVentaService
 
     public async Task<Result<PagedResult<VentaDto>>> GetVentasAsync(
         string? estado, string? tipo, string? fechaDesde, string? fechaHasta,
-        int? patientId, int page, int pageSize)
+        int? clienteId, int page, int pageSize)
     {
         var query = BaseQuery();
 
@@ -135,8 +138,8 @@ public class VentaService(AppDbContext db) : IVentaService
         if (!string.IsNullOrWhiteSpace(fechaHasta) && DateOnly.TryParse(fechaHasta, out var hasta))
             query = query.Where(v => v.FechaVenta <= hasta);
 
-        if (patientId.HasValue)
-            query = query.Where(v => v.PatientId == patientId.Value);
+        if (clienteId.HasValue)
+            query = query.Where(v => v.ClienteId == clienteId.Value);
 
         var total = await query.CountAsync();
         var items = await query
@@ -162,13 +165,23 @@ public class VentaService(AppDbContext db) : IVentaService
         if (!request.Lineas.Any())
             return Result<VentaDto>.Failure("La venta debe tener al menos una línea", ErrorType.Validation);
 
+        // Cliente opcional (sin cliente = consumidor final). Si viene, debe existir y estar activo.
+        if (request.ClienteId.HasValue)
+        {
+            var cliente = await db.Clientes.FirstOrDefaultAsync(x => x.Id == request.ClienteId.Value);
+            if (cliente == null)
+                return Result<VentaDto>.Failure("Cliente no encontrado", ErrorType.Validation);
+            if (!cliente.IsActive)
+                return Result<VentaDto>.Failure("El cliente está inactivo", ErrorType.Validation);
+        }
+
         var condicion = Enum.TryParse<CondicionVenta>(request.CondicionVenta, out var c) ? c : CondicionVenta.Contado;
         var tipo      = Enum.TryParse<TipoVenta>(request.Tipo ?? "Directa", out var tv) ? tv : TipoVenta.Directa;
 
         var venta = new Venta
         {
             NumeroComprobante = "",
-            PatientId         = request.PatientId,
+            ClienteId         = request.ClienteId,
             RecetaId          = request.RecetaId,
             CondicionVenta    = condicion,
             Tipo              = tipo,
@@ -213,6 +226,32 @@ public class VentaService(AppDbContext db) : IVentaService
             });
         }
 
+        // Trabajo a pedido (óptica): se crea junto al presupuesto en estado Borrador.
+        // No entra a la cola del laboratorio hasta confirmar la venta.
+        if (tipo == TipoVenta.TrabajoAPedido && request.TrabajoPedido is not null)
+        {
+            var tpReq = request.TrabajoPedido;
+            var tratamientosTp = tpReq.TratamientoIds.Any()
+                ? await db.Tratamientos.Where(t => tpReq.TratamientoIds.Contains(t.Id)).ToListAsync()
+                : [];
+
+            var tp = new TrabajoPedido
+            {
+                RecetaId               = request.RecetaId,
+                CristalProductoId      = tpReq.CristalProductoId,
+                TipoLenteId            = tpReq.TipoLenteId,
+                ArmazonProductoId      = tpReq.ArmazonDelCliente ? null : tpReq.ArmazonProductoId,
+                ArmazonDelCliente      = tpReq.ArmazonDelCliente,
+                LaboratorioProveedorId = tpReq.LaboratorioProveedorId,
+                Observacion            = tpReq.Observacion?.Trim(),
+                Estado                 = EstadoTrabajoPedido.Borrador,
+                CreatedAt              = DateTime.UtcNow,
+                UpdatedAt              = DateTime.UtcNow,
+            };
+            foreach (var t in tratamientosTp) tp.Tratamientos.Add(t);
+            venta.TrabajoPedido = tp;
+        }
+
         db.Ventas.Add(venta);
         await db.SaveChangesAsync();
 
@@ -224,10 +263,25 @@ public class VentaService(AppDbContext db) : IVentaService
 
     public async Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId)
     {
-        var venta = await db.Ventas.FindAsync(id);
+        var venta = await db.Ventas
+            .Include(v => v.TrabajoPedido)
+            .FirstOrDefaultAsync(v => v.Id == id);
         if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
         if (!venta.PuedeConfirmarse())
             return Result<VentaDto>.Failure("Solo se pueden confirmar ventas en estado Borrador", ErrorType.Conflict);
+
+        // Receta obligatoria al confirmar una venta a pedido (en presupuesto es opcional).
+        if (venta.Tipo == TipoVenta.TrabajoAPedido && venta.RecetaId is null)
+            return Result<VentaDto>.Failure("La receta es obligatoria para confirmar una venta a pedido.", ErrorType.Conflict);
+
+        // El trabajo a pedido entra a la cola del laboratorio recién ahora.
+        if (venta.TrabajoPedido is not null && venta.TrabajoPedido.Estado == EstadoTrabajoPedido.Borrador)
+        {
+            if (venta.Tipo == TipoVenta.TrabajoAPedido && venta.TrabajoPedido.LaboratorioProveedorId is null)
+                return Result<VentaDto>.Failure("Asigná el laboratorio antes de confirmar la venta a pedido.", ErrorType.Conflict);
+            venta.TrabajoPedido.Estado    = EstadoTrabajoPedido.PendienteAprobacion;
+            venta.TrabajoPedido.UpdatedAt = DateTime.UtcNow;
+        }
 
         venta.Estado            = venta.Tipo == TipoVenta.Directa
             ? EstadoVenta.ListaParaCobrar
@@ -421,12 +475,15 @@ public class VentaService(AppDbContext db) : IVentaService
         Id                     = tp.Id,
         RecetaId               = tp.RecetaId,
         TipoLenteId            = tp.TipoLenteId,
-        TipoLenteNombre        = tp.TipoLente.Nombre,
+        TipoLenteNombre        = tp.TipoLente?.Nombre,
+        CristalProductoId      = tp.CristalProductoId,
+        CristalProductoNombre  = tp.CristalProducto?.Nombre,
         Tratamientos           = tp.Tratamientos.Select(t => new TrabajoPedidoTratamientoDto { Id = t.Id, Nombre = t.Nombre }).ToList(),
         ArmazonProductoId      = tp.ArmazonProductoId,
         ArmazonProductoNombre  = tp.ArmazonProducto?.Nombre,
+        ArmazonDelCliente      = tp.ArmazonDelCliente,
         LaboratorioProveedorId = tp.LaboratorioProveedorId,
-        LaboratorioNombre      = tp.LaboratorioProveedor.Nombre,
+        LaboratorioNombre      = tp.LaboratorioProveedor?.Nombre,
         Estado                 = tp.Estado.ToString(),
         FechaEnvio             = tp.FechaEnvio?.ToString("yyyy-MM-dd"),
         FechaRecepcion         = tp.FechaRecepcion?.ToString("yyyy-MM-dd"),
@@ -439,10 +496,12 @@ public class VentaService(AppDbContext db) : IVentaService
         Id                    = tp.Id,
         VentaId               = tp.VentaId,
         NumeroComprobante     = tp.Venta?.NumeroComprobante ?? "",
-        PacienteNombre        = $"{tp.Venta?.Patient?.User?.Person?.FirstName} {tp.Venta?.Patient?.User?.Person?.LastName}".Trim(),
-        TipoLenteNombre       = tp.TipoLente.Nombre,
+        ClienteNombre         = tp.Venta?.Cliente == null
+            ? "Consumidor Final"
+            : $"{tp.Venta.Cliente.Person?.FirstName} {tp.Venta.Cliente.Person?.LastName}".Trim(),
+        TipoLenteNombre       = tp.TipoLente?.Nombre ?? tp.CristalProducto?.Nombre ?? "",
         Tratamientos          = tp.Tratamientos.Select(t => t.Nombre).ToList(),
-        LaboratorioNombre     = tp.LaboratorioProveedor.Nombre,
+        LaboratorioNombre     = tp.LaboratorioProveedor?.Nombre ?? "",
         Estado                = tp.Estado.ToString(),
         ObservacionAprobacion = tp.ObservacionAprobacion,
         AprobadoPorNombre     = tp.AprobadoPor == null ? null : $"{tp.AprobadoPor.Person?.FirstName} {tp.AprobadoPor.Person?.LastName}".Trim(),
@@ -465,8 +524,9 @@ public class VentaService(AppDbContext db) : IVentaService
 
     private IQueryable<TrabajoPedido> TpBaseQuery() =>
         db.TrabajosPedido
-            .Include(tp => tp.Venta).ThenInclude(v => v!.Patient).ThenInclude(p => p.User).ThenInclude(u => u!.Person)
+            .Include(tp => tp.Venta).ThenInclude(v => v!.Cliente).ThenInclude(c => c!.Person)
             .Include(tp => tp.TipoLente)
+            .Include(tp => tp.CristalProducto)
             .Include(tp => tp.Tratamientos)
             .Include(tp => tp.LaboratorioProveedor)
             .Include(tp => tp.AprobadoPor).ThenInclude(u => u!.Person)
@@ -612,7 +672,8 @@ public class VentaService(AppDbContext db) : IVentaService
 
     public async Task<Result<List<TrabajoPedidoListDto>>> GetTrabajosPedidoAsync(string? estado)
     {
-        var query = TpBaseQuery();
+        var query = TpBaseQuery()
+            .Where(tp => tp.Estado != EstadoTrabajoPedido.Borrador);
 
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoTrabajoPedido>(estado, out var e))
             query = query.Where(tp => tp.Estado == e);
