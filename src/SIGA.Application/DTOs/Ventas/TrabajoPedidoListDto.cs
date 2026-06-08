@@ -17,7 +17,7 @@ public class TrabajoPedidoListDto
     public int Id { get; set; }
     public int VentaId { get; set; }
     public string NumeroComprobante { get; set; } = "";
-    public string PacienteNombre { get; set; } = "";
+    public string ClienteNombre { get; set; } = "";
     public string TipoLenteNombre { get; set; } = "";
     public List<string> Tratamientos { get; set; } = new();
     public string LaboratorioNombre { get; set; } = "";

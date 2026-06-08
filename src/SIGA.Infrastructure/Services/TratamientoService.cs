@@ -24,7 +24,10 @@ public class TratamientoService(AppDbContext db) : ITratamientoService
         if (await db.Tratamientos.AnyAsync(t => t.Nombre == nombre))
             return Result<TratamientoDto>.Failure("Ya existe un tratamiento con ese nombre.", ErrorType.Conflict);
 
-        var item = new Tratamiento { Nombre = nombre, CreatedAt = DateTime.UtcNow };
+        if (request.Precio < 0)
+            return Result<TratamientoDto>.Failure("El precio no puede ser negativo.", ErrorType.Validation);
+
+        var item = new Tratamiento { Nombre = nombre, Precio = request.Precio, CreatedAt = DateTime.UtcNow };
         db.Tratamientos.Add(item);
         await db.SaveChangesAsync();
         return Result<TratamientoDto>.Success(ToDto(item));
@@ -42,7 +45,11 @@ public class TratamientoService(AppDbContext db) : ITratamientoService
         if (await db.Tratamientos.AnyAsync(t => t.Nombre == nombre && t.Id != id))
             return Result<TratamientoDto>.Failure("Ya existe un tratamiento con ese nombre.", ErrorType.Conflict);
 
+        if (request.Precio < 0)
+            return Result<TratamientoDto>.Failure("El precio no puede ser negativo.", ErrorType.Validation);
+
         item.Nombre   = nombre;
+        item.Precio   = request.Precio;
         item.IsActive = request.IsActive;
         await db.SaveChangesAsync();
         return Result<TratamientoDto>.Success(ToDto(item));
@@ -61,6 +68,7 @@ public class TratamientoService(AppDbContext db) : ITratamientoService
     {
         Id        = t.Id,
         Nombre    = t.Nombre,
+        Precio    = t.Precio,
         IsActive  = t.IsActive,
         CreatedAt = t.CreatedAt,
     };

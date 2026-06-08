@@ -24,11 +24,11 @@ public class VentasController(IVentaService ventaService) : BaseController
         [FromQuery] string? tipo      = null,
         [FromQuery] string? fechaDesde = null,
         [FromQuery] string? fechaHasta = null,
-        [FromQuery] int?    patientId  = null,
+        [FromQuery] int?    clienteId  = null,
         [FromQuery] int     page       = 1,
         [FromQuery] int     pageSize   = 10)
     {
-        var result = await ventaService.GetVentasAsync(estado, tipo, fechaDesde, fechaHasta, patientId, page, pageSize);
+        var result = await ventaService.GetVentasAsync(estado, tipo, fechaDesde, fechaHasta, clienteId, page, pageSize);
         return ToHttpResponse(result);
     }
 
@@ -153,6 +153,22 @@ public class VentasController(IVentaService ventaService) : BaseController
     public async Task<IActionResult> CrearTrabajoPedido(int id, [FromBody] CrearTrabajoPedidoRequest request)
     {
         var result = await ventaService.CrearTrabajoPedidoAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/trabajo-pedido/enviar")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> RegistrarEnvioLabVenta(int id, [FromBody] RegistrarEnvioLabRequest request)
+    {
+        var result = await ventaService.RegistrarEnvioLabAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/trabajo-pedido/recibir")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> RegistrarRecepcionLabVenta(int id, [FromBody] RegistrarRecepcionLabRequest request)
+    {
+        var result = await ventaService.RegistrarRecepcionLabAsync(id, request);
         return ToHttpResponse(result);
     }
 

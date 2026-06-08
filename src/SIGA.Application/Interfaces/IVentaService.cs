@@ -8,7 +8,7 @@ public interface IVentaService
     Task<Result<VentaDto>> GetVentaByIdAsync(int id);
     Task<Result<PagedResult<VentaDto>>> GetVentasAsync(
         string? estado, string? tipo, string? fechaDesde, string? fechaHasta,
-        int? patientId, int page, int pageSize);
+        int? clienteId, int page, int pageSize);
 
     Task<Result<VentaDto>> CrearVentaAsync(CrearVentaRequest request);
     Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId);
@@ -21,6 +21,8 @@ public interface IVentaService
 
     // Trabajo a pedido — desde venta
     Task<Result<VentaDto>> CrearTrabajoPedidoAsync(int ventaId, CrearTrabajoPedidoRequest request);
+    Task<Result<VentaDto>> RegistrarEnvioLabAsync(int ventaId, RegistrarEnvioLabRequest request);
+    Task<Result<VentaDto>> RegistrarRecepcionLabAsync(int ventaId, RegistrarRecepcionLabRequest request);
 
     // Trabajo a pedido — vistas globales
     Task<Result<List<TrabajoPedidoListDto>>> GetTrabajosPedidoAsync(string? estado);

@@ -18,9 +18,10 @@ public class ProductosController(IProductoService productoService, IMovimientoSt
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? categoria = null,
-        [FromQuery] bool? bajoStock = null)
+        [FromQuery] bool? bajoStock = null,
+        [FromQuery] string? tipoCategoria = null)
     {
-        var result = await productoService.GetAllAsync(page, pageSize, search, categoria, bajoStock);
+        var result = await productoService.GetAllAsync(page, pageSize, search, categoria, bajoStock, tipoCategoria);
         return ToHttpResponse(result);
     }
 

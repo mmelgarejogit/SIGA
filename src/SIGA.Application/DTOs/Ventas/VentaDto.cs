@@ -62,8 +62,8 @@ public class VentaDto
 {
     public int Id { get; set; }
     public string NumeroComprobante { get; set; } = "";
-    public int PatientId { get; set; }
-    public string PacienteNombre { get; set; } = "";
+    public int? ClienteId { get; set; }
+    public string ClienteNombre { get; set; } = "";
     public int? RecetaId { get; set; }
     public string Estado { get; set; } = "";
     public string Tipo { get; set; } = "";

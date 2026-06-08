@@ -5,6 +5,7 @@ public class ProductoResponse
     public int Id { get; set; }
     public string Nombre { get; set; } = "";
     public string Categoria { get; set; } = "";
+    public string TipoCategoria { get; set; } = "Generico";
     public string? Sku { get; set; }
     public decimal PrecioCosto { get; set; }
     public decimal PrecioVenta { get; set; }

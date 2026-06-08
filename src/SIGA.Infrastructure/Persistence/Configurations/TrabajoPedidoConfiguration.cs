@@ -10,12 +10,17 @@ public class TrabajoPedidoConfiguration : IEntityTypeConfiguration<TrabajoPedido
     {
         builder.ToTable("trabajos_pedido");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.TipoLenteId).IsRequired();
+        builder.Property(x => x.ArmazonDelCliente).HasDefaultValue(false);
 
         builder.HasOne(x => x.TipoLente)
             .WithMany(x => x.TrabajosPedido)
             .HasForeignKey(x => x.TipoLenteId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.CristalProducto)
+            .WithMany()
+            .HasForeignKey(x => x.CristalProductoId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasMany(x => x.Tratamientos)
             .WithMany(x => x.TrabajosPedido)
