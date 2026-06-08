@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260607201550_041_SesionCaja")]
+    partial class _041_SesionCaja
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -711,10 +714,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("Monto")
                         .HasColumnType("numeric(18,0)");
 
-                    b.Property<string>("MotivoPagoExterno")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("MotivoRechazo")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -726,11 +725,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<string>("Observaciones")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<bool>("PagoExterno")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
 
                     b.Property<int>("Tipo")
                         .HasColumnType("integer");
@@ -1904,9 +1898,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("AbiertaPorId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("AprobadoPorId")
-                        .HasColumnType("integer");
-
                     b.Property<int?>("CerradaPorId")
                         .HasColumnType("integer");
 
@@ -1925,18 +1916,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("FechaApertura")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("FechaAprobacion")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime?>("FechaCierre")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("MontoInicial")
                         .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("MotivoRechazo")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("ObservacionCierre")
                         .HasMaxLength(500)
@@ -1945,8 +1929,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AbiertaPorId");
-
-                    b.HasIndex("AprobadoPorId");
 
                     b.HasIndex("CerradaPorId");
 
@@ -3017,19 +2999,12 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SIGA.Domain.Entities.User", "AprobadoPor")
-                        .WithMany()
-                        .HasForeignKey("AprobadoPorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("SIGA.Domain.Entities.User", "CerradaPor")
                         .WithMany()
                         .HasForeignKey("CerradaPorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AbiertaPor");
-
-                    b.Navigation("AprobadoPor");
 
                     b.Navigation("CerradaPor");
                 });

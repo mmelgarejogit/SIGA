@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Egresos;
@@ -10,6 +11,9 @@ namespace SIGA.Api.Controllers;
 [Authorize(Policy = "gestionar_egresos")]
 public class EgresosController(IEgresoService egresoService) : BaseController
 {
+    private int CurrentUserId =>
+        int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
     [HttpGet]
     [Authorize(Policy = "ver_egresos")]
     public async Task<IActionResult> GetEgresos(
@@ -81,7 +85,11 @@ public class EgresosController(IEgresoService egresoService) : BaseController
     [Authorize(Policy = "pagar_egresos")]
     public async Task<IActionResult> RegistrarPago(int id, [FromBody] RegistrarPagoRequest request)
     {
-        var result = await egresoService.RegistrarPagoAsync(id, request);
+        if (request.EsExterno && !User.HasClaim("permission", "aprobar_egresos"))
+            return Forbid();
+        if (request.EsExterno && string.IsNullOrWhiteSpace(request.MotivoExterno))
+            return BadRequest("El motivo es obligatorio para un pago externo.");
+        var result = await egresoService.RegistrarPagoAsync(id, request, CurrentUserId);
         return ToHttpResponse(result);
     }
 

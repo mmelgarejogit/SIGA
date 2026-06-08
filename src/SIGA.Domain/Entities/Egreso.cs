@@ -15,6 +15,8 @@ public abstract class Egreso
     public string? MotivoRechazo { get; set; }
     public DateTime? FechaAprobacion { get; set; }
     public string? NroComprobante { get; set; }
+    public bool PagoExterno { get; set; }
+    public string? MotivoPagoExterno { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

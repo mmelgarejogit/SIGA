@@ -15,6 +15,12 @@ public class MovimientoCaja
     public int? EgresoId { get; set; }
     public Egreso? Egreso { get; set; }
 
+    public int? SesionCajaId { get; set; }
+    public SesionCaja? SesionCaja { get; set; }
+
+    public int? RegistradoPorId { get; set; }
+    public User? RegistradoPor { get; set; }
+
     public DateOnly Fecha { get; set; }
     public string? Referencia { get; set; }
 

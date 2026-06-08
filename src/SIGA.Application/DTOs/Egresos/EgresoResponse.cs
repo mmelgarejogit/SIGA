@@ -16,6 +16,8 @@ public class EgresoResponse
     public string? MotivoRechazo { get; set; }
     public string? FechaAprobacion { get; set; }
     public string? NroComprobante { get; set; }
+    public bool PagoExterno { get; set; }
+    public string? MotivoPagoExterno { get; set; }
     public DateTime CreatedAt { get; set; }
 
     // FacturaCompra — datos de referencia

@@ -29,6 +29,8 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
         builder.Property(x => x.MotivoRechazo).HasMaxLength(1000);
         builder.Property(x => x.FechaAprobacion);
         builder.Property(x => x.NroComprobante).HasMaxLength(100);
+        builder.Property(x => x.PagoExterno).IsRequired().HasDefaultValue(false);
+        builder.Property(x => x.MotivoPagoExterno).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
     }

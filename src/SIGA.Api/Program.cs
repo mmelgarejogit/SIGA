@@ -50,7 +50,7 @@ var permissionPolicies = new[]
         "eliminar_consulta",
         "ver_recetas",
         "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",  "aprobar_pedidos",
-        "registrar_venta",   "ver_ventas",          "gestionar_ventas",
+        "registrar_venta",   "ver_ventas",          "gestionar_ventas",   "gestionar_caja",   "aprobar_cierres_caja",
         "ver_reportes",
         "ver_mis_turnos",
         "ver_dashboard",

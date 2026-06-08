@@ -28,8 +28,10 @@ public class EgresoService(AppDbContext db) : IEgresoService
             EstaVencido      = e.EstaVencido(),
             MotivoRechazo    = e.MotivoRechazo,
             FechaAprobacion  = e.FechaAprobacion?.ToString("yyyy-MM-dd"),
-            NroComprobante   = e.NroComprobante,
-            CreatedAt        = e.CreatedAt,
+            NroComprobante    = e.NroComprobante,
+            PagoExterno       = e.PagoExterno,
+            MotivoPagoExterno = e.MotivoPagoExterno,
+            CreatedAt         = e.CreatedAt,
         };
 
         if (e is FacturaCompra fc)
@@ -281,7 +283,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
     // ── Transiciones de estado ────────────────────────────────────────────────────
 
-    public async Task<Result<EgresoResponse>> RegistrarPagoAsync(int id, RegistrarPagoRequest request)
+    public async Task<Result<EgresoResponse>> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int userId)
     {
         var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
         if (egreso is null)
@@ -304,6 +306,31 @@ public class EgresoService(AppDbContext db) : IEgresoService
         catch (InvalidOperationException ex)
         {
             return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict);
+        }
+
+        if (request.EsExterno)
+        {
+            egreso.PagoExterno      = true;
+            egreso.MotivoPagoExterno = request.MotivoExterno?.Trim();
+        }
+        else
+        {
+            var sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesion == null)
+                return Result<EgresoResponse>.Failure("No hay una caja abierta. Abrí la caja antes de registrar pagos.", ErrorType.Conflict);
+
+            db.MovimientosCaja.Add(new MovimientoCaja
+            {
+                Tipo            = TipoMovimientoCaja.Egreso,
+                Monto           = egreso.Monto,
+                Concepto        = $"Pago egreso — {egreso.Concepto}",
+                MetodoPago      = metodo,
+                EgresoId        = egreso.Id,
+                SesionCajaId    = sesion.Id,
+                RegistradoPorId = userId,
+                Fecha           = fechaPago,
+                CreatedAt       = DateTime.UtcNow,
+            });
         }
 
         await db.SaveChangesAsync();

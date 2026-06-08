@@ -9,6 +9,8 @@ public class MovimientoCajaDto
     public string MetodoPago { get; set; } = "";
     public int? VentaId { get; set; }
     public int? EgresoId { get; set; }
+    public int? SesionCajaId { get; set; }
+    public string? RegistradoPorNombre { get; set; }
     public string Fecha { get; set; } = "";
     public string? Referencia { get; set; }
     public DateTime CreatedAt { get; set; }
