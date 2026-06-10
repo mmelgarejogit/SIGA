@@ -317,4 +317,14 @@ public class CajaService(AppDbContext db) : ICajaService
             TotalPages = (int)Math.Ceiling(total / (double)pageSize),
         });
     }
+
+    public async Task<Result<bool>> DeleteMovimientoAsync(int id)
+    {
+        var movimiento = await db.MovimientosCaja.FindAsync(id);
+        if (movimiento == null) return Result<bool>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
+
+        db.MovimientosCaja.Remove(movimiento);
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
 }

@@ -67,6 +67,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DevolucionLinea> DevolucionLineas => Set<DevolucionLinea>();
     public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
+    public DbSet<Timbrado> Timbrados => Set<Timbrado>();
     public DbSet<SesionCaja> SesionesCaja => Set<SesionCaja>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

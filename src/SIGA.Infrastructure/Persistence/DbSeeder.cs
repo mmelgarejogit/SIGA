@@ -23,6 +23,8 @@ public static class DbSeeder
         "eliminar_consulta",
         "ver_recetas",
         "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",  "aprobar_pedidos",
+        "ver_ventas",        "registrar_venta",   "gestionar_ventas",
+        "ver_laboratorio",   "gestionar_laboratorio",
         "ver_ventas",        "registrar_venta",   "gestionar_ventas",   "gestionar_caja",   "aprobar_cierres_caja",
         "ver_reportes",
         "ver_dashboard",
