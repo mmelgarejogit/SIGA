@@ -315,10 +315,21 @@ public class VentaService(AppDbContext db) : IVentaService
 
     public async Task<Result<bool>> EliminarPresupuestoAsync(int id)
     {
-        var venta = await db.Ventas.FindAsync(id);
+        var venta = await db.Ventas
+            .Include(v => v.Cobros).ThenInclude(c => c.Lineas)
+            .Include(v => v.Devoluciones)
+            .FirstOrDefaultAsync(v => v.Id == id);
         if (venta == null) return Result<bool>.Failure("Venta no encontrada.", ErrorType.NotFound);
-        if (venta.Estado != EstadoVenta.Borrador)
-            return Result<bool>.Failure("Solo se pueden eliminar presupuestos en estado Borrador.", ErrorType.Conflict);
+        if (venta.Estado != EstadoVenta.Borrador && venta.Estado != EstadoVenta.ListaParaCobrar)
+            return Result<bool>.Failure("Solo se pueden eliminar ventas en estado Borrador o Lista para Cobrar.", ErrorType.Conflict);
+        if (venta.Devoluciones.Any())
+            return Result<bool>.Failure("La venta tiene devoluciones registradas. No se puede eliminar.", ErrorType.Conflict);
+
+        if (venta.Cobros.Any())
+        {
+            db.CobroLineas.RemoveRange(venta.Cobros.SelectMany(c => c.Lineas));
+            db.Cobros.RemoveRange(venta.Cobros);
+        }
 
         db.Ventas.Remove(venta);
         await db.SaveChangesAsync();
@@ -353,6 +364,11 @@ public class VentaService(AppDbContext db) : IVentaService
         }
 
         var montoTotal = lineas.Sum(l => l.monto);
+        if (montoTotal > venta.SaldoPendiente)
+            return Result<VentaDto>.Failure(
+                $"El monto del cobro ({montoTotal:N0}) supera el saldo pendiente ({venta.SaldoPendiente:N0})",
+                ErrorType.Validation);
+
         var fecha      = DateOnly.TryParse(request.Fecha, out var f) ? f : DateOnly.FromDateTime(DateTime.UtcNow);
 
         var cobro = new Cobro
@@ -397,9 +413,98 @@ public class VentaService(AppDbContext db) : IVentaService
                 "Solo se puede emitir comprobante cuando la venta está lista para cobrar", ErrorType.Conflict);
         if (venta.Comprobante != null)
             return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
+        // Documento fiscal excluyente: no se puede emitir recibo si ya hay factura.
+        if (venta.Factura != null)
+            return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
 
         var now = DateTime.UtcNow;
 
+        AplicarEgresosDeEmision(venta, now);
+
+        venta.Comprobante = new Comprobante
+        {
+            Tipo          = TipoComprobante.ReciboSimple,
+            Estado        = EstadoComprobante.Emitido,
+            EmitidoPorId  = userId,
+            FechaEmision  = now,
+            CreatedAt     = now,
+        };
+
+        venta.Estado           = EstadoVenta.ComprobanteEmitido;
+        venta.FechaComprobante = DateOnly.FromDateTime(now);
+        venta.UpdatedAt        = now;
+
+        await db.SaveChangesAsync();
+        return await GetVentaByIdAsync(ventaId);
+    }
+
+    public async Task<Result<VentaDto>> EmitirFacturaAsync(EmitirFacturaRequest request)
+    {
+        var venta = await BaseQuery().FirstOrDefaultAsync(v => v.Id == request.VentaId);
+        if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
+        if (!venta.PuedeEmitirComprobante())
+            return Result<VentaDto>.Failure(
+                "Solo se puede emitir factura cuando la venta está lista para cobrar", ErrorType.Conflict);
+        if (venta.Factura != null)
+            return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
+        if (venta.Comprobante != null)
+            return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
+
+        var timbrado = await db.Timbrados.FindAsync(request.TimbradoId);
+        if (timbrado == null)
+            return Result<VentaDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
+        if (!timbrado.IsActive)
+            return Result<VentaDto>.Failure("El timbrado está inactivo.", ErrorType.Conflict);
+
+        var fechaEmision = DateOnly.Parse(request.FechaEmision);
+        if (fechaEmision < timbrado.FechaInicioVigencia || fechaEmision > timbrado.FechaFinVigencia)
+            return Result<VentaDto>.Failure(
+                $"La fecha de emisión debe estar dentro del período de vigencia del timbrado ({timbrado.FechaInicioVigencia:yyyy-MM-dd} al {timbrado.FechaFinVigencia:yyyy-MM-dd}).",
+                ErrorType.Validation);
+
+        var numero = timbrado.UltimoNumero + 1;
+        if (timbrado.NumeroHasta.HasValue && numero > timbrado.NumeroHasta.Value)
+            return Result<VentaDto>.Failure(
+                $"Se alcanzó el número máximo del timbrado ({timbrado.NumeroHasta}).",
+                ErrorType.Conflict);
+
+        var numeroFactura = $"{timbrado.Establecimiento}-{timbrado.PuntoExpedicion}-{numero:D7}";
+        var now = DateTime.UtcNow;
+
+        db.FacturasVenta.Add(new FacturaVenta
+        {
+            VentaId         = request.VentaId,
+            NumeroFactura   = numeroFactura,
+            Timbrado        = timbrado.NumeroTimbrado,
+            Establecimiento = timbrado.Establecimiento,
+            MontoExento     = venta.MontoExento,
+            MontoGravado5   = venta.MontoGravado5,
+            MontoGravado10  = venta.MontoGravado10,
+            FechaEmision    = fechaEmision,
+            Observaciones   = request.Observaciones,
+            TimbradoId      = timbrado.Id,
+            CreatedAt       = now,
+        });
+
+        timbrado.UltimoNumero = numero;
+
+        AplicarEgresosDeEmision(venta, now);
+
+        venta.Estado           = EstadoVenta.ComprobanteEmitido;
+        venta.FechaComprobante = DateOnly.FromDateTime(now);
+        venta.UpdatedAt        = now;
+
+        await db.SaveChangesAsync();
+        return await GetVentaByIdAsync(request.VentaId);
+    }
+
+    /// <summary>
+    /// Efectos comunes a la emisión de un documento fiscal (recibo o factura):
+    /// EGRESO de stock por cada línea de producto e INGRESO de caja para ventas de contado
+    /// que aún no registraron cobros (evita duplicar la caja si ya hubo cobros/seña/recibo).
+    /// </summary>
+    private void AplicarEgresosDeEmision(Venta venta, DateTime now)
+    {
         // Egreso de stock por cada línea de producto
         foreach (var linea in venta.Lineas.Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue))
         {
@@ -430,46 +535,6 @@ public class VentaService(AppDbContext db) : IVentaService
                 CreatedAt  = now,
             });
         }
-
-        venta.Comprobante = new Comprobante
-        {
-            Tipo          = TipoComprobante.ReciboSimple,
-            Estado        = EstadoComprobante.Emitido,
-            EmitidoPorId  = userId,
-            FechaEmision  = now,
-            CreatedAt     = now,
-        };
-
-        venta.Estado           = EstadoVenta.ComprobanteEmitido;
-        venta.FechaComprobante = DateOnly.FromDateTime(now);
-        venta.UpdatedAt        = now;
-
-        await db.SaveChangesAsync();
-        return await GetVentaByIdAsync(ventaId);
-    }
-
-    public async Task<Result<VentaDto>> EmitirFacturaAsync(EmitirFacturaRequest request)
-    {
-        var venta = await BaseQuery().FirstOrDefaultAsync(v => v.Id == request.VentaId);
-        if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
-        if (venta.Factura != null) return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
-
-        db.FacturasVenta.Add(new FacturaVenta
-        {
-            VentaId         = request.VentaId,
-            NumeroFactura   = request.NumeroFactura,
-            Timbrado        = request.Timbrado,
-            Establecimiento = request.Establecimiento,
-            MontoExento     = venta.MontoExento,
-            MontoGravado5   = venta.MontoGravado5,
-            MontoGravado10  = venta.MontoGravado10,
-            FechaEmision    = DateOnly.Parse(request.FechaEmision),
-            Observaciones   = request.Observaciones,
-            CreatedAt       = DateTime.UtcNow,
-        });
-
-        await db.SaveChangesAsync();
-        return await GetVentaByIdAsync(request.VentaId);
     }
 
     private static TrabajoPedidoDto MapTrabajoPedidoDto(TrabajoPedido tp) => new()
@@ -522,15 +587,24 @@ public class VentaService(AppDbContext db) : IVentaService
     {
         var ventas = await BaseQuery()
             .Where(v =>
-                v.CondicionVenta == CondicionVenta.Credito &&
                 v.Estado != EstadoVenta.Cancelada &&
-                v.Estado != EstadoVenta.Borrador)
+                v.Estado != EstadoVenta.Borrador &&
+                // Contado pendiente de cobro/comprobante (estado ListaParaCobrar)
+                // o cualquier venta a crédito activa (el saldo se filtra abajo).
+                (v.CondicionVenta == CondicionVenta.Credito ||
+                 v.Estado == EstadoVenta.ListaParaCobrar))
             .OrderBy(v => v.FechaVenta)
             .ToListAsync();
 
-        // Filtrar en memoria las que tienen saldo pendiente real (requiere cobros cargados)
-        var conSaldo = ventas.Where(v => v.SaldoPendiente > 0).Select(Map).ToList();
-        return Result<List<VentaDto>>.Success(conSaldo);
+        // Contado: aparece mientras esté ListaParaCobrar (aún sin comprobante).
+        // Crédito: solo si conserva saldo pendiente real (requiere cobros cargados).
+        var pendientes = ventas
+            .Where(v => v.CondicionVenta == CondicionVenta.Credito
+                ? v.SaldoPendiente > 0
+                : v.Estado == EstadoVenta.ListaParaCobrar)
+            .Select(Map)
+            .ToList();
+        return Result<List<VentaDto>>.Success(pendientes);
     }
 
     // ── Devoluciones ─────────────────────────────────────────────────────────────

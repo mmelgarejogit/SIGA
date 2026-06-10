@@ -8,4 +8,5 @@ public interface ICajaService
     Task<Result<ResumenCajaDto>> GetResumenAsync(string fecha);
     Task<Result<PagedResult<MovimientoCajaDto>>> GetMovimientosAsync(
         string? fechaDesde, string? fechaHasta, string? tipo, int page, int pageSize);
+    Task<Result<bool>> DeleteMovimientoAsync(int id);
 }

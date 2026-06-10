@@ -27,4 +27,12 @@ public class CajaController(ICajaService cajaService) : BaseController
         var result = await cajaService.GetMovimientosAsync(fechaDesde, fechaHasta, tipo, page, pageSize);
         return ToHttpResponse(result);
     }
+
+    [HttpDelete("movimientos/{id:int}")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> DeleteMovimiento(int id)
+    {
+        var result = await cajaService.DeleteMovimientoAsync(id);
+        return ToHttpResponse(result);
+    }
 }

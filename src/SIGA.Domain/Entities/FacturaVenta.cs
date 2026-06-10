@@ -24,4 +24,7 @@ public class FacturaVenta
     public decimal Total   => MontoExento + MontoGravado5 + MontoGravado10;
 
     public DateTime CreatedAt { get; set; }
+
+    public int? TimbradoId { get; set; }
+    public Timbrado? TimbradoConfig { get; set; }
 }
