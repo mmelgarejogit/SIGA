@@ -108,9 +108,23 @@ public class CajaService(AppDbContext db) : ICajaService
         return Result<SesionCajaDto?>.Success(sesion == null ? null : MapSesion(sesion));
     }
 
+    /// <summary>
+    /// Efectivo con el que debería abrir la próxima caja: el conteo físico (EfectivoContado)
+    /// del último cierre. El efectivo del cajón se traslada de una sesión a la siguiente.
+    /// </summary>
+    private async Task<decimal> MontoAperturaSugeridoAsync() =>
+        await db.SesionesCaja
+            .Where(s => s.Estado == EstadoSesionCaja.Cerrada && s.EfectivoContado != null)
+            .OrderByDescending(s => s.FechaCierre)
+            .Select(s => s.EfectivoContado!.Value)
+            .FirstOrDefaultAsync();
+
+    public async Task<Result<decimal>> GetMontoAperturaSugeridoAsync() =>
+        Result<decimal>.Success(await MontoAperturaSugeridoAsync());
+
     public async Task<Result<SesionCajaDto>> AbrirSesionAsync(AbrirSesionRequest request, int userId)
     {
-        if (request.MontoInicial < 0)
+        if (request.MontoInicial is < 0)
             return Result<SesionCajaDto>.Failure("El monto inicial no puede ser negativo", ErrorType.Validation);
 
         var yaAbierta = await db.SesionesCaja.AnyAsync(s =>
@@ -119,10 +133,13 @@ public class CajaService(AppDbContext db) : ICajaService
         if (yaAbierta)
             return Result<SesionCajaDto>.Failure("Ya hay una caja abierta", ErrorType.Conflict);
 
+        // Apertura automática: sin monto explícito se arranca con el efectivo del último cierre.
+        var montoInicial = request.MontoInicial ?? await MontoAperturaSugeridoAsync();
+
         var sesion = new SesionCaja
         {
             Estado        = EstadoSesionCaja.Abierta,
-            MontoInicial  = request.MontoInicial,
+            MontoInicial  = montoInicial,
             AbiertaPorId  = userId,
             FechaApertura = DateTime.UtcNow,
         };

@@ -11,6 +11,7 @@ public interface ICajaService
 
     // Sesiones de caja
     Task<Result<SesionCajaDto?>> GetSesionActualAsync();
+    Task<Result<decimal>> GetMontoAperturaSugeridoAsync();
     Task<Result<SesionCajaDto>> AbrirSesionAsync(AbrirSesionRequest request, int userId);
     Task<Result<SesionCajaDto>> GetSesionByIdAsync(int id);
     Task<Result<SesionCajaDto>> CerrarSesionAsync(int id, CerrarSesionRequest request, int userId);

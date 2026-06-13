@@ -22,11 +22,6 @@ public class LaboratorioController(ILaboratorioService lab) : BaseController
     public async Task<IActionResult> GetPedidos([FromQuery] string? estado = null)
         => ToHttpResponse(await lab.GetPedidosAsync(estado));
 
-    [HttpPost("pedidos")]
-    [Authorize(Policy = "gestionar_laboratorio")]
-    public async Task<IActionResult> CrearPedido([FromBody] CrearTrabajoPedidoRequest request)
-        => ToHttpResponse(await lab.CrearPedidoAsync(request));
-
     [HttpPost("pedidos/{id:int}/gestionar")]
     [Authorize(Policy = "gestionar_laboratorio")]
     public async Task<IActionResult> Gestionar(int id, [FromBody] GestionarTrabajoPedidoRequest request)

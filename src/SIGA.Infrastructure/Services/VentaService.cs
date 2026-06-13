@@ -369,6 +369,13 @@ public class VentaService(AppDbContext db) : IVentaService
                 $"El monto del cobro ({montoTotal:N0}) supera el saldo pendiente ({venta.SaldoPendiente:N0})",
                 ErrorType.Validation);
 
+        // No se puede registrar un cobro en efectivo sin una caja abierta (el efectivo debe
+        // quedar asociado a una sesión para el arqueo del cierre).
+        var sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+        if (lineas.Any(l => l.metodo == MetodoPago.Efectivo) && sesionCaja is null)
+            return Result<VentaDto>.Failure(
+                "No hay una caja abierta. Abrí la caja antes de registrar un cobro en efectivo.", ErrorType.Conflict);
+
         var fecha      = DateOnly.TryParse(request.Fecha, out var f) ? f : DateOnly.FromDateTime(DateTime.UtcNow);
 
         var cobro = new Cobro
@@ -387,13 +394,15 @@ public class VentaService(AppDbContext db) : IVentaService
 
             db.MovimientosCaja.Add(new MovimientoCaja
             {
-                Tipo       = TipoMovimientoCaja.Ingreso,
-                Monto      = monto,
-                Concepto   = $"Cobro {tipoCobro} — venta {venta.NumeroComprobante}",
-                MetodoPago = metodo,
-                VentaId    = venta.Id,
-                Fecha      = fecha,
-                CreatedAt  = DateTime.UtcNow,
+                Tipo            = TipoMovimientoCaja.Ingreso,
+                Monto           = monto,
+                Concepto        = $"Cobro {tipoCobro} — venta {venta.NumeroComprobante}",
+                MetodoPago      = metodo,
+                VentaId         = venta.Id,
+                SesionCajaId    = sesionCaja?.Id,
+                RegistradoPorId = userId,
+                Fecha           = fecha,
+                CreatedAt       = DateTime.UtcNow,
             });
         }
 
@@ -419,7 +428,16 @@ public class VentaService(AppDbContext db) : IVentaService
 
         var now = DateTime.UtcNow;
 
-        AplicarEgresosDeEmision(venta, now);
+        SesionCaja? sesionCaja = null;
+        if (GeneraMovimientoEfectivoEmision(venta))
+        {
+            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesionCaja is null)
+                return Result<VentaDto>.Failure(
+                    "No hay una caja abierta. Abrí la caja antes de registrar la venta de contado en efectivo.", ErrorType.Conflict);
+        }
+
+        AplicarEgresosDeEmision(venta, now, sesionCaja);
 
         venta.Comprobante = new Comprobante
         {
@@ -486,9 +504,18 @@ public class VentaService(AppDbContext db) : IVentaService
             CreatedAt       = now,
         });
 
+        SesionCaja? sesionCaja = null;
+        if (GeneraMovimientoEfectivoEmision(venta))
+        {
+            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesionCaja is null)
+                return Result<VentaDto>.Failure(
+                    "No hay una caja abierta. Abrí la caja antes de registrar la venta de contado en efectivo.", ErrorType.Conflict);
+        }
+
         timbrado.UltimoNumero = numero;
 
-        AplicarEgresosDeEmision(venta, now);
+        AplicarEgresosDeEmision(venta, now, sesionCaja);
 
         venta.Estado           = EstadoVenta.ComprobanteEmitido;
         venta.FechaComprobante = DateOnly.FromDateTime(now);
@@ -503,7 +530,7 @@ public class VentaService(AppDbContext db) : IVentaService
     /// EGRESO de stock por cada línea de producto e INGRESO de caja para ventas de contado
     /// que aún no registraron cobros (evita duplicar la caja si ya hubo cobros/seña/recibo).
     /// </summary>
-    private void AplicarEgresosDeEmision(Venta venta, DateTime now)
+    private void AplicarEgresosDeEmision(Venta venta, DateTime now, SesionCaja? sesion)
     {
         // Egreso de stock por cada línea de producto
         foreach (var linea in venta.Lineas.Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue))
@@ -522,20 +549,28 @@ public class VentaService(AppDbContext db) : IVentaService
 
         // Movimiento de caja para CONTADO solo si no se registraron cobros con método
         // (si ya hay cobros, la caja se registró en cada cobro; no duplicar).
-        if (venta.CondicionVenta == CondicionVenta.Contado && !venta.Cobros.Any(c => !c.Anulado))
+        if (GeneraMovimientoEfectivoEmision(venta))
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
-                Tipo       = TipoMovimientoCaja.Ingreso,
-                Monto      = venta.Total,
-                Concepto   = $"Comprobante venta {venta.NumeroComprobante}",
-                MetodoPago = MetodoPago.Efectivo,
-                VentaId    = venta.Id,
-                Fecha      = DateOnly.FromDateTime(now),
-                CreatedAt  = now,
+                Tipo         = TipoMovimientoCaja.Ingreso,
+                Monto        = venta.Total,
+                Concepto     = $"Comprobante venta {venta.NumeroComprobante}",
+                MetodoPago   = MetodoPago.Efectivo,
+                VentaId      = venta.Id,
+                SesionCajaId = sesion?.Id,
+                Fecha        = DateOnly.FromDateTime(now),
+                CreatedAt    = now,
             });
         }
     }
+
+    /// <summary>
+    /// La emisión de un documento de CONTADO sin cobros previos genera el ingreso de caja en
+    /// efectivo por el total de la venta. (Si ya hubo cobros, la caja se registró en cada cobro.)
+    /// </summary>
+    private static bool GeneraMovimientoEfectivoEmision(Venta venta) =>
+        venta.CondicionVenta == CondicionVenta.Contado && !venta.Cobros.Any(c => !c.Anulado);
 
     private static TrabajoPedidoDto MapTrabajoPedidoDto(TrabajoPedido tp) => new()
     {

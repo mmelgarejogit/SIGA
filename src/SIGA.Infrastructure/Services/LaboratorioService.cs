@@ -21,54 +21,6 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         return Result<List<TrabajoPedidoListDto>>.Success(items.Select(MapTrabajoPedidoList).ToList());
     }
 
-    public async Task<Result<TrabajoPedidoListDto>> CrearPedidoAsync(CrearTrabajoPedidoRequest request)
-    {
-        var venta = await db.Ventas.Include(v => v.TrabajoPedido).FirstOrDefaultAsync(v => v.Id == request.VentaId);
-        if (venta == null) return Result<TrabajoPedidoListDto>.Failure("Venta no encontrada", ErrorType.NotFound);
-
-        if (venta.Tipo != TipoVenta.TrabajoAPedido)
-            return Result<TrabajoPedidoListDto>.Failure("Solo ventas de tipo Trabajo a Pedido pueden tener un pedido a laboratorio", ErrorType.Conflict);
-
-        if (venta.Estado is EstadoVenta.Borrador or EstadoVenta.Cancelada)
-            return Result<TrabajoPedidoListDto>.Failure("La venta debe estar confirmada para registrar el pedido al laboratorio", ErrorType.Conflict);
-
-        if (venta.TrabajoPedido != null)
-            return Result<TrabajoPedidoListDto>.Failure("Esta venta ya tiene un pedido a laboratorio registrado", ErrorType.Conflict);
-
-        var laboratorio = await db.Proveedores.FindAsync(request.LaboratorioProveedorId);
-        if (laboratorio == null || !laboratorio.EsLaboratorio)
-            return Result<TrabajoPedidoListDto>.Failure("El proveedor no existe o no está marcado como laboratorio", ErrorType.Validation);
-
-        var tipoLente = await db.TiposLente.FindAsync(request.TipoLenteId);
-        if (tipoLente is null)
-            return Result<TrabajoPedidoListDto>.Failure("Tipo de lente no encontrado.", ErrorType.Validation);
-
-        var tratamientos = request.TratamientoIds.Any()
-            ? await db.Tratamientos.Where(t => request.TratamientoIds.Contains(t.Id)).ToListAsync()
-            : [];
-
-        var now = DateTime.UtcNow;
-        var tp = new TrabajoPedido
-        {
-            VentaId                = request.VentaId,
-            RecetaId               = request.RecetaId > 0 ? request.RecetaId : null,
-            TipoLenteId            = request.TipoLenteId,
-            ArmazonProductoId      = request.ArmazonProductoId,
-            LaboratorioProveedorId = request.LaboratorioProveedorId,
-            Observacion            = request.Observacion?.Trim(),
-            Estado                 = EstadoTrabajoPedido.PendienteAprobacion,
-            CreatedAt              = now,
-            UpdatedAt              = now,
-        };
-
-        foreach (var t in tratamientos) tp.Tratamientos.Add(t);
-        db.TrabajosPedido.Add(tp);
-        await db.SaveChangesAsync();
-
-        var saved = await TpBaseQuery().FirstAsync(t => t.Id == tp.Id);
-        return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(saved));
-    }
-
     public async Task<Result<TrabajoPedidoListDto>> GestionarAprobacionAsync(
         int id, GestionarTrabajoPedidoRequest request, int userId, string userName)
     {
@@ -162,6 +114,8 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
             .Include(tp => tp.Venta).ThenInclude(v => v!.Cliente).ThenInclude(c => c!.Person)
             .Include(tp => tp.TipoLente)
             .Include(tp => tp.CristalProducto)
+            .Include(tp => tp.ArmazonProducto)
+            .Include(tp => tp.Receta)
             .Include(tp => tp.Tratamientos)
             .Include(tp => tp.LaboratorioProveedor)
             .Include(tp => tp.AprobadoPor).ThenInclude(u => u!.Person)
@@ -194,6 +148,23 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
             Observaciones    = tp.Factura.Observaciones,
             EmitidoPorNombre = $"{tp.Factura.EmitidoPor?.Person?.FirstName} {tp.Factura.EmitidoPor?.Person?.LastName}".Trim(),
             CreatedAt        = tp.Factura.CreatedAt,
+        },
+        CristalNombre         = tp.CristalProducto?.Nombre,
+        ArmazonNombre         = tp.ArmazonProducto?.Nombre,
+        ArmazonDelCliente     = tp.ArmazonDelCliente,
+        Receta                = tp.Receta == null ? null : new RecetaRefDto
+        {
+            FechaEmision          = tp.Receta.FechaEmision.ToString("yyyy-MM-dd"),
+            OdEsferico            = tp.Receta.OdEsferico,
+            OdCilindro            = tp.Receta.OdCilindro,
+            OdEje                 = tp.Receta.OdEje,
+            OdAdicion             = tp.Receta.OdAdicion,
+            OiEsferico            = tp.Receta.OiEsferico,
+            OiCilindro            = tp.Receta.OiCilindro,
+            OiEje                 = tp.Receta.OiEje,
+            OiAdicion             = tp.Receta.OiAdicion,
+            DistanciaInterpupilar = tp.Receta.DistanciaInterpupilar,
+            Observaciones         = tp.Receta.Observaciones,
         },
         CreatedAt = tp.CreatedAt,
     };

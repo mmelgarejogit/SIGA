@@ -258,6 +258,59 @@ public static class DbSeeder
             db.Tratamientos.AddRange(nuevosTratamientos);
             await db.SaveChangesAsync();
         }
+
+        // 11. Servicios (catálogo para cobro de consultas y servicios sin stock).
+        //     "Consulta" lleva tarifas por especialidad como ejemplo de precio variable;
+        //     las tarifas por profesional puntual se cargan desde la UI (Ventas → Servicios).
+        if (!await db.Servicios.AnyAsync())
+        {
+            var espPorNombre = await db.Especialidades.ToDictionaryAsync(e => e.Nombre, e => e.Id);
+            int? Esp(string n) => espPorNombre.TryGetValue(n, out var id) ? id : (int?)null;
+            var ahora = DateTime.UtcNow;
+
+            ServicioTarifa TarifaEsp(string especialidad, decimal precio) => new()
+            {
+                EspecialidadId = Esp(especialidad),
+                Precio         = precio,
+                CreatedAt      = ahora,
+                UpdatedAt      = ahora,
+            };
+
+            List<ServicioTarifa> SoloValidas(params ServicioTarifa[] tarifas) =>
+                tarifas.Where(t => t.EspecialidadId != null).ToList();
+
+            var servicios = new List<Servicio>
+            {
+                new()
+                {
+                    Nombre = "Consulta oftalmológica",
+                    Descripcion = "Consulta clínica con profesional",
+                    Precio = 150000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora,
+                    Tarifas = SoloValidas(
+                        TarifaEsp("Oftalmología", 180000m),
+                        TarifaEsp("Optometría",   120000m)),
+                },
+                new()
+                {
+                    Nombre = "Consulta de control / seguimiento",
+                    Descripcion = "Control posterior a una consulta",
+                    Precio = 80000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora,
+                },
+                new()
+                {
+                    Nombre = "Adaptación de lentes de contacto",
+                    Descripcion = "Prueba y adaptación de lentes de contacto",
+                    Precio = 200000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora,
+                    Tarifas = SoloValidas(TarifaEsp("Contactología", 170000m)),
+                },
+                new() { Nombre = "Ajuste de armazón",      Descripcion = "Ajuste y calibrado de armazón",                       Precio = 30000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora },
+                new() { Nombre = "Reparación de armazón",   Descripcion = "Reparación de armazón (soldadura, cambio de tornillos)", Precio = 50000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora },
+                new() { Nombre = "Limpieza ultrasónica",    Descripcion = "Limpieza ultrasónica de anteojos",                     Precio = 20000m, IsActive = true, CreatedAt = ahora, UpdatedAt = ahora },
+            };
+
+            db.Servicios.AddRange(servicios);
+            await db.SaveChangesAsync();
+        }
     }
 
     private static readonly string[] TiposLenteIniciales =

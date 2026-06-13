@@ -29,6 +29,31 @@ public class TrabajoPedidoListDto
     public string? Observacion { get; set; }
     public FacturaLaboratorioDto? Factura { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // ── Referencia de la venta (datos que el laboratorio necesita para fabricar) ──
+    public string? CristalNombre { get; set; }
+    public string? ArmazonNombre { get; set; }
+    public bool ArmazonDelCliente { get; set; }
+    public RecetaRefDto? Receta { get; set; }
+}
+
+/// <summary>Prescripción de la receta asociada a la venta — referencia de solo lectura para el laboratorio.</summary>
+public class RecetaRefDto
+{
+    public string FechaEmision { get; set; } = "";
+
+    public decimal? OdEsferico { get; set; }
+    public decimal? OdCilindro { get; set; }
+    public int? OdEje { get; set; }
+    public decimal? OdAdicion { get; set; }
+
+    public decimal? OiEsferico { get; set; }
+    public decimal? OiCilindro { get; set; }
+    public int? OiEje { get; set; }
+    public decimal? OiAdicion { get; set; }
+
+    public decimal? DistanciaInterpupilar { get; set; }
+    public string? Observaciones { get; set; }
 }
 
 public class GestionarTrabajoPedidoRequest

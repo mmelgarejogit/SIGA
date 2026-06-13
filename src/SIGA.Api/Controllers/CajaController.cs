@@ -44,6 +44,10 @@ public class CajaController(ICajaService cajaService) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpGet("apertura-sugerida")]
+    public async Task<IActionResult> GetAperturaSugerida()
+        => ToHttpResponse(await cajaService.GetMontoAperturaSugeridoAsync());
+
     [HttpPost("sesiones")]
     [Authorize(Policy = "gestionar_caja")]
     public async Task<IActionResult> AbrirSesion([FromBody] AbrirSesionRequest request)
