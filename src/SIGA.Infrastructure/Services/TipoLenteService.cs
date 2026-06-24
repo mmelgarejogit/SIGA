@@ -24,7 +24,7 @@ public class TipoLenteService(AppDbContext db) : ITipoLenteService
         if (await db.TiposLente.AnyAsync(t => t.Nombre == nombre))
             return Result<TipoLenteDto>.Failure("Ya existe un tipo de lente con ese nombre.", ErrorType.Conflict);
 
-        var item = new TipoLente { Nombre = nombre, CreatedAt = DateTime.UtcNow };
+        var item = new TipoLente { Nombre = nombre, PrecioBase = request.PrecioBase, CreatedAt = DateTime.UtcNow };
         db.TiposLente.Add(item);
         await db.SaveChangesAsync();
         return Result<TipoLenteDto>.Success(ToDto(item));
@@ -42,8 +42,9 @@ public class TipoLenteService(AppDbContext db) : ITipoLenteService
         if (await db.TiposLente.AnyAsync(t => t.Nombre == nombre && t.Id != id))
             return Result<TipoLenteDto>.Failure("Ya existe un tipo de lente con ese nombre.", ErrorType.Conflict);
 
-        item.Nombre   = nombre;
-        item.IsActive = request.IsActive;
+        item.Nombre     = nombre;
+        item.PrecioBase = request.PrecioBase;
+        item.IsActive   = request.IsActive;
         await db.SaveChangesAsync();
         return Result<TipoLenteDto>.Success(ToDto(item));
     }
@@ -57,11 +58,27 @@ public class TipoLenteService(AppDbContext db) : ITipoLenteService
         return Result<bool>.Success(true);
     }
 
+    public async Task<Result<bool>> DeleteAsync(int id)
+    {
+        var item = await db.TiposLente.FindAsync(id);
+        if (item is null) return Result<bool>.Failure("Tipo de lente no encontrado.", ErrorType.NotFound);
+
+        if (await db.TrabajosPedido.AnyAsync(t => t.TipoLenteId == id))
+            return Result<bool>.Failure(
+                "No se puede eliminar: el tipo de lente está en uso en trabajos a pedido. Desactivalo en su lugar.",
+                ErrorType.Conflict);
+
+        db.TiposLente.Remove(item);
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
     private static TipoLenteDto ToDto(TipoLente t) => new()
     {
-        Id        = t.Id,
-        Nombre    = t.Nombre,
-        IsActive  = t.IsActive,
-        CreatedAt = t.CreatedAt,
+        Id         = t.Id,
+        Nombre     = t.Nombre,
+        PrecioBase = t.PrecioBase,
+        IsActive   = t.IsActive,
+        CreatedAt  = t.CreatedAt,
     };
 }

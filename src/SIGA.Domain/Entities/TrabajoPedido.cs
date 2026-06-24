@@ -10,13 +10,10 @@ public class TrabajoPedido
     public int? RecetaId { get; set; }
     public Receta? Receta { get; set; }
 
-    // Clasificación óptica opcional (monofocal/progresivo). El cristal real es CristalProducto.
+    // Diseño del lente (monofocal/bifocal/progresivo). Es el eje principal del cristal a pedido.
+    // El cristal ya no es un producto de catálogo: se especifica por diseño + tratamientos + precio.
     public int? TipoLenteId { get; set; }
     public TipoLente? TipoLente { get; set; }
-
-    // Cristal como producto del catálogo (categoría tipo Cristal).
-    public int? CristalProductoId { get; set; }
-    public Producto? CristalProducto { get; set; }
 
     public ICollection<Tratamiento> Tratamientos { get; set; } = new List<Tratamiento>();
 

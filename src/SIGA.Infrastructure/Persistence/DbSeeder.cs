@@ -186,6 +186,7 @@ public static class DbSeeder
             {
                 Nombre      = c.Nombre,
                 Descripcion = c.Descripcion,
+                Tipo        = c.Tipo,
                 IsActive    = true,
                 CreatedAt   = DateTime.UtcNow,
             })
@@ -233,11 +234,11 @@ public static class DbSeeder
             await db.SaveChangesAsync();
         }
 
-        // 9. Tipos de lente
+        // 9. Tipos de lente (diseños del cristal a pedido, con precio sugerido)
         var existingTiposLente = await db.TiposLente.Select(t => t.Nombre).ToHashSetAsync();
         var nuevosTiposLente = TiposLenteIniciales
-            .Where(n => !existingTiposLente.Contains(n))
-            .Select(n => new TipoLente { Nombre = n, IsActive = true, CreatedAt = DateTime.UtcNow })
+            .Where(t => !existingTiposLente.Contains(t.Nombre))
+            .Select(t => new TipoLente { Nombre = t.Nombre, PrecioBase = t.PrecioBase, IsActive = true, CreatedAt = DateTime.UtcNow })
             .ToList();
 
         if (nuevosTiposLente.Count > 0)
@@ -313,14 +314,14 @@ public static class DbSeeder
         }
     }
 
-    private static readonly string[] TiposLenteIniciales =
+    // Diseños del cristal a pedido, con precio base sugerido (editable por venta).
+    // Los lentes de contacto NO van acá: son productos de stock (categoría "Lentes de Contacto").
+    private static readonly (string Nombre, decimal PrecioBase)[] TiposLenteIniciales =
     [
-        "Monofocal",
-        "Bifocal",
-        "Progresivo",
-        "Ocupacional / Oficina",
-        "Lente de Contacto Blando",
-        "Lente de Contacto Rígido",
+        ("Monofocal",             250000m),
+        ("Bifocal",               450000m),
+        ("Progresivo",            850000m),
+        ("Ocupacional / Oficina", 600000m),
     ];
 
     private static readonly string[] TratamientosIniciales =
@@ -335,6 +336,8 @@ public static class DbSeeder
         "Antirayaduras",
     ];
 
+    // Marcas de armazones y lentes de contacto (productos con stock). Las marcas de
+    // cristales (Essilor, Hoya, Zeiss, Transitions) se quitaron: el lente ya no es producto.
     private static readonly string[] MarcasIniciales =
     [
         "Ray-Ban", "Oakley", "Prada", "Gucci", "Versace", "Tom Ford", "Carrera",
@@ -342,7 +345,6 @@ public static class DbSeeder
         "Emporio Armani", "Giorgio Armani", "Dolce & Gabbana", "Chanel", "Dior",
         "Bvlgari", "Burberry", "Lacoste", "Nautica", "Fossil", "Kate Spade",
         "CooperVision", "Bausch & Lomb", "Alcon", "Johnson & Johnson",
-        "Essilor", "Hoya", "Zeiss", "Transitions",
     ];
 
     private static readonly (string Marca, string Nombre)[] ModelosIniciales =
@@ -428,45 +430,20 @@ public static class DbSeeder
         ("Johnson & Johnson", "1-Day Acuvue Moist"),
         ("Johnson & Johnson", "Acuvue Oasys 1-Day"),
         ("Johnson & Johnson", "Acuvue Oasys Max 1-Day"),
-
-        // Essilor
-        ("Essilor", "Varilux Comfort"),
-        ("Essilor", "Varilux X Series"),
-        ("Essilor", "Eyezen+"),
-        ("Essilor", "Crizal Forte UV"),
-
-        // Hoya
-        ("Hoya", "iD MyStyle"),
-        ("Hoya", "Nulux EP"),
-        ("Hoya", "Hilux 1.6"),
-
-        // Zeiss
-        ("Zeiss", "Progressive Individual 2"),
-        ("Zeiss", "SmartLife Individual"),
-        ("Zeiss", "DriveSafe"),
-
-        // Transitions
-        ("Transitions", "Signature Gen 8"),
-        ("Transitions", "XTRActive"),
-        ("Transitions", "Vantage"),
-        ("Transitions", "DriveWear"),
     ];
 
-    private static readonly (string Nombre, string Descripcion)[] CategoriasProductoIniciales =
+    // Solo categorías de productos con stock real. Los lentes graduados (cristales) NO son
+    // productos: se modelan como diseño (TipoLente) + tratamientos en el trabajo a pedido.
+    // El tipo Armazón habilita el producto en el flujo de venta a pedido.
+    private static readonly (string Nombre, string Descripcion, TipoCategoriaProducto Tipo)[] CategoriasProductoIniciales =
     [
-        ("Marcos",                "Marcos ópticos para receta y sol"),
-        ("Lentes Oftálmicos",     "Lentes de resina, policarbonato y cristal para prescripción"),
-        ("Lentes de Contacto",    "Lentes de contacto blandos, rígidos y de colores"),
-        ("Soluciones",            "Soluciones multiusos, salinas y gotas oculares"),
-        ("Accesorios",            "Estuches, paños, correas y herramientas ópticas"),
-        ("Monturas Infantiles",   "Marcos y monturas diseñados para niños y adolescentes"),
-        ("Lentes de Sol",         "Lentes de sol con y sin prescripción"),
-        ("Lentes Progresivos",    "Lentes multifocales progresivos para presbicia"),
-        ("Lentes Bifocales",      "Lentes bifocales con segmento visible"),
-        ("Lentes Antirreflejo",   "Tratamientos y lentes con recubrimiento antirreflejo"),
-        ("Filtros de Luz Azul",   "Lentes con filtro para luz azul de pantallas digitales"),
-        ("Lentes Fotocromáticos", "Lentes que se oscurecen con la luz UV"),
-        ("Instrumentos",          "Equipos y herramientas de diagnóstico y adaptación"),
-        ("Insumos",               "Materiales de consumo y laboratorio óptico"),
+        ("Marcos",                "Marcos ópticos para receta y sol",                       TipoCategoriaProducto.Armazon),
+        ("Monturas Infantiles",   "Marcos y monturas diseñados para niños y adolescentes",   TipoCategoriaProducto.Armazon),
+        ("Lentes de Sol",         "Lentes de sol con y sin prescripción",                   TipoCategoriaProducto.Generico),
+        ("Lentes de Contacto",    "Lentes de contacto blandos, rígidos y de colores",       TipoCategoriaProducto.Generico),
+        ("Soluciones",            "Soluciones multiusos, salinas y gotas oculares",         TipoCategoriaProducto.Generico),
+        ("Accesorios",            "Estuches, paños, correas y herramientas ópticas",        TipoCategoriaProducto.Generico),
+        ("Instrumentos",          "Equipos y herramientas de diagnóstico y adaptación",     TipoCategoriaProducto.Generico),
+        ("Insumos",               "Materiales de consumo y laboratorio óptico",             TipoCategoriaProducto.Generico),
     ];
 }

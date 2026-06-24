@@ -11,6 +11,7 @@ public interface IVentaService
         int? clienteId, int page, int pageSize);
 
     Task<Result<VentaDto>> CrearVentaAsync(CrearVentaRequest request);
+    Task<Result<VentaDto>> ActualizarVentaAsync(int id, ActualizarVentaRequest request);
     Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId);
     Task<Result<VentaDto>> CancelarVentaAsync(int id, CancelarVentaRequest request);
     Task<Result<bool>> EliminarPresupuestoAsync(int id);

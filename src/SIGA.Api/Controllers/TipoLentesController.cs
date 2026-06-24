@@ -41,4 +41,12 @@ public class TipoLentesController(ITipoLenteService service) : BaseController
         var result = await service.DeactivateAsync(id);
         return ToHttpResponse(result);
     }
+
+    [HttpDelete("{id:int}/permanente")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var result = await service.DeleteAsync(id);
+        return ToHttpResponse(result);
+    }
 }

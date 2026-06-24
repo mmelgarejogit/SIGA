@@ -237,6 +237,41 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
         return Result<bool>.Success(true);
     }
 
+    public async Task<Result<bool>> DeleteAsync(int id)
+    {
+        var producto = await db.Productos
+            .Include(p => p.StockConfig)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null)
+            return Result<bool>.Failure("Producto no encontrado.", ErrorType.NotFound);
+
+        var enUso =
+            await db.MovimientosStock.AnyAsync(m => m.ProductoId == id) ||
+            await db.VentaLineas.AnyAsync(l => l.ProductoId == id) ||
+            await db.TrabajosPedido.AnyAsync(t => t.ArmazonProductoId == id);
+        if (enUso)
+            return Result<bool>.Failure(
+                "No se puede eliminar: el producto tiene movimientos de stock o ventas asociadas. Desactivalo en su lugar.",
+                ErrorType.Conflict);
+
+        if (producto.StockConfig is not null)
+            db.ProductosStockConfig.Remove(producto.StockConfig);
+        db.Productos.Remove(producto);
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Red de seguridad ante otras FKs (compras, conteos, devoluciones, lotes…).
+            return Result<bool>.Failure(
+                "No se puede eliminar: el producto está referenciado en otros registros. Desactivalo en su lugar.",
+                ErrorType.Conflict);
+        }
+        return Result<bool>.Success(true);
+    }
+
     public async Task<Result<MovimientoStockResponse>> RegistrarMovimientoAsync(
         int productoId, CreateMovimientoStockRequest request)
     {
@@ -649,6 +684,23 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http) : IProd
             return Result<bool>.Failure("Categoría no encontrada.", ErrorType.NotFound);
 
         cat.IsActive = false;
+        await db.SaveChangesAsync();
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> DeleteCategoriaAsync(int id)
+    {
+        var cat = await db.CategoriasProducto.FindAsync(id);
+        if (cat is null)
+            return Result<bool>.Failure("Categoría no encontrada.", ErrorType.NotFound);
+
+        var enUso = await db.Productos.AnyAsync(p => p.CategoriaProductoId == id || p.Categoria == cat.Nombre);
+        if (enUso)
+            return Result<bool>.Failure(
+                "No se puede eliminar: hay productos en esta categoría. Desactivala en su lugar.",
+                ErrorType.Conflict);
+
+        db.CategoriasProducto.Remove(cat);
         await db.SaveChangesAsync();
         return Result<bool>.Success(true);
     }

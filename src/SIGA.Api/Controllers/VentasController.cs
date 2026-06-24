@@ -48,6 +48,14 @@ public class VentasController(IVentaService ventaService) : BaseController
         return ToHttpResponse(result);
     }
 
+    [HttpPut("{id:int}")]
+    [Authorize(Policy = "registrar_venta")]
+    public async Task<IActionResult> ActualizarVenta(int id, [FromBody] ActualizarVentaRequest request)
+    {
+        var result = await ventaService.ActualizarVentaAsync(id, request);
+        return ToHttpResponse(result);
+    }
+
     [HttpPut("{id:int}/confirmar")]
     [Authorize(Policy = "registrar_venta")]
     public async Task<IActionResult> ConfirmarVenta(int id)

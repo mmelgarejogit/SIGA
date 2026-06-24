@@ -17,11 +17,6 @@ public class TrabajoPedidoConfiguration : IEntityTypeConfiguration<TrabajoPedido
             .HasForeignKey(x => x.TipoLenteId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.CristalProducto)
-            .WithMany()
-            .HasForeignKey(x => x.CristalProductoId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasMany(x => x.Tratamientos)
             .WithMany(x => x.TrabajosPedido)
             .UsingEntity(j => j.ToTable("trabajos_pedido_tratamientos"));

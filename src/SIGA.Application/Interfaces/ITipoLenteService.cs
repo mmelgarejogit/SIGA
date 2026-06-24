@@ -9,4 +9,5 @@ public interface ITipoLenteService
     Task<Result<TipoLenteDto>> CreateAsync(CreateTipoLenteRequest request);
     Task<Result<TipoLenteDto>> UpdateAsync(int id, UpdateTipoLenteRequest request);
     Task<Result<bool>> DeactivateAsync(int id);
+    Task<Result<bool>> DeleteAsync(int id);
 }

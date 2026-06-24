@@ -12,8 +12,6 @@ public class TrabajoPedidoDto
     public int? RecetaId { get; set; }
     public int? TipoLenteId { get; set; }
     public string? TipoLenteNombre { get; set; }
-    public int? CristalProductoId { get; set; }
-    public string? CristalProductoNombre { get; set; }
     public List<TrabajoPedidoTratamientoDto> Tratamientos { get; set; } = new();
     public int? ArmazonProductoId { get; set; }
     public string? ArmazonProductoNombre { get; set; }

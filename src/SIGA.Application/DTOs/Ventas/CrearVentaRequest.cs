@@ -17,7 +17,8 @@ public class CrearVentaRequest
 
 public class CrearVentaTrabajoPedidoRequest
 {
-    public int? CristalProductoId { get; set; }
+    // Diseño del lente (monofocal/bifocal/progresivo). El precio del lente viaja como línea
+    // de venta tipo Lente; acá solo se guarda la especificación para la orden al laboratorio.
     public int? TipoLenteId { get; set; }
     public List<int> TratamientoIds { get; set; } = new();
     public int? ArmazonProductoId { get; set; }

@@ -58,11 +58,11 @@ public static class DevDataSeeder
             ("Marcos Vogue VO5230",               "Marcos",              5500m,   9800m,  5,  18),
             ("Marcos Prada PR 07WV",              "Marcos",             18000m,  34900m,  2,   7),
             ("Marcos Armani EA3187",              "Marcos",             14000m,  26500m,  3,   2),
-            ("Lente monofocal CR39 +2.00",        "Lentes Oftálmicos",   2200m,   4500m, 10,  42),
-            ("Lente monofocal CR39 -1.50",        "Lentes Oftálmicos",   2200m,   4500m, 10,  38),
-            ("Lente progresivo Essilor",          "Lentes Oftálmicos",   9500m,  18900m,  5,  14),
-            ("Lente progresivo Hoya",             "Lentes Oftálmicos",   8200m,  16500m,  5,   9),
-            ("Lente fotocromático Transitions",   "Lentes Oftálmicos",   6800m,  13200m,  5,   3),
+            ("Montura Infantil Disney",           "Monturas Infantiles", 3500m,   6900m,  5,  15),
+            ("Montura Infantil Flexible",         "Monturas Infantiles", 4200m,   8500m,  5,   9),
+            ("Lentes de Sol Ray-Ban Aviator",     "Lentes de Sol",      11000m,  21900m,  4,  12),
+            ("Lentes de Sol Oakley Holbrook",     "Lentes de Sol",      13500m,  25900m,  3,   6),
+            ("Lentes de Sol Vulk Polarizado",     "Lentes de Sol",       6500m,  12900m,  5,   4),
             ("Acuvue Oasys 6u",                   "Lentes de Contacto",  3200m,   5900m, 10,  45),
             ("Dailies Total1 30u",                "Lentes de Contacto",  4800m,   8900m,  8,  27),
             ("Biofinity 6u",                      "Lentes de Contacto",  2900m,   5400m, 10,  33),
@@ -103,8 +103,10 @@ public static class DevDataSeeder
             var professionals = await SeedProfessionalsAsync(db, pwHash, professionalRole, especialidades);
             var patients      = await SeedPatientsAsync(db, pwHash, patientRole);
             await SeedTurnosAsync(db, professionals, patients);
-            await SeedInventarioAsync(db);
         }
+
+        // Inventario aparte: así se re-puebla tras un reset de catálogo aunque ya haya pacientes.
+        await SeedInventarioAsync(db);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
@@ -372,6 +374,8 @@ public static class DevDataSeeder
 
     private static async Task SeedInventarioAsync(AppDbContext db)
     {
+        if (await db.Productos.AnyAsync()) return;
+
         var now      = DateTime.UtcNow;
         var productos = new List<Producto>();
 
@@ -465,7 +469,8 @@ public static class DevDataSeeder
         var prefix = cat switch
         {
             "Marcos"              => "MAR",
-            "Lentes Oftálmicos"   => "LOP",
+            "Monturas Infantiles" => "MIN",
+            "Lentes de Sol"       => "LSO",
             "Lentes de Contacto"  => "LCT",
             "Soluciones"          => "SOL",
             _                     => "ACC",

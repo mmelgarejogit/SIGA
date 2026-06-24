@@ -104,7 +104,6 @@ public class VentaService(AppDbContext db) : IVentaService
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.Tratamientos)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.LaboratorioProveedor)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.ArmazonProducto)
-            .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.CristalProducto)
             .Include(v => v.TrabajoPedido).ThenInclude(tp => tp!.Factura).ThenInclude(f => f!.EmitidoPor).ThenInclude(u => u.Person)
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoDevuelto)
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
@@ -238,7 +237,6 @@ public class VentaService(AppDbContext db) : IVentaService
             var tp = new TrabajoPedido
             {
                 RecetaId               = request.RecetaId,
-                CristalProductoId      = tpReq.CristalProductoId,
                 TipoLenteId            = tpReq.TipoLenteId,
                 ArmazonProductoId      = tpReq.ArmazonDelCliente ? null : tpReq.ArmazonProductoId,
                 ArmazonDelCliente      = tpReq.ArmazonDelCliente,
@@ -261,6 +259,80 @@ public class VentaService(AppDbContext db) : IVentaService
         return await GetVentaByIdAsync(venta.Id);
     }
 
+    public async Task<Result<VentaDto>> ActualizarVentaAsync(int id, ActualizarVentaRequest request)
+    {
+        if (!request.Lineas.Any())
+            return Result<VentaDto>.Failure("La venta debe tener al menos una línea", ErrorType.Validation);
+
+        var venta = await db.Ventas
+            .Include(v => v.Lineas)
+            .Include(v => v.TrabajoPedido)
+            .FirstOrDefaultAsync(v => v.Id == id);
+        if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
+        if (venta.Estado != EstadoVenta.Borrador)
+            return Result<VentaDto>.Failure("Solo se pueden editar presupuestos en estado Borrador", ErrorType.Conflict);
+
+        var condicion = Enum.TryParse<CondicionVenta>(request.CondicionVenta, out var c) ? c : venta.CondicionVenta;
+
+        venta.CondicionVenta = condicion;
+        venta.FechaVenta     = DateOnly.Parse(request.FechaVenta);
+        venta.Observaciones  = request.Observaciones;
+        venta.UpdatedAt      = DateTime.UtcNow;
+
+        // Asignación de laboratorio para el trabajo a pedido (necesario para poder confirmar).
+        if (request.LaboratorioProveedorId.HasValue && venta.TrabajoPedido is not null)
+        {
+            var lab = await db.Proveedores.FirstOrDefaultAsync(p => p.Id == request.LaboratorioProveedorId.Value);
+            if (lab == null)
+                return Result<VentaDto>.Failure("Laboratorio no encontrado", ErrorType.Validation);
+            if (!lab.EsLaboratorio)
+                return Result<VentaDto>.Failure("El proveedor seleccionado no es un laboratorio", ErrorType.Validation);
+
+            venta.TrabajoPedido.LaboratorioProveedorId = lab.Id;
+            venta.TrabajoPedido.UpdatedAt              = DateTime.UtcNow;
+        }
+
+        // Reemplazo total de líneas: se eliminan las actuales y se recrean con el payload.
+        db.VentaLineas.RemoveRange(venta.Lineas);
+        venta.Lineas.Clear();
+
+        foreach (var lr in request.Lineas)
+        {
+            var tipoLinea = Enum.TryParse<TipoLineaVenta>(lr.Tipo, out var tl) ? tl : TipoLineaVenta.Producto;
+            var cat       = Enum.TryParse<CategoriaFiscal>(lr.CategoriaFiscal, out var cf) ? cf : CategoriaFiscal.Gravado10;
+
+            string descripcion = lr.Descripcion ?? "";
+            if (string.IsNullOrWhiteSpace(descripcion))
+            {
+                if (tipoLinea == TipoLineaVenta.Producto && lr.ProductoId.HasValue)
+                {
+                    var prod = await db.Productos.FindAsync(lr.ProductoId.Value);
+                    descripcion = prod?.Nombre ?? "Producto";
+                }
+                else if (tipoLinea == TipoLineaVenta.Servicio && lr.ServicioId.HasValue)
+                {
+                    var serv = await db.Servicios.FindAsync(lr.ServicioId.Value);
+                    descripcion = serv?.Nombre ?? "Servicio";
+                }
+            }
+
+            venta.Lineas.Add(new VentaLinea
+            {
+                Tipo            = tipoLinea,
+                ProductoId      = lr.ProductoId,
+                ServicioId      = lr.ServicioId,
+                Descripcion     = descripcion,
+                Cantidad        = lr.Cantidad,
+                PrecioUnitario  = lr.PrecioUnitario,
+                Descuento       = lr.Descuento,
+                CategoriaFiscal = cat,
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return await GetVentaByIdAsync(venta.Id);
+    }
+
     public async Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId)
     {
         var venta = await db.Ventas
@@ -273,6 +345,10 @@ public class VentaService(AppDbContext db) : IVentaService
         // Receta obligatoria al confirmar una venta a pedido (en presupuesto es opcional).
         if (venta.Tipo == TipoVenta.TrabajoAPedido && venta.RecetaId is null)
             return Result<VentaDto>.Failure("La receta es obligatoria para confirmar una venta a pedido.", ErrorType.Conflict);
+
+        // Diseño del lente obligatorio: define el cristal a fabricar en el laboratorio.
+        if (venta.Tipo == TipoVenta.TrabajoAPedido && venta.TrabajoPedido?.TipoLenteId is null)
+            return Result<VentaDto>.Failure("Seleccioná el diseño del lente antes de confirmar la venta a pedido.", ErrorType.Conflict);
 
         // El trabajo a pedido entra a la cola del laboratorio recién ahora.
         if (venta.TrabajoPedido is not null && venta.TrabajoPedido.Estado == EstadoTrabajoPedido.Borrador)
@@ -578,8 +654,6 @@ public class VentaService(AppDbContext db) : IVentaService
         RecetaId               = tp.RecetaId,
         TipoLenteId            = tp.TipoLenteId,
         TipoLenteNombre        = tp.TipoLente?.Nombre,
-        CristalProductoId      = tp.CristalProductoId,
-        CristalProductoNombre  = tp.CristalProducto?.Nombre,
         Tratamientos           = tp.Tratamientos.Select(t => new TrabajoPedidoTratamientoDto { Id = t.Id, Nombre = t.Nombre }).ToList(),
         ArmazonProductoId      = tp.ArmazonProductoId,
         ArmazonProductoNombre  = tp.ArmazonProducto?.Nombre,

@@ -31,7 +31,7 @@ public class TrabajoPedidoListDto
     public DateTime CreatedAt { get; set; }
 
     // ── Referencia de la venta (datos que el laboratorio necesita para fabricar) ──
-    public string? CristalNombre { get; set; }
+    // El lente se describe por TipoLenteNombre (diseño) + Tratamientos.
     public string? ArmazonNombre { get; set; }
     public bool ArmazonDelCliente { get; set; }
     public RecetaRefDto? Receta { get; set; }

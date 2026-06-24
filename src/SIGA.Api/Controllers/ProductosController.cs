@@ -57,6 +57,14 @@ public class ProductosController(IProductoService productoService, IMovimientoSt
         return ToHttpResponse(result);
     }
 
+    [HttpDelete("{id:int}/permanente")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var result = await productoService.DeleteAsync(id);
+        return ToHttpResponse(result);
+    }
+
     [HttpPost("{id:int}/movimientos")]
     [Authorize(Policy = "gestionar_inventario")]
     public async Task<IActionResult> RegistrarMovimiento(int id, [FromBody] CreateMovimientoStockRequest request)
@@ -169,6 +177,14 @@ public class ProductosController(IProductoService productoService, IMovimientoSt
     public async Task<IActionResult> DeactivateCategoria(int id)
     {
         var result = await productoService.DeactivateCategoriaAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpDelete("categorias/{id:int}/permanente")]
+    [Authorize(Policy = "gestionar_inventario")]
+    public async Task<IActionResult> DeleteCategoria(int id)
+    {
+        var result = await productoService.DeleteCategoriaAsync(id);
         return ToHttpResponse(result);
     }
 }

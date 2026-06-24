@@ -113,7 +113,6 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         db.TrabajosPedido
             .Include(tp => tp.Venta).ThenInclude(v => v!.Cliente).ThenInclude(c => c!.Person)
             .Include(tp => tp.TipoLente)
-            .Include(tp => tp.CristalProducto)
             .Include(tp => tp.ArmazonProducto)
             .Include(tp => tp.Receta)
             .Include(tp => tp.Tratamientos)
@@ -129,7 +128,7 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         ClienteNombre         = tp.Venta?.Cliente == null
             ? "Consumidor Final"
             : $"{tp.Venta.Cliente.Person?.FirstName} {tp.Venta.Cliente.Person?.LastName}".Trim(),
-        TipoLenteNombre       = tp.TipoLente?.Nombre ?? tp.CristalProducto?.Nombre ?? "",
+        TipoLenteNombre       = tp.TipoLente?.Nombre ?? "",
         Tratamientos          = tp.Tratamientos.Select(t => t.Nombre).ToList(),
         LaboratorioNombre     = tp.LaboratorioProveedor?.Nombre ?? "",
         Estado                = tp.Estado.ToString(),
@@ -149,7 +148,6 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
             EmitidoPorNombre = $"{tp.Factura.EmitidoPor?.Person?.FirstName} {tp.Factura.EmitidoPor?.Person?.LastName}".Trim(),
             CreatedAt        = tp.Factura.CreatedAt,
         },
-        CristalNombre         = tp.CristalProducto?.Nombre,
         ArmazonNombre         = tp.ArmazonProducto?.Nombre,
         ArmazonDelCliente     = tp.ArmazonDelCliente,
         Receta                = tp.Receta == null ? null : new RecetaRefDto
