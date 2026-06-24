@@ -4,8 +4,14 @@ public class Receta
 {
     public int Id { get; set; }
 
-    public int ConsultaClinicaId { get; set; }
-    public ConsultaClinica ConsultaClinica { get; set; } = null!;
+    // Opcional: una receta clínica cuelga de una consulta; una receta externa/de mostrador no.
+    public int? ConsultaClinicaId { get; set; }
+    public ConsultaClinica? ConsultaClinica { get; set; }
+
+    // Persona dueña de la receta (paciente o cliente). Permite listar todas las recetas
+    // de un cliente, sean clínicas o cargadas a mano.
+    public int? PersonId { get; set; }
+    public Person? Person { get; set; }
 
     public DateOnly FechaEmision { get; set; }
 

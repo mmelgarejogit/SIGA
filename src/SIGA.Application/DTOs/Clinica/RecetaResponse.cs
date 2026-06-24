@@ -3,7 +3,9 @@ namespace SIGA.Application.DTOs.Clinica;
 public class RecetaResponse
 {
     public int Id { get; set; }
-    public int ConsultaClinicaId { get; set; }
+    public int? ConsultaClinicaId { get; set; }
+    public int? PersonId { get; set; }
+    public bool EsExterna { get; set; }
     public DateOnly FechaEmision { get; set; }
     public decimal? OdEsferico { get; set; }
     public decimal? OdCilindro { get; set; }

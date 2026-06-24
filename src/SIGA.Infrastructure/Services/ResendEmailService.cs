@@ -21,10 +21,14 @@ public class ResendEmailService : IEmailService
     {
         var client = _factory.CreateClient("resend");
 
+        var recipient = !string.IsNullOrWhiteSpace(_options.DevRedirectEmail)
+            ? _options.DevRedirectEmail
+            : toEmail;
+
         var payload = new
         {
             from    = $"{_options.FromName} <{_options.FromEmail}>",
-            to      = new[] { toEmail },
+            to      = new[] { recipient },
             subject,
             html    = htmlBody
         };

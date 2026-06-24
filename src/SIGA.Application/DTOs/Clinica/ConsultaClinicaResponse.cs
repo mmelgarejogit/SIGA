@@ -19,6 +19,9 @@ public class ConsultaClinicaResponse
     public string? DiagnosticoSecundario { get; set; }
     public string? PlanTratamiento { get; set; }
     public string? Observaciones { get; set; }
+    public int? EstadoId { get; set; }
+    public string? EstadoNombre { get; set; }
+    public string? EstadoColor { get; set; }
     public RecetaResponse? Receta { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

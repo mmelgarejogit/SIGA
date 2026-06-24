@@ -21,7 +21,12 @@ public class ConsultaClinica
     public string? PlanTratamiento { get; set; }
     public string? Observaciones { get; set; }
 
+    public int? EstadoConfigId { get; set; }
+    public EstadoConfig? EstadoConfig { get; set; }
+
     public Receta? Receta { get; set; }
+
+    public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

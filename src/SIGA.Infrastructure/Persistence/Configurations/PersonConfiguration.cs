@@ -14,6 +14,8 @@ public class PersonConfiguration : IEntityTypeConfiguration<Person>
         builder.Property(x => x.CI).IsRequired().HasMaxLength(20);
         builder.HasIndex(x => x.CI).IsUnique();
 
+        builder.Property(x => x.Sexo).HasMaxLength(20);
+
         builder.Property(x => x.FirstName).IsRequired().HasMaxLength(100);
         builder.Property(x => x.LastName).IsRequired().HasMaxLength(100);
         builder.Property(x => x.BirthDate).IsRequired().HasColumnType("date");

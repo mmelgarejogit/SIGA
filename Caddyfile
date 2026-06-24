@@ -1,0 +1,21 @@
+# Caddy — reverse proxy de borde con HTTPS automático (Let's Encrypt).
+# Las variables {$DOMAIN} y {$ACME_EMAIL} vienen del entorno (ver docker-compose.prod.yml / .env).
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# API REST y archivos subidos (imágenes de productos) → backend .NET
+	@backend path /api/* /uploads/*
+	handle @backend {
+		reverse_proxy api:8080
+	}
+
+	# Todo lo demás → SPA (nginx con fallback a index.html)
+	handle {
+		reverse_proxy web:80
+	}
+}

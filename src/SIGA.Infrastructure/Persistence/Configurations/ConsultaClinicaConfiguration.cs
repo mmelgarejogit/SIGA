@@ -19,6 +19,7 @@ public class ConsultaClinicaConfiguration : IEntityTypeConfiguration<ConsultaCli
         builder.Property(x => x.PlanTratamiento).HasMaxLength(2000);
         builder.Property(x => x.Observaciones).HasMaxLength(2000);
         builder.Property(x => x.FechaConsulta).IsRequired();
+        builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 

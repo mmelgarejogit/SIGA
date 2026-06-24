@@ -1,0 +1,19 @@
+# Build artifacts (no copiar al contexto de build)
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/.git/
+.git/
+.gitignore
+
+# Secretos / config local
+.env
+.env.*
+!.env.example
+**/appsettings.Development.json
+
+# Misc
+**/*.user
+**/TestResults/
+*.log

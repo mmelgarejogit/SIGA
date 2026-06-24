@@ -27,6 +27,14 @@ public class RecetaConfiguration : IEntityTypeConfiguration<Receta>
             .HasForeignKey<Receta>(x => x.ConsultaClinicaId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Unique sobre ConsultaClinicaId: en PostgreSQL admite múltiples NULL (recetas externas).
         builder.HasIndex(x => x.ConsultaClinicaId).IsUnique();
+
+        builder.HasOne(x => x.Person)
+            .WithMany()
+            .HasForeignKey(x => x.PersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.PersonId);
     }
 }

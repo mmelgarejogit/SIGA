@@ -213,7 +213,7 @@ public class AuthService : IAuthService
             .SelectMany(ur => ur.Role.RolePermissions.Select(rp => rp.Permission.Name))
             .Distinct()
             .ToList();
-        var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions);
+        var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions, user.Professional?.Id);
 
         return Result<LoginResponse>.Success(new LoginResponse
         {

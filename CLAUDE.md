@@ -51,6 +51,77 @@ Person (Id, DNI único, FirstName, LastName, BirthDate, PhoneNumber, Email únic
 - `JwtTokenGenerator.GenerateToken(user, roles)` requiere que `user.Person` esté cargado
 - La respuesta exitosa devuelve: `email`, `jwtToken`, `roleClaims`
 
+## API Contract Standards
+
+### Paginación uniforme
+
+Todos los endpoints de **listado** deben soportar los siguientes query parameters:
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `page` | int | `1` | Número de página (1-based) |
+| `pageSize` | int | `20` | Cantidad de ítems por página (max `100`) |
+| `search` | string | `null` | Búsqueda libre (case-insensitive, partial match) |
+| `sortBy` | string | `createdAt` | Campo por el cual ordenar |
+| `sortOrder` | string | `desc` | `asc` o `desc` |
+| `isActive` | bool? | `null` | Filtro de borrado lógico (`true` / `false` / omitir para todos) |
+
+### Response shape de listados
+
+```json
+{
+  "items": [ /* DTOs */ ],
+  "totalCount": 150,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 8
+}
+```
+
+> **Regla:** nunca devolver entidades de dominio en `items`. Usar DTOs con los campos necesarios para la UI.
+
+### Búsqueda (`search`)
+
+- Case-insensitive (`EF.Functions.ILike` en PostgreSQL).
+- Partial match (envuelto en `%` por el backend).
+- Campos buscables documentados por entidad:
+  - **Patients**: `Person.FirstName`, `Person.LastName`, `Person.Email`, `Person.DNI`
+  - **Professionals**: `Person.FirstName`, `Person.LastName`, `Person.Email`, `Specialty`
+  - **Users**: `Person.FirstName`, `Person.LastName`, `Person.Email`
+  - **Turnos**: `Patient.Person.FirstName`, `Patient.Person.LastName`, `Professional.Person.FirstName`
+  - **Consultas**: `Patient.Person.FirstName`, `Patient.Person.LastName`
+
+### Ordenamiento (`sortBy` / `sortOrder`)
+
+- `sortBy` debe coincidir con una propiedad del DTO de respuesta o del modelo subyacente.
+- Default: `createdAt desc` (más recientes primero).
+- Si el campo no existe, fallback a `createdAt desc`.
+
+### DTO Naming
+
+| Operación | Nombre del DTO |
+|-----------|----------------|
+| Create Request | `Create{Entity}Request` |
+| Update Request | `Update{Entity}Request` |
+| List Response | `{Entity}Dto` o `{Entity}ListDto` |
+| Detail Response | `{Entity}DetailDto` |
+
+### Formato de errores
+
+```json
+{
+  "message": "Descripción legible del error",
+  "error": "Código opcional para debugging"
+}
+```
+
+- `400 Bad Request` — validación de input fallida
+- `401 Unauthorized` — token inválido o ausente
+- `403 Forbidden` — autenticado pero sin permiso para la acción
+- `404 Not Found` — recurso no existe
+- `409 Conflict` — conflicto de negocio (ej: email duplicado)
+- `500 Internal Server Error` — error inesperado del servidor
+
 ## Endpoints implementados
 
 | Método | Ruta | Descripción |

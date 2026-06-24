@@ -15,6 +15,9 @@ public class PatientService : IPatientService
     private static readonly Regex OnlyLetters = new(@"^[\p{L}\s]+$", RegexOptions.Compiled);
     private static readonly Regex EmailFormat  = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
 
+    private static readonly HashSet<string> SexoValidos = new(StringComparer.OrdinalIgnoreCase)
+        { "Masculino", "Femenino", "Otro" };
+
     public PatientService(AppDbContext dbContext)
     {
         _dbContext = dbContext;
@@ -90,6 +93,9 @@ public class PatientService : IPatientService
         if (string.IsNullOrWhiteSpace(request.CI))
             return Result<PatientResponse>.Failure("El documento es obligatorio.", ErrorType.Validation);
 
+        if (!string.IsNullOrWhiteSpace(request.Sexo) && !SexoValidos.Contains(request.Sexo))
+            return Result<PatientResponse>.Failure("El valor de sexo no es válido.", ErrorType.Validation);
+
         if (!string.IsNullOrWhiteSpace(request.Email) && !EmailFormat.IsMatch(request.Email.Trim()))
             return Result<PatientResponse>.Failure("El formato del email no es válido.", ErrorType.Validation);
 
@@ -112,20 +118,21 @@ public class PatientService : IPatientService
 
         var person = new Person
         {
-            CI = request.CI.Trim(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            BirthDate = request.BirthDate,
+            CI          = request.CI.Trim(),
+            FirstName   = request.FirstName.Trim(),
+            LastName    = request.LastName.Trim(),
+            BirthDate   = request.BirthDate,
+            Sexo        = string.IsNullOrWhiteSpace(request.Sexo) ? null : request.Sexo.Trim(),
             PhoneNumber = request.PhoneNumber?.Trim(),
-            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLower(),
-            CreatedAt = now,
-            UpdatedAt = now
+            Email       = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLower(),
+            CreatedAt   = now,
+            UpdatedAt   = now
         };
 
         var patient = new Patient
         {
-            Person = person,
-            IsActive = true,
+            Person    = person,
+            IsActive  = true,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -148,8 +155,8 @@ public class PatientService : IPatientService
         if (!OnlyLetters.IsMatch(request.LastName.Trim()))
             return Result<PatientResponse>.Failure("El apellido solo puede contener letras y espacios.", ErrorType.Validation);
 
-        if (string.IsNullOrWhiteSpace(request.CI))
-            return Result<PatientResponse>.Failure("El nro. de cédula es obligatorio.", ErrorType.Validation);
+        if (!string.IsNullOrWhiteSpace(request.Sexo) && !SexoValidos.Contains(request.Sexo))
+            return Result<PatientResponse>.Failure("El valor de sexo no es válido.", ErrorType.Validation);
 
         if (!string.IsNullOrWhiteSpace(request.Email) && !EmailFormat.IsMatch(request.Email.Trim()))
             return Result<PatientResponse>.Failure("El formato del email no es válido.", ErrorType.Validation);
@@ -161,10 +168,6 @@ public class PatientService : IPatientService
         if (patient is null)
             return Result<PatientResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
-        // RN-P01: CI único excluyendo el propio registro
-        if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI.Trim() && p.Id != patient.PersonId))
-            return Result<PatientResponse>.Failure("El nro. de cédula ya está registrado.", ErrorType.Conflict);
-
         // RN-P02: email único si se provee, excluyendo el propio registro
         if (!string.IsNullOrWhiteSpace(request.Email) &&
             await _dbContext.Persons.AnyAsync(p => p.Email == request.Email.Trim().ToLower() && p.Id != patient.PersonId))
@@ -172,16 +175,17 @@ public class PatientService : IPatientService
 
         var now = DateTime.UtcNow;
 
+        // CI no es modificable: se preserva el valor original
         patient.Person.FirstName   = request.FirstName.Trim();
         patient.Person.LastName    = request.LastName.Trim();
-        patient.Person.CI          = request.CI.Trim();
         patient.Person.BirthDate   = request.BirthDate;
+        patient.Person.Sexo        = string.IsNullOrWhiteSpace(request.Sexo) ? null : request.Sexo.Trim();
         patient.Person.PhoneNumber = request.PhoneNumber?.Trim();
         patient.Person.Email       = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLower();
         patient.Person.UpdatedAt   = now;
 
-        patient.IsActive   = request.IsActive;
-        patient.UpdatedAt  = now;
+        patient.IsActive  = request.IsActive;
+        patient.UpdatedAt = now;
 
         await _dbContext.SaveChangesAsync();
 
@@ -206,16 +210,17 @@ public class PatientService : IPatientService
 
     private static PatientResponse ToResponse(Patient p) => new()
     {
-        Id = p.Id,
-        UserId = p.UserId,
-        CI = p.Person.CI,
-        FirstName = p.Person.FirstName,
-        LastName = p.Person.LastName,
-        BirthDate = p.Person.BirthDate,
+        Id          = p.Id,
+        UserId      = p.UserId,
+        CI          = p.Person.CI,
+        FirstName   = p.Person.FirstName,
+        LastName    = p.Person.LastName,
+        BirthDate   = p.Person.BirthDate,
+        Sexo        = p.Person.Sexo,
         PhoneNumber = p.Person.PhoneNumber,
-        Email = p.Person.Email,
-        IsActive = p.IsActive,
-        CreatedAt = p.CreatedAt,
-        UpdatedAt = p.UpdatedAt
+        Email       = p.Person.Email,
+        IsActive    = p.IsActive,
+        CreatedAt   = p.CreatedAt,
+        UpdatedAt   = p.UpdatedAt,
     };
 }

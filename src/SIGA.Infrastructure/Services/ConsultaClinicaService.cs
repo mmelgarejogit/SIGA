@@ -17,9 +17,11 @@ public class ConsultaClinicaService : IConsultaClinicaService
         int page, int pageSize, string? search, int? patientId, int? professionalId)
     {
         var query = _db.ConsultasClinicas
+            .Where(c => c.IsActive)
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .AsQueryable();
 
         if (patientId.HasValue)
@@ -66,10 +68,11 @@ public class ConsultaClinicaService : IConsultaClinicaService
             return Result<IEnumerable<ConsultaClinicaResponse>>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
         var consultas = await _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.PatientId == patientId)
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
-            .Where(c => c.PatientId == patientId)
+            .Include(c => c.EstadoConfig)
             .OrderByDescending(c => c.FechaConsulta)
             .ToListAsync();
 
@@ -82,6 +85,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (consulta is null)
@@ -94,8 +98,6 @@ public class ConsultaClinicaService : IConsultaClinicaService
     {
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result<ConsultaClinicaResponse>.Failure("El motivo es obligatorio.", ErrorType.Validation);
-        if (string.IsNullOrWhiteSpace(request.DiagnosticoPrincipal))
-            return Result<ConsultaClinicaResponse>.Failure("El diagnóstico principal es obligatorio.", ErrorType.Validation);
 
         if (!await _db.Patients.AnyAsync(p => p.Id == request.PatientId))
             return Result<ConsultaClinicaResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
@@ -105,16 +107,29 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         var now = DateTime.UtcNow;
 
+        int? estadoFinal;
+        if (request.EstadoConfigId.HasValue)
+        {
+            estadoFinal = request.EstadoConfigId.Value;
+        }
+        else
+        {
+            var estadoAbierta = await _db.EstadosConfig
+                .FirstOrDefaultAsync(e => e.Entidad == "Consulta" && e.CodigoInterno == "Abierta");
+            estadoFinal = estadoAbierta?.Id;
+        }
+
         var consulta = new ConsultaClinica
         {
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
             CitaId = request.CitaId,
-            FechaConsulta = request.FechaConsulta,
+            EstadoConfigId = estadoFinal,
+            FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc),
             Motivo = request.Motivo.Trim(),
             Anamnesis = request.Anamnesis?.Trim(),
             ExamenFisico = request.ExamenFisico?.Trim(),
-            DiagnosticoPrincipal = request.DiagnosticoPrincipal.Trim(),
+            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? string.Empty,
             DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim(),
             PlanTratamiento = request.PlanTratamiento?.Trim(),
             Observaciones = request.Observaciones?.Trim(),
@@ -124,8 +139,14 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         if (request.Receta is not null)
         {
+            var personIdReceta = await _db.Patients
+                .Where(p => p.Id == request.PatientId)
+                .Select(p => (int?)p.PersonId)
+                .FirstOrDefaultAsync();
+
             consulta.Receta = new Receta
             {
+                PersonId = personIdReceta,
                 FechaEmision = request.Receta.FechaEmision,
                 OdEsferico = request.Receta.OdEsferico,
                 OdCilindro = request.Receta.OdCilindro,
@@ -164,13 +185,14 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Patient).ThenInclude(p => p.Person)
             .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
             .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (consulta is null)
             return Result<ConsultaClinicaResponse>.Failure("Consulta no encontrada.", ErrorType.NotFound);
 
         consulta.ProfessionalId = request.ProfessionalId;
-        consulta.FechaConsulta = request.FechaConsulta;
+        consulta.FechaConsulta = DateTime.SpecifyKind(request.FechaConsulta, DateTimeKind.Utc);
         consulta.Motivo = request.Motivo.Trim();
         consulta.Anamnesis = request.Anamnesis?.Trim();
         consulta.ExamenFisico = request.ExamenFisico?.Trim();
@@ -192,7 +214,8 @@ public class ConsultaClinicaService : IConsultaClinicaService
         if (consulta is null)
             return Result<bool>.Failure("Consulta no encontrada.", ErrorType.NotFound);
 
-        _db.ConsultasClinicas.Remove(consulta);
+        consulta.IsActive = false;
+        consulta.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Result<bool>.Success(true);
@@ -211,9 +234,15 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         if (consulta.Receta is null)
         {
+            var personIdReceta = await _db.Patients
+                .Where(p => p.Id == consulta.PatientId)
+                .Select(p => (int?)p.PersonId)
+                .FirstOrDefaultAsync();
+
             consulta.Receta = new Receta
             {
                 ConsultaClinicaId = consultaId,
+                PersonId = personIdReceta,
                 FechaEmision = request.FechaEmision,
                 OdEsferico = request.OdEsferico,
                 OdCilindro = request.OdCilindro,
@@ -255,6 +284,27 @@ public class ConsultaClinicaService : IConsultaClinicaService
         return Result<RecetaResponse>.Success(ToRecetaResponse(consulta.Receta));
     }
 
+    public async Task<Result<ConsultaClinicaResponse>> CambiarEstadoAsync(int id, int estadoConfigId)
+    {
+        var consulta = await _db.ConsultasClinicas
+            .FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
+
+        if (consulta is null)
+            return Result<ConsultaClinicaResponse>.Failure("Consulta no encontrada.", ErrorType.NotFound);
+
+        var estado = await _db.EstadosConfig
+            .FirstOrDefaultAsync(e => e.Id == estadoConfigId && e.Entidad == "Consulta");
+
+        if (estado is null)
+            return Result<ConsultaClinicaResponse>.Failure("Estado no válido para consultas.", ErrorType.Validation);
+
+        consulta.EstadoConfigId = estadoConfigId;
+        consulta.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     private static ConsultaClinicaResponse ToResponse(ConsultaClinica c) => new()
     {
         Id = c.Id,
@@ -274,15 +324,64 @@ public class ConsultaClinicaService : IConsultaClinicaService
         DiagnosticoSecundario = c.DiagnosticoSecundario,
         PlanTratamiento = c.PlanTratamiento,
         Observaciones = c.Observaciones,
+        EstadoId = c.EstadoConfigId,
+        EstadoNombre = c.EstadoConfig?.Nombre,
+        EstadoColor = c.EstadoConfig?.Color,
         Receta = c.Receta is null ? null : ToRecetaResponse(c.Receta),
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt,
     };
 
+    public async Task<Result<ProfessionalDashboardStatsResponse>> GetProfessionalStatsAsync(int professionalId)
+    {
+        var now      = DateTime.UtcNow;
+        var today    = now.Date;
+        var weekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var base_ = _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.ProfessionalId == professionalId);
+
+        var consultasHoy        = await base_.CountAsync(c => c.FechaConsulta.Date == today);
+        var consultasEstaSemana = await base_.CountAsync(c => c.FechaConsulta.Date >= weekStart);
+        var consultasEsteMes    = await base_.CountAsync(c => c.FechaConsulta >= monthStart);
+
+        var pacientesUnicos = await base_
+            .Where(c => c.FechaConsulta >= monthStart)
+            .Select(c => c.PatientId)
+            .Distinct()
+            .CountAsync();
+
+        var recetasEmitidas = await base_
+            .Where(c => c.FechaConsulta >= monthStart && c.Receta != null)
+            .CountAsync();
+
+        var ultimas = await _db.ConsultasClinicas
+            .Where(c => c.IsActive && c.ProfessionalId == professionalId)
+            .Include(c => c.Patient).ThenInclude(p => p.Person)
+            .Include(c => c.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
+            .Include(c => c.Receta)
+            .OrderByDescending(c => c.FechaConsulta)
+            .Take(5)
+            .ToListAsync();
+
+        return Result<ProfessionalDashboardStatsResponse>.Success(new ProfessionalDashboardStatsResponse
+        {
+            ConsultasHoy            = consultasHoy,
+            ConsultasEstaSemana     = consultasEstaSemana,
+            ConsultasEsteMes        = consultasEsteMes,
+            PacientesUnicosEsteMes  = pacientesUnicos,
+            RecetasEmitidasEsteMes  = recetasEmitidas,
+            UltimasConsultas        = ultimas.Select(ToResponse).ToList(),
+        });
+    }
+
     private static RecetaResponse ToRecetaResponse(Receta r) => new()
     {
         Id = r.Id,
         ConsultaClinicaId = r.ConsultaClinicaId,
+        PersonId = r.PersonId,
+        EsExterna = r.ConsultaClinicaId == null,
         FechaEmision = r.FechaEmision,
         OdEsferico = r.OdEsferico,
         OdCilindro = r.OdCilindro,

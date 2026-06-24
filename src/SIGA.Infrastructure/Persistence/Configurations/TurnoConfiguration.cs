@@ -13,6 +13,7 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
 
         builder.Property(x => x.FechaHora).IsRequired();
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
+        builder.Property(x => x.SolicitudCancelacion).IsRequired();
         builder.Property(x => x.Motivo).HasMaxLength(300);
         builder.Property(x => x.Notas).HasMaxLength(1000);
 

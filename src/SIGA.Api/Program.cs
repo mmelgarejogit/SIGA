@@ -2,9 +2,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using QuestPDF.Infrastructure;
 using SIGA.Infrastructure;
 using SIGA.Infrastructure.Persistence;
 using System.Text;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +36,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 var permissionPolicies = new[]
 {
     "ver_pacientes",     "crear_paciente",      "editar_paciente",    "desactivar_paciente",
+    "ver_clientes",      "crear_cliente",       "editar_cliente",     "desactivar_cliente",
     "ver_profesionales", "crear_profesional",   "editar_profesional",
     "ver_especialidades", "gestionar_especialidades",
     "ver_usuarios",      "editar_usuario",
@@ -40,18 +44,37 @@ var permissionPolicies = new[]
     "ver_agenda",        "gestionar_agenda",
     "ver_calendario",
     "ver_historia_clinica",
-    "ver_inventario",
-    "ver_ventas",
-    "ver_reportes",
+        "ver_consultas",
+        "registrar_consulta",
+        "editar_consulta",
+        "eliminar_consulta",
+        "ver_recetas",
+        "ver_inventario",    "gestionar_inventario", "gestionar_pedidos",  "aprobar_pedidos",
+        "registrar_venta",   "ver_ventas",          "gestionar_ventas",   "gestionar_caja",   "aprobar_cierres_caja",
+        "ver_laboratorio",   "gestionar_laboratorio",
+        "ver_reportes",
+        "ver_mis_turnos",
+        "ver_dashboard",
+        "ver_notificaciones",
+        "gestionar_configuracion",
+        "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
+        "ver_empleados",     "gestionar_empleados",
 };
 
 builder.Services.AddAuthorization(options =>
 {
     foreach (var perm in permissionPolicies)
         options.AddPolicy(perm, policy => policy.RequireClaim("permission", perm));
+
+    // Cancelar OC: creador (gestionar_pedidos) O aprobador (aprobar_pedidos)
+    options.AddPolicy("cancelar_pedido", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim("permission", "gestionar_pedidos") ||
+            ctx.User.HasClaim("permission", "aprobar_pedidos")));
 });
 
 // Controllers
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 
 // Swagger
@@ -100,6 +123,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -114,6 +138,19 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
+
+    // Admin bootstrap en TODOS los entornos: sin esto, en Producción no habría
+    // ningún usuario para el primer login. Credenciales configurables por entorno
+    // (Seed:AdminEmail / Seed:AdminPassword → Seed__AdminEmail / Seed__AdminPassword).
+    var hasher = scope.ServiceProvider.GetRequiredService<SIGA.Domain.Security.IPasswordHasher>();
+    var adminEmail    = builder.Configuration["Seed:AdminEmail"]    ?? "admin@siga.com";
+    var adminPassword = builder.Configuration["Seed:AdminPassword"] ?? "12345678";
+    await DbSeeder.SeedAdminAsync(db, hasher, adminEmail, adminPassword);
+
+    if (app.Environment.IsDevelopment())
+    {
+        await DevDataSeeder.SeedAsync(db, hasher);
+    }
 }
 
 app.Run();
