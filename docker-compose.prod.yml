@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SIGA — Stack de producción (VPS Contabo, Ubuntu 24.04)
+#
+# Estructura esperada en la VPS:
+#   ~/siga/
+#     ├── SIGA/        ← este repo (acá viven este compose, Caddyfile y .env)
+#     └── SIGA-Web/    ← repo del frontend (build context relativo ../SIGA-Web)
+#
+# Uso:
+#   cd ~/siga/SIGA
+#   cp .env.example .env   # y completar los valores
+#   docker compose -f docker-compose.prod.yml up -d --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16
+    container_name: siga-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - siga_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [siga_net]
+    # Sin "ports": la DB queda accesible SOLO dentro de la red interna de Docker.
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: siga-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__Secret: ${JWT_SECRET}
+      Jwt__Issuer: siga-api
+      Jwt__Audience: siga-client
+      App__FrontendUrl: "https://${DOMAIN}"
+      Seed__AdminEmail: ${SEED_ADMIN_EMAIL}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD}
+      Resend__ApiKey: ${RESEND_API_KEY}
+      Resend__FromEmail: ${RESEND_FROM_EMAIL}
+      Resend__FromName: ${RESEND_FROM_NAME}
+      HCaptcha__SecretKey: ${HCAPTCHA_SECRET}
+    volumes:
+      - siga_uploads:/app/wwwroot/uploads
+    networks: [siga_net]
+    # Sin "ports": la API solo se alcanza vía Caddy (reverse proxy).
+
+  web:
+    build:
+      context: ../SIGA-Web
+      dockerfile: Dockerfile
+      args:
+        VITE_HCAPTCHA_SITE_KEY: ${VITE_HCAPTCHA_SITE_KEY}
+    container_name: siga-web
+    restart: unless-stopped
+    networks: [siga_net]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: siga-caddy
+    restart: unless-stopped
+    depends_on: [api, web]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [siga_net]
+
+volumes:
+  siga_db_data:
+  siga_uploads:
+  caddy_data:
+  caddy_config:
+
+networks:
+  siga_net:

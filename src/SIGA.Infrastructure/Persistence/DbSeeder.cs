@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SIGA.Domain.Entities;
+using SIGA.Domain.Security;
 
 namespace SIGA.Infrastructure.Persistence;
 
@@ -312,6 +313,42 @@ public static class DbSeeder
             db.Servicios.AddRange(servicios);
             await db.SaveChangesAsync();
         }
+    }
+
+    // ── Admin bootstrap (corre en TODOS los entornos, incluido Producción) ──────
+    // Sin esto, en Producción no existiría ningún usuario para el primer login
+    // (el admin de demo vive en DevDataSeeder, que solo corre en Development).
+    // Idempotente por el CI-sentinel "99999999": DevDataSeeder reutiliza el mismo
+    // sentinel, por lo que en dev no se duplica el admin.
+    public static async Task SeedAdminAsync(AppDbContext db, IPasswordHasher hasher, string email, string password)
+    {
+        if (await db.Persons.AnyAsync(p => p.CI == "99999999")) return;
+
+        var adminRole = await db.Roles.FirstAsync(r => r.Type == "admin");
+        var now = DateTime.UtcNow;
+
+        var person = new Person
+        {
+            CI        = "99999999",
+            FirstName = "Admin",
+            LastName  = "SIGA",
+            BirthDate = new DateOnly(1990, 1, 1),
+            Email     = email,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        var user = new User
+        {
+            Person          = person,
+            PasswordHash    = hasher.Hash(password),
+            IsActive        = true,
+            IsEmailVerified = true,
+            CreatedAt       = now,
+            UpdatedAt       = now,
+            UserRoles       = [new UserRole { RoleId = adminRole.Id }],
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
     }
 
     // Diseños del cristal a pedido, con precio base sugerido (editable por venta).

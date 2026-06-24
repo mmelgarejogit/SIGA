@@ -139,9 +139,16 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
 
+    // Admin bootstrap en TODOS los entornos: sin esto, en Producción no habría
+    // ningún usuario para el primer login. Credenciales configurables por entorno
+    // (Seed:AdminEmail / Seed:AdminPassword → Seed__AdminEmail / Seed__AdminPassword).
+    var hasher = scope.ServiceProvider.GetRequiredService<SIGA.Domain.Security.IPasswordHasher>();
+    var adminEmail    = builder.Configuration["Seed:AdminEmail"]    ?? "admin@siga.com";
+    var adminPassword = builder.Configuration["Seed:AdminPassword"] ?? "12345678";
+    await DbSeeder.SeedAdminAsync(db, hasher, adminEmail, adminPassword);
+
     if (app.Environment.IsDevelopment())
     {
-        var hasher = scope.ServiceProvider.GetRequiredService<SIGA.Domain.Security.IPasswordHasher>();
         await DevDataSeeder.SeedAsync(db, hasher);
     }
 }
