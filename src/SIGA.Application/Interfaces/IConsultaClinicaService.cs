@@ -7,6 +7,10 @@ public interface IConsultaClinicaService
 {
     Task<Result<PagedResult<ConsultaClinicaResponse>>> GetAllAsync(int page, int pageSize, string? search, int? patientId, int? professionalId);
     Task<Result<IEnumerable<ConsultaClinicaResponse>>> GetByPatientAsync(int patientId);
+
+    // ── Vista del propio paciente (resuelve el patientId desde el userId del JWT) ──
+    Task<Result<IEnumerable<ConsultaClinicaResponse>>> GetMisConsultasAsync(int userId);
+    Task<Result<ConsultaClinicaResponse>> GetMiConsultaAsync(int userId, int consultaId);
     Task<Result<ConsultaClinicaResponse>> GetByIdAsync(int id);
     Task<Result<ConsultaClinicaResponse>> CreateAsync(CreateConsultaClinicaRequest request);
     Task<Result<ConsultaClinicaResponse>> UpdateAsync(int id, UpdateConsultaClinicaRequest request);

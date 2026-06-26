@@ -91,6 +91,42 @@ public class TurnoService : ITurnoService
         return Result<IEnumerable<SlotDisponibleResponse>>.Success(disponibles);
     }
 
+    public async Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha)
+    {
+        // Profesionales con un horario activo para ese día de la semana.
+        var profIds = await _db.HorariosProfesional
+            .Where(h => h.DiaSemana == fecha.DayOfWeek && h.Activo)
+            .Select(h => h.ProfessionalId)
+            .Distinct()
+            .ToListAsync();
+
+        // Excluir los que tienen esa fecha bloqueada.
+        var bloqueados = await _db.BloqueosFecha
+            .Where(b => b.Fecha == fecha && profIds.Contains(b.ProfessionalId))
+            .Select(b => b.ProfessionalId)
+            .ToListAsync();
+
+        var profesionales = await _db.Professionals
+            .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
+            .Where(p => profIds.Contains(p.Id)
+                     && !bloqueados.Contains(p.Id)
+                     && p.User.IsActive)
+            .OrderBy(p => p.User.Person.FirstName)
+            .ToListAsync();
+
+        var result = profesionales.Select(p => new ProfesionalDisponibleResponse
+        {
+            Id           = p.Id,
+            Nombre       = $"{p.User.Person.FirstName} {p.User.Person.LastName}",
+            Especialidad = p.Especialidades.Count > 0
+                ? string.Join(", ", p.Especialidades.Select(e => e.Especialidad.Nombre))
+                : null,
+        });
+
+        return Result<IEnumerable<ProfesionalDisponibleResponse>>.Success(result);
+    }
+
     public async Task<Result<TurnoResponse>> CreateAsync(CreateTurnoRequest request)
     {
         var professional = await _db.Professionals
@@ -258,7 +294,9 @@ public class TurnoService : ITurnoService
 
         var tieneActivo = await _db.Turnos.AnyAsync(t =>
             t.PatientId == patientId.Value &&
-            t.Estado != TurnoEstado.Cancelado);
+            (t.Estado == TurnoEstado.Pendiente ||
+             t.Estado == TurnoEstado.Confirmado ||
+             t.Estado == TurnoEstado.Presente));
 
         if (tieneActivo)
             return Result<TurnoResponse>.Failure("Ya tenés un turno activo. Cancelá o completá el turno existente antes de reservar uno nuevo.", ErrorType.Conflict);

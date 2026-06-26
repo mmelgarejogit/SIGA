@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.DTOs.Clinica;
 using SIGA.Application.Interfaces;
+using System.Security.Claims;
 
 namespace SIGA.Api.Controllers;
 
@@ -23,6 +24,8 @@ public class ConsultasController : BaseController
 
     private int? CallerProfessionalId =>
         User.FindFirst("professional_id") is { } c && int.TryParse(c.Value, out var id) ? id : null;
+
+    private int CurrentUserId => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
     [HttpGet]
     [Authorize(Policy = "ver_consultas")]
@@ -125,6 +128,36 @@ public class ConsultasController : BaseController
     public async Task<IActionResult> GetRecetaPdf(int id)
     {
         var result = await _service.GetByIdAsync(id);
+        if (!result.IsSuccess)
+            return ToHttpResponse(result);
+
+        var consulta = result.Value!;
+        if (consulta.Receta is null)
+            return NotFound(new { message = "Esta consulta no tiene receta." });
+
+        var configResult = await _configuracion.GetAsync();
+        var config = configResult.IsSuccess ? configResult.Value : null;
+
+        var pdf = _pdfGenerator.Generate(consulta, config);
+        var filename = $"receta_{consulta.PatientLastName}_{consulta.Receta.FechaEmision:yyyyMMdd}.pdf";
+        return File(pdf, "application/pdf", filename);
+    }
+
+    // ── Portal del paciente (solo sus propias consultas/recetas) ─────────────
+
+    [HttpGet("mis-consultas")]
+    [Authorize(Policy = "ver_mis_turnos")]
+    public async Task<IActionResult> GetMisConsultas()
+    {
+        var result = await _service.GetMisConsultasAsync(CurrentUserId);
+        return ToHttpResponse(result);
+    }
+
+    [HttpGet("{id:int}/mi-receta/pdf")]
+    [Authorize(Policy = "ver_mis_turnos")]
+    public async Task<IActionResult> GetMiRecetaPdf(int id)
+    {
+        var result = await _service.GetMiConsultaAsync(CurrentUserId, id);
         if (!result.IsSuccess)
             return ToHttpResponse(result);
 
