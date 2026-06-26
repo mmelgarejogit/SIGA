@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626171437_047_LabEnvioDetalle")]
+    partial class _047_LabEnvioDetalle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2491,20 +2494,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.ToTable("trabajos_pedido_tratamientos", (string)null);
                 });
 
-            modelBuilder.Entity("SIGA.Domain.Entities.EgresoFacturaLaboratorio", b =>
-                {
-                    b.HasBaseType("SIGA.Domain.Entities.Egreso");
-
-                    b.Property<int>("FacturaLaboratorioId")
-                        .HasColumnType("integer")
-                        .HasColumnName("factura_laboratorio_id");
-
-                    b.HasIndex("FacturaLaboratorioId")
-                        .IsUnique();
-
-                    b.HasDiscriminator().HasValue(4);
-                });
-
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>
                 {
                     b.HasBaseType("SIGA.Domain.Entities.Egreso");
@@ -3387,17 +3376,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TratamientosId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("SIGA.Domain.Entities.EgresoFacturaLaboratorio", b =>
-                {
-                    b.HasOne("SIGA.Domain.Entities.FacturaLaboratorio", "FacturaLaboratorio")
-                        .WithOne()
-                        .HasForeignKey("SIGA.Domain.Entities.EgresoFacturaLaboratorio", "FacturaLaboratorioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("FacturaLaboratorio");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.FacturaCompra", b =>

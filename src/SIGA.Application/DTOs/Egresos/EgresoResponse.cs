@@ -47,4 +47,7 @@ public class EgresoResponse
     // SalarioEmpleado
     public int? EmpleadoId { get; set; }
     public string? EmpleadoNombre { get; set; }
+
+    // FacturaLaboratorio
+    public int? FacturaLaboratorioId { get; set; }
 }

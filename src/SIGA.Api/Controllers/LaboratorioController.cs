@@ -29,8 +29,8 @@ public class LaboratorioController(ILaboratorioService lab) : BaseController
 
     [HttpPut("pedidos/{id:int}/enviar")]
     [Authorize(Policy = "gestionar_laboratorio")]
-    public async Task<IActionResult> Enviar(int id)
-        => ToHttpResponse(await lab.RegistrarEnvioAsync(id));
+    public async Task<IActionResult> Enviar(int id, [FromBody] RegistrarEnvioRequest request)
+        => ToHttpResponse(await lab.RegistrarEnvioAsync(id, request));
 
     [HttpPut("pedidos/{id:int}/recibir")]
     [Authorize(Policy = "gestionar_laboratorio")]

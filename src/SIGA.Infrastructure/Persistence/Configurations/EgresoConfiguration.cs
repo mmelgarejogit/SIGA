@@ -15,7 +15,8 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
             .HasValue<FacturaCompra>(TipoEgreso.FacturaCompra)
             .HasValue<Honorario>(TipoEgreso.Honorario)
             .HasValue<GastoGeneral>(TipoEgreso.GastoGeneral)
-            .HasValue<SalarioEmpleado>(TipoEgreso.Salario);
+            .HasValue<SalarioEmpleado>(TipoEgreso.Salario)
+            .HasValue<EgresoFacturaLaboratorio>(TipoEgreso.FacturaLaboratorio);
 
         builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();

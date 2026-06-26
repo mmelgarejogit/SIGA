@@ -32,6 +32,11 @@ public class TrabajoPedido
     public DateOnly? FechaEnvio { get; set; }
     public DateOnly? FechaRecepcion { get; set; }
 
+    // Compromiso del laboratorio al enviar: permite medir atrasos reales contra lo prometido.
+    public DateOnly? FechaEstimadaEntrega { get; set; }
+    // Cómo se comunicó el pedido al laboratorio (WhatsApp/Email/Portal/…). Registro, no transmisión.
+    public MedioEnvioLaboratorio? MedioEnvio { get; set; }
+
     public string? Observacion { get; set; }
 
     public string? ObservacionAprobacion { get; set; }

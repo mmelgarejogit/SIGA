@@ -42,7 +42,7 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(tp));
     }
 
-    public async Task<Result<TrabajoPedidoListDto>> RegistrarEnvioAsync(int id)
+    public async Task<Result<TrabajoPedidoListDto>> RegistrarEnvioAsync(int id, RegistrarEnvioRequest request)
     {
         var tp = await TpBaseQuery().FirstOrDefaultAsync(t => t.Id == id);
         if (tp is null) return Result<TrabajoPedidoListDto>.Failure("Pedido no encontrado.", ErrorType.NotFound);
@@ -50,9 +50,31 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         if (tp.Estado != EstadoTrabajoPedido.PendienteEnvio)
             return Result<TrabajoPedidoListDto>.Failure("El pedido no está aprobado para envío.", ErrorType.Conflict);
 
-        tp.Estado     = EstadoTrabajoPedido.Enviado;
-        tp.FechaEnvio = DateOnly.FromDateTime(DateTime.UtcNow);
-        tp.UpdatedAt  = DateTime.UtcNow;
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        DateOnly? fechaEstimada = null;
+        if (!string.IsNullOrWhiteSpace(request.FechaEstimadaEntrega))
+        {
+            if (!DateOnly.TryParse(request.FechaEstimadaEntrega, out var fe))
+                return Result<TrabajoPedidoListDto>.Failure("Fecha estimada de entrega inválida.", ErrorType.Validation);
+            if (fe < hoy)
+                return Result<TrabajoPedidoListDto>.Failure("La fecha estimada de entrega no puede ser anterior a hoy.", ErrorType.Validation);
+            fechaEstimada = fe;
+        }
+
+        MedioEnvioLaboratorio? medio = null;
+        if (!string.IsNullOrWhiteSpace(request.MedioEnvio))
+        {
+            if (!Enum.TryParse<MedioEnvioLaboratorio>(request.MedioEnvio, out var m))
+                return Result<TrabajoPedidoListDto>.Failure("Medio de envío inválido.", ErrorType.Validation);
+            medio = m;
+        }
+
+        tp.Estado               = EstadoTrabajoPedido.Enviado;
+        tp.FechaEnvio           = hoy;
+        tp.FechaEstimadaEntrega = fechaEstimada;
+        tp.MedioEnvio           = medio;
+        tp.UpdatedAt            = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
         return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(tp));
@@ -89,7 +111,7 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         if (tp.Factura != null)
             return Result<TrabajoPedidoListDto>.Failure("Este pedido ya tiene una factura registrada.", ErrorType.Conflict);
 
-        db.FacturasLaboratorio.Add(new FacturaLaboratorio
+        var fl = new FacturaLaboratorio
         {
             TrabajoPedidoId = id,
             NumeroFactura   = request.NumeroFactura.Trim(),
@@ -99,6 +121,22 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
             Observaciones   = request.Observaciones?.Trim(),
             EmitidoPorId    = userId,
             CreatedAt       = DateTime.UtcNow,
+        };
+        db.FacturasLaboratorio.Add(fl);
+
+        var labNombre     = tp.LaboratorioProveedor?.Nombre ?? "laboratorio";
+        var clienteNombre = tp.Venta?.Cliente == null
+            ? "Consumidor Final"
+            : $"{tp.Venta.Cliente.Person?.FirstName} {tp.Venta.Cliente.Person?.LastName}".Trim();
+
+        db.EgresosFacturaLaboratorio.Add(new EgresoFacturaLaboratorio
+        {
+            FacturaLaboratorio = fl,
+            Monto              = request.Monto,
+            Concepto           = $"Factura lab. {labNombre} — {tp.Venta?.NumeroComprobante ?? $"Pedido #{id}"} ({clienteNombre})",
+            Observaciones      = request.Observaciones?.Trim(),
+            FechaEmision       = DateOnly.Parse(request.FechaEmision),
+            Estado             = EstadoEgreso.Pendiente,
         });
 
         await db.SaveChangesAsync();
@@ -135,6 +173,8 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
         ObservacionAprobacion = tp.ObservacionAprobacion,
         AprobadoPorNombre     = tp.AprobadoPor == null ? null : $"{tp.AprobadoPor.Person?.FirstName} {tp.AprobadoPor.Person?.LastName}".Trim(),
         FechaEnvio            = tp.FechaEnvio?.ToString("yyyy-MM-dd"),
+        FechaEstimadaEntrega  = tp.FechaEstimadaEntrega?.ToString("yyyy-MM-dd"),
+        MedioEnvio            = tp.MedioEnvio?.ToString(),
         FechaRecepcion        = tp.FechaRecepcion?.ToString("yyyy-MM-dd"),
         Observacion           = tp.Observacion,
         Factura               = tp.Factura == null ? null : new FacturaLaboratorioDto

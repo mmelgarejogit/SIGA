@@ -17,6 +17,8 @@ public class RegistrarFacturaPedidoRequest : IValidatableObject
     [Required(ErrorMessage = "La condición de venta es obligatoria.")]
     public string CondicionVenta { get; set; } = "Contado";
 
+    public string? MetodoPago { get; set; }
+
     public string? Observaciones { get; set; }
 
     /// <summary>
@@ -31,5 +33,11 @@ public class RegistrarFacturaPedidoRequest : IValidatableObject
             yield return new ValidationResult(
                 "La fecha de vencimiento es obligatoria para facturas a crédito.",
                 [nameof(FechaVencimiento)]);
+
+        if (CondicionVenta?.Equals("Contado", StringComparison.OrdinalIgnoreCase) == true
+            && string.IsNullOrWhiteSpace(MetodoPago))
+            yield return new ValidationResult(
+                "El método de pago es obligatorio para facturas al contado.",
+                [nameof(MetodoPago)]);
     }
 }
