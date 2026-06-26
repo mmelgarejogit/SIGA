@@ -71,6 +71,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(ctx =>
             ctx.User.HasClaim("permission", "gestionar_pedidos") ||
             ctx.User.HasClaim("permission", "aprobar_pedidos")));
+
+    // Ver horarios disponibles: staff de agenda (ver_agenda) O el paciente auto-gestionando (ver_mis_turnos)
+    options.AddPolicy("ver_disponibles", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim("permission", "ver_agenda") ||
+            ctx.User.HasClaim("permission", "ver_mis_turnos")));
 });
 
 // Controllers

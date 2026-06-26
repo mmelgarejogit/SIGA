@@ -79,6 +79,42 @@ public class ConsultaClinicaService : IConsultaClinicaService
         return Result<IEnumerable<ConsultaClinicaResponse>>.Success(consultas.Select(ToResponse));
     }
 
+    private async Task<int?> ResolvePatientIdAsync(int userId)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
+        return patient?.Id;
+    }
+
+    public async Task<Result<IEnumerable<ConsultaClinicaResponse>>> GetMisConsultasAsync(int userId)
+    {
+        var patientId = await ResolvePatientIdAsync(userId);
+        if (!patientId.HasValue)
+            return Result<IEnumerable<ConsultaClinicaResponse>>.Failure("No se encontró perfil de paciente asociado a tu cuenta.", ErrorType.NotFound);
+
+        return await GetByPatientAsync(patientId.Value);
+    }
+
+    public async Task<Result<ConsultaClinicaResponse>> GetMiConsultaAsync(int userId, int consultaId)
+    {
+        var patientId = await ResolvePatientIdAsync(userId);
+        if (!patientId.HasValue)
+            return Result<ConsultaClinicaResponse>.Failure("No se encontró perfil de paciente asociado a tu cuenta.", ErrorType.NotFound);
+
+        var consulta = await _db.ConsultasClinicas
+            .Where(c => c.IsActive)
+            .Include(c => c.Patient).ThenInclude(p => p.Person)
+            .Include(c => c.Professional).ThenInclude(pr => pr.User).ThenInclude(u => u.Person)
+            .Include(c => c.Receta)
+            .Include(c => c.EstadoConfig)
+            .FirstOrDefaultAsync(c => c.Id == consultaId && c.PatientId == patientId.Value);
+
+        // Devolver NotFound aunque exista pero no sea del paciente (no filtrar existencia).
+        if (consulta is null)
+            return Result<ConsultaClinicaResponse>.Failure("Consulta no encontrada.", ErrorType.NotFound);
+
+        return Result<ConsultaClinicaResponse>.Success(ToResponse(consulta));
+    }
+
     public async Task<Result<ConsultaClinicaResponse>> GetByIdAsync(int id)
     {
         var consulta = await _db.ConsultasClinicas
