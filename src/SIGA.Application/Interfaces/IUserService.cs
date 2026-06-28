@@ -7,4 +7,5 @@ public interface IUserService
 {
     Task<Result<IEnumerable<UserResponse>>> GetAllAsync();
     Task<Result<bool>> DeactivateAsync(int id);
+    Task<Result<bool>> AssignSucursalAsync(int userId, int? sucursalId);
 }

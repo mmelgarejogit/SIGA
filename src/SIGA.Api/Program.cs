@@ -59,6 +59,7 @@ var permissionPolicies = new[]
         "gestionar_configuracion",
         "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
         "ver_empleados",     "gestionar_empleados",
+        "ver_sucursales",    "gestionar_sucursales", "ver_todas_sucursales", "transferir_stock",
 };
 
 builder.Services.AddAuthorization(options =>

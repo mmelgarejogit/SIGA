@@ -6,6 +6,8 @@ public class StockLoteDto
     public int ProductoId { get; set; }
     public string ProductoNombre { get; set; } = "";
     public string? ProductoSku { get; set; }
+    public int SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public string? MarcaNombre { get; set; }
     public string? ModeloNombre { get; set; }
     public string Lote { get; set; } = "";
@@ -34,6 +36,8 @@ public class RegistrarConteoRequest
 public class ConteoInventarioDto
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public string CreadoPorNombre { get; set; } = "";
     public string FechaConteo { get; set; } = "";
     public string Estado { get; set; } = "";

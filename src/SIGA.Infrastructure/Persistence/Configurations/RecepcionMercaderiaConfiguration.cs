@@ -29,5 +29,10 @@ public class RecepcionMercaderiaConfiguration : IEntityTypeConfiguration<Recepci
             .WithMany()
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Sucursal)
+            .WithMany()
+            .HasForeignKey(x => x.SucursalId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

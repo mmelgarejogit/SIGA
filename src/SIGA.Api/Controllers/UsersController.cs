@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
 
 namespace SIGA.Api.Controllers;
@@ -29,6 +30,14 @@ public class UsersController : BaseController
     public async Task<IActionResult> Deactivate(int id)
     {
         var result = await _userService.DeactivateAsync(id);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPut("{id:int}/sucursal")]
+    [Authorize(Policy = "editar_usuario")]
+    public async Task<IActionResult> AssignSucursal(int id, [FromBody] AssignSucursalRequest request)
+    {
+        var result = await _userService.AssignSucursalAsync(id, request.SucursalId);
         return ToHttpResponse(result);
     }
 }

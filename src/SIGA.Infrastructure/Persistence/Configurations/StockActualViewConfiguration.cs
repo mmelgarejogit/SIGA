@@ -12,6 +12,7 @@ public class StockActualViewConfiguration : IEntityTypeConfiguration<StockActual
         builder.ToView("vw_stock_actual");
 
         builder.Property(v => v.ProductoId).HasColumnName("producto_id");
+        builder.Property(v => v.SucursalId).HasColumnName("sucursal_id");
         builder.Property(v => v.StockActual).HasColumnName("stock_actual");
     }
 }

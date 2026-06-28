@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class ComprasService(AppDbContext db) : IComprasService
+public class ComprasService(AppDbContext db, ICurrentUserContext current) : IComprasService
 {
     // ─────────────────────────────────────────────────────────────────────────────
     // Crear pedido (Borrador)
@@ -38,6 +38,7 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         var pedido = new PedidoProveedor
         {
+            SucursalId    = await SucursalResolver.WriteBranchAsync(db, current),
             ProveedorId   = request.ProveedorId,
             Estado        = EstadoPedido.Borrador,
             Observaciones = request.Observaciones?.Trim(),
@@ -182,6 +183,7 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         var factura = new FacturaCompra
         {
+            SucursalId        = pedido.SucursalId,
             ProveedorId       = pedido.ProveedorId,
             PedidoProveedorId = id,
             NroFactura        = nroFactura,
@@ -254,6 +256,7 @@ public class ComprasService(AppDbContext db) : IComprasService
         db.MovimientosStock.Add(new MovimientoStock
         {
             ProductoId      = item.ProductoId,
+            SucursalId      = await SucursalResolver.WriteBranchAsync(db, current),
             Tipo            = "Salida",
             Cantidad        = request.Cantidad,
             Motivo          = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
@@ -282,6 +285,9 @@ public class ComprasService(AppDbContext db) : IComprasService
         int? proveedorId, string? estado, int page, int pageSize)
     {
         var query = db.PedidosProveedor.AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(p => p.SucursalId == b);
 
         if (proveedorId.HasValue)
             query = query.Where(p => p.ProveedorId == proveedorId.Value);

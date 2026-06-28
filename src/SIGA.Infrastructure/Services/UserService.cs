@@ -22,6 +22,7 @@ public class UserService : IUserService
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.Professional)
             .Include(u => u.Patient)
+            .Include(u => u.Sucursal)
             .OrderByDescending(u => u.CreatedAt)
             .ToListAsync();
 
@@ -46,10 +47,12 @@ public class UserService : IUserService
                 LastName    = u.Person.LastName,
                 Email       = u.Person.Email,
                 PhoneNumber = u.Person.PhoneNumber,
-                IsActive    = u.IsActive,
-                Type        = type,
-                Roles       = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
-                CreatedAt   = u.CreatedAt,
+                IsActive       = u.IsActive,
+                Type           = type,
+                SucursalId     = u.SucursalId,
+                SucursalNombre = u.Sucursal?.Nombre,
+                Roles          = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+                CreatedAt      = u.CreatedAt,
             };
         });
 
@@ -67,6 +70,23 @@ public class UserService : IUserService
 
         user.IsActive  = false;
         user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> AssignSucursalAsync(int userId, int? sucursalId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user is null)
+            return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
+
+        if (sucursalId.HasValue &&
+            !await _dbContext.Sucursales.AnyAsync(s => s.Id == sucursalId.Value && s.IsActive))
+            return Result<bool>.Failure("La sucursal indicada no existe o está inactiva.", ErrorType.Validation);
+
+        user.SucursalId = sucursalId;
+        user.UpdatedAt  = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
         return Result<bool>.Success(true);

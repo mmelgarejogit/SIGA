@@ -5,6 +5,8 @@ public enum EstadoSesionCaja { Abierta, Cerrada, PendienteAprobacion }
 public class SesionCaja
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public EstadoSesionCaja Estado { get; set; }
     public decimal MontoInicial { get; set; }
 

@@ -33,5 +33,8 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
         builder.Property(x => x.MotivoPagoExterno).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
+
+        builder.HasOne(x => x.Sucursal).WithMany()
+            .HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
     }
 }

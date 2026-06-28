@@ -3,6 +3,8 @@ namespace SIGA.Domain.Entities;
 public class Timbrado
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public string NumeroTimbrado { get; set; } = null!;
     public string Establecimiento { get; set; } = null!;
     public string PuntoExpedicion { get; set; } = null!;

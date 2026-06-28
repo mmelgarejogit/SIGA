@@ -10,10 +10,12 @@ namespace SIGA.Infrastructure.Services;
 public class HorarioProfesionalService : IHorarioProfesionalService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ICurrentUserContext _current;
 
-    public HorarioProfesionalService(AppDbContext dbContext)
+    public HorarioProfesionalService(AppDbContext dbContext, ICurrentUserContext current)
     {
         _dbContext = dbContext;
+        _current = current;
     }
 
     public async Task<Result<IEnumerable<HorarioProfesionalResponse>>> GetHorariosAsync(int professionalId)
@@ -39,9 +41,12 @@ public class HorarioProfesionalService : IHorarioProfesionalService
         if (validationError is not null)
             return Result<IEnumerable<HorarioProfesionalResponse>>.Failure(validationError, ErrorType.Validation);
 
+        // Los horarios se gestionan por sucursal: solo se reemplazan los de la sucursal del usuario.
+        var branch = await SucursalResolver.WriteBranchAsync(_dbContext, _current);
+
         var existing = await _dbContext.HorariosProfesional
             .Include(h => h.Pausas)
-            .Where(h => h.ProfessionalId == professionalId)
+            .Where(h => h.ProfessionalId == professionalId && h.SucursalId == branch)
             .ToListAsync();
 
         _dbContext.HorariosProfesional.RemoveRange(existing);
@@ -49,6 +54,7 @@ public class HorarioProfesionalService : IHorarioProfesionalService
         var nuevos = request.Horarios.Select(h => new HorarioProfesional
         {
             ProfessionalId = professionalId,
+            SucursalId = branch,
             DiaSemana = h.DiaSemana,
             HoraInicio = h.HoraInicio,
             HoraFin = h.HoraFin,

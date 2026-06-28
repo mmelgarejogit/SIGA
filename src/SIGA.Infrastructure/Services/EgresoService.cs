@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class EgresoService(AppDbContext db) : IEgresoService
+public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgresoService
 {
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,6 +151,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var factura = new FacturaCompra
         {
+            SucursalId        = await SucursalResolver.WriteBranchAsync(db, current),
             ProveedorId       = request.ProveedorId,
             PedidoProveedorId = request.PedidoProveedorId,
             NroFactura        = request.NroFactura?.Trim(),
@@ -194,6 +195,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var honorario = new Honorario
         {
+            SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
             ProfessionalId   = request.ProfessionalId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -229,6 +231,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var gasto = new GastoGeneral
         {
+            SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
             CategoriaGastoId = request.CategoriaGastoId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -265,6 +268,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
 
         var salario = new SalarioEmpleado
         {
+            SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
             EmpleadoId       = request.EmpleadoId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -315,9 +319,10 @@ public class EgresoService(AppDbContext db) : IEgresoService
         }
         else
         {
-            var sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            var branch = await SucursalResolver.WriteBranchAsync(db, current);
+            var sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == branch);
             if (sesion == null)
-                return Result<EgresoResponse>.Failure("No hay una caja abierta. Abrí la caja antes de registrar pagos.", ErrorType.Conflict);
+                return Result<EgresoResponse>.Failure("No hay una caja abierta en tu sucursal. Abrí la caja antes de registrar pagos.", ErrorType.Conflict);
 
             db.MovimientosCaja.Add(new MovimientoCaja
             {
@@ -325,6 +330,7 @@ public class EgresoService(AppDbContext db) : IEgresoService
                 Monto           = egreso.Monto,
                 Concepto        = $"Pago egreso — {egreso.Concepto}",
                 MetodoPago      = metodo,
+                SucursalId      = sesion.SucursalId,
                 EgresoId        = egreso.Id,
                 SesionCajaId    = sesion.Id,
                 RegistradoPorId = userId,
@@ -405,6 +411,9 @@ public class EgresoService(AppDbContext db) : IEgresoService
         bool? soloVencidos, int page, int pageSize)
     {
         var query = BaseQuery();
+
+        if (current.SucursalId is int b)
+            query = query.Where(e => e.SucursalId == b);
 
         if (!string.IsNullOrWhiteSpace(tipo) && Enum.TryParse<TipoEgreso>(tipo, ignoreCase: true, out var t))
             query = query.Where(e => e.Tipo == t);

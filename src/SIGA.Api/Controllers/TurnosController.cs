@@ -33,18 +33,21 @@ public class TurnosController : BaseController
     [Authorize(Policy = "ver_disponibles")]
     public async Task<IActionResult> GetDisponibles(
         [FromQuery] int professionalId,
-        [FromQuery] DateOnly fecha)
+        [FromQuery] DateOnly fecha,
+        [FromQuery] int? sucursalId)
     {
-        var result = await _turnoService.GetSlotsDisponiblesAsync(professionalId, fecha);
+        var result = await _turnoService.GetSlotsDisponiblesAsync(professionalId, fecha, sucursalId);
         return ToHttpResponse(result);
     }
 
     /// <summary>Profesionales con horario activo en la fecha dada — para el flujo de reserva del paciente.</summary>
     [HttpGet("profesionales-disponibles")]
     [Authorize(Policy = "ver_mis_turnos")]
-    public async Task<IActionResult> GetProfesionalesDisponibles([FromQuery] DateOnly fecha)
+    public async Task<IActionResult> GetProfesionalesDisponibles(
+        [FromQuery] DateOnly fecha,
+        [FromQuery] int? sucursalId)
     {
-        var result = await _turnoService.GetProfesionalesDisponiblesAsync(fecha);
+        var result = await _turnoService.GetProfesionalesDisponiblesAsync(fecha, sucursalId);
         return ToHttpResponse(result);
     }
 

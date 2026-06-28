@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class RecepcionesService(AppDbContext db) : IRecepcionesService
+public class RecepcionesService(AppDbContext db, ICurrentUserContext current) : IRecepcionesService
 {
     // ─────────────────────────────────────────────────────────────────────────
     // Listado de recepciones con filtros
@@ -27,6 +27,9 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
             .Include(r => r.User).ThenInclude(u => u.Person)
             .Include(r => r.Items)
             .AsQueryable();
+
+        if (current.SucursalId is int suc)
+            query = query.Where(r => r.SucursalId == suc);
 
         if (proveedorId.HasValue)
             query = query.Where(r => r.PedidoProveedor.ProveedorId == proveedorId.Value);
@@ -134,8 +137,12 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
                 "Debe indicar al menos un ítem a recibir.", ErrorType.Validation);
 
         // Crear la recepción
+        // La recepción (y su stock) pertenece a la sucursal de la OC.
+        var branch = pedido.SucursalId;
+
         var recepcion = new RecepcionMercaderia
         {
+            SucursalId        = branch,
             PedidoProveedorId = pedido.Id,
             FacturaCompraId   = factura.Id,
             FechaRecepcion    = fechaRecepcion,
@@ -185,6 +192,7 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
                 StockLote        = tieneLote ? new StockLote
                 {
                     ProductoId       = item.ProductoId,
+                    SucursalId       = branch,
                     Lote             = loteTrim!,
                     FechaVencimiento = venc,
                     CantidadInicial  = rec.CantidadRecibida,
@@ -201,6 +209,7 @@ public class RecepcionesService(AppDbContext db) : IRecepcionesService
             db.MovimientosStock.Add(new MovimientoStock
             {
                 ProductoId      = item.ProductoId,
+                SucursalId      = branch,
                 Tipo            = "Entrada",
                 Cantidad        = rec.CantidadRecibida,
                 Motivo          = $"Recepción — OC #{pedido.Id} / Fact. {factura.NroFactura}",

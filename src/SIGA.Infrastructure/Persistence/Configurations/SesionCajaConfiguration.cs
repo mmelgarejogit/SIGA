@@ -20,6 +20,8 @@ public class SesionCajaConfiguration : IEntityTypeConfiguration<SesionCaja>
 
         builder.Property(x => x.MotivoRechazo).HasMaxLength(500);
 
+        builder.HasOne(x => x.Sucursal).WithMany()
+            .HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.AbiertaPor).WithMany()
             .HasForeignKey(x => x.AbiertaPorId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.CerradaPor).WithMany()

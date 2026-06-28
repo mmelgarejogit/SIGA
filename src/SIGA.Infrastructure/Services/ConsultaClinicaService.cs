@@ -10,8 +10,13 @@ namespace SIGA.Infrastructure.Services;
 public class ConsultaClinicaService : IConsultaClinicaService
 {
     private readonly AppDbContext _db;
+    private readonly ICurrentUserContext _current;
 
-    public ConsultaClinicaService(AppDbContext db) => _db = db;
+    public ConsultaClinicaService(AppDbContext db, ICurrentUserContext current)
+    {
+        _db = db;
+        _current = current;
+    }
 
     public async Task<Result<PagedResult<ConsultaClinicaResponse>>> GetAllAsync(
         int page, int pageSize, string? search, int? patientId, int? professionalId)
@@ -23,6 +28,9 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.Receta)
             .Include(c => c.EstadoConfig)
             .AsQueryable();
+
+        if (_current.SucursalId is int suc)
+            query = query.Where(c => c.SucursalId == suc);
 
         if (patientId.HasValue)
             query = query.Where(c => c.PatientId == patientId.Value);
@@ -157,6 +165,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
         var consulta = new ConsultaClinica
         {
+            SucursalId = await SucursalResolver.WriteBranchAsync(_db, _current),
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
             CitaId = request.CitaId,

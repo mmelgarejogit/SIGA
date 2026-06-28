@@ -38,6 +38,9 @@ public static class DependencyInjection
         services.AddScoped<IConfiguracionNegocioService, ConfiguracionNegocioService>();
         services.AddScoped<IEmailService, ResendEmailService>();
         services.AddScoped<IHCaptchaService, HCaptchaService>();
+        services.AddScoped<ISucursalService, SucursalService>();
+        services.AddScoped<ITransferenciaStockService, TransferenciaStockService>();
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 
         services.Configure<ResendOptions>(config.GetSection("Resend"));
         services.Configure<HCaptchaOptions>(config.GetSection("HCaptcha"));

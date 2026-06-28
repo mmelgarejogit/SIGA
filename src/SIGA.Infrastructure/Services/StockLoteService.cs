@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class StockLoteService(AppDbContext db) : IStockLoteService
+public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IStockLoteService
 {
     // ── Listar lotes ──────────────────────────────────────────────────────────
 
@@ -18,7 +18,11 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
         var query = db.StockLotes
             .Include(l => l.Producto).ThenInclude(p => p.Marca)
             .Include(l => l.Producto).ThenInclude(p => p.Modelo)
+            .Include(l => l.Sucursal)
             .AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(l => l.SucursalId == b);
 
         if (productoId.HasValue)
             query = query.Where(l => l.ProductoId == productoId.Value);
@@ -54,15 +58,18 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
             return Result<ConteoInventarioDto>.Failure(
                 "Uno o más productos no fueron encontrados.", ErrorType.Validation);
 
+        var branch = await SucursalResolver.WriteBranchAsync(db, current);
+
         var conteo = new ConteoInventario
         {
+            SucursalId      = branch,
             CreadoPorId     = userId,
             CreadoPorNombre = userName,
             Observaciones   = request.Observaciones?.Trim(),
         };
 
         var stockMap = await db.StockActual
-            .Where(s => productoIds.Contains(s.ProductoId))
+            .Where(s => productoIds.Contains(s.ProductoId) && s.SucursalId == branch)
             .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
 
         foreach (var req in request.Items)
@@ -91,7 +98,11 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
     {
         var query = db.ConteosInventario
             .Include(c => c.Lineas)
+            .Include(c => c.Sucursal)
             .AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(c => c.SucursalId == b);
 
         if (!string.IsNullOrWhiteSpace(estado))
             query = query.Where(c => c.Estado == estado);
@@ -109,6 +120,7 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
     {
         var conteo = await db.ConteosInventario
             .Include(c => c.Lineas).ThenInclude(l => l.Producto)
+            .Include(c => c.Sucursal)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (conteo is null)
@@ -128,6 +140,7 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
 
         var conteo = await db.ConteosInventario
             .Include(c => c.Lineas).ThenInclude(l => l.Producto)
+            .Include(c => c.Sucursal)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (conteo is null)
@@ -151,6 +164,7 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
                 db.MovimientosStock.Add(new MovimientoStock
                 {
                     ProductoId              = linea.ProductoId,
+                    SucursalId              = conteo.SucursalId,
                     Tipo                    = tipo,
                     Cantidad                = Math.Abs(linea.Diferencia),
                     Motivo                  = $"Ajuste de inventario físico — Inventario #{conteo.Id}",
@@ -176,6 +190,8 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
         Id               = l.Id,
         ProductoId       = l.ProductoId,
         ProductoNombre   = l.Producto.Nombre,
+        SucursalId       = l.SucursalId,
+        SucursalNombre   = l.Sucursal?.Nombre,
         ProductoSku      = l.Producto.Sku,
         MarcaNombre      = l.Producto.Marca?.Nombre,
         ModeloNombre     = l.Producto.Modelo?.Nombre,
@@ -189,6 +205,8 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
     private static ConteoInventarioDto ToDto(ConteoInventario c) => new()
     {
         Id                      = c.Id,
+        SucursalId              = c.SucursalId,
+        SucursalNombre          = c.Sucursal?.Nombre,
         CreadoPorNombre         = c.CreadoPorNombre,
         FechaConteo             = c.FechaConteo.ToString("yyyy-MM-ddTHH:mm:ss"),
         Estado                  = c.Estado,
@@ -203,6 +221,8 @@ public class StockLoteService(AppDbContext db) : IStockLoteService
     private static ConteoInventarioDetalleDto ToDetalleDto(ConteoInventario c) => new()
     {
         Id                      = c.Id,
+        SucursalId              = c.SucursalId,
+        SucursalNombre          = c.Sucursal?.Nombre,
         CreadoPorNombre         = c.CreadoPorNombre,
         FechaConteo             = c.FechaConteo.ToString("yyyy-MM-ddTHH:mm:ss"),
         Estado                  = c.Estado,

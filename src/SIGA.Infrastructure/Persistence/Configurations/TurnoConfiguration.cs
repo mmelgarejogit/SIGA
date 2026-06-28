@@ -19,6 +19,11 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
 
         builder.HasIndex(x => new { x.ProfessionalId, x.FechaHora }).IsUnique();
 
+        builder.HasOne(x => x.Sucursal)
+            .WithMany()
+            .HasForeignKey(x => x.SucursalId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.Professional)
             .WithMany(p => p.Turnos)
             .HasForeignKey(x => x.ProfessionalId);

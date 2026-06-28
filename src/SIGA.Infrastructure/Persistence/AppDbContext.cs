@@ -70,6 +70,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
     public DbSet<Timbrado> Timbrados => Set<Timbrado>();
     public DbSet<SesionCaja> SesionesCaja => Set<SesionCaja>();
+    public DbSet<Sucursal> Sucursales => Set<Sucursal>();
+    public DbSet<TransferenciaStock> TransferenciasStock => Set<TransferenciaStock>();
+    public DbSet<TransferenciaStockItem> TransferenciasStockItems => Set<TransferenciaStockItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

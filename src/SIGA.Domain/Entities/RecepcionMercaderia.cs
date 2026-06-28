@@ -4,6 +4,9 @@ public class RecepcionMercaderia
 {
     public int Id { get; set; }
 
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int PedidoProveedorId { get; set; }
     public PedidoProveedor PedidoProveedor { get; set; } = null!;
 

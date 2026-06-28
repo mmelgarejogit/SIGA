@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class LaboratorioService(AppDbContext db) : ILaboratorioService
+public class LaboratorioService(AppDbContext db, ICurrentUserContext current) : ILaboratorioService
 {
     public async Task<Result<List<TrabajoPedidoListDto>>> GetPedidosAsync(string? estado)
     {
@@ -109,8 +109,9 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    private IQueryable<TrabajoPedido> TpBaseQuery() =>
-        db.TrabajosPedido
+    private IQueryable<TrabajoPedido> TpBaseQuery()
+    {
+        var query = db.TrabajosPedido
             .Include(tp => tp.Venta).ThenInclude(v => v!.Cliente).ThenInclude(c => c!.Person)
             .Include(tp => tp.TipoLente)
             .Include(tp => tp.ArmazonProducto)
@@ -118,7 +119,15 @@ public class LaboratorioService(AppDbContext db) : ILaboratorioService
             .Include(tp => tp.Tratamientos)
             .Include(tp => tp.LaboratorioProveedor)
             .Include(tp => tp.AprobadoPor).ThenInclude(u => u!.Person)
-            .Include(tp => tp.Factura).ThenInclude(f => f!.EmitidoPor).ThenInclude(u => u.Person);
+            .Include(tp => tp.Factura).ThenInclude(f => f!.EmitidoPor).ThenInclude(u => u.Person)
+            .AsQueryable();
+
+        // Los trabajos de laboratorio se scopean por la sucursal de su venta.
+        if (current.SucursalId is int b)
+            query = query.Where(tp => tp.Venta.SucursalId == b);
+
+        return query;
+    }
 
     private static TrabajoPedidoListDto MapTrabajoPedidoList(TrabajoPedido tp) => new()
     {

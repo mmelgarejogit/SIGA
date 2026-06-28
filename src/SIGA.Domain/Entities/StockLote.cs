@@ -6,6 +6,9 @@ public class StockLote
     public int ProductoId { get; set; }
     public Producto Producto { get; set; } = null!;
 
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int RecepcionItemId { get; set; }
     public RecepcionMercaderiaItem RecepcionItem { get; set; } = null!;
 

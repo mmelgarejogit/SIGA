@@ -3,6 +3,8 @@ namespace SIGA.Domain.Entities;
 public abstract class Egreso
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public TipoEgreso Tipo { get; set; }
     public EstadoEgreso Estado { get; set; } = EstadoEgreso.Borrador;
     public decimal Monto { get; set; }
