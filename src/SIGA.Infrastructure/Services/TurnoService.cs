@@ -23,11 +23,12 @@ public class TurnoService : ITurnoService
         _frontendUrl = appOptions.Value.FrontendUrl;
     }
 
-    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado)
+    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado, int? patientId = null)
     {
         var query = _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
             .Include(t => t.Patient).ThenInclude(p => p.Person)
+            .Include(t => t.EstadoCustom)
             .AsQueryable();
 
         if (fecha.HasValue)
@@ -39,6 +40,9 @@ public class TurnoService : ITurnoService
 
         if (professionalId.HasValue)
             query = query.Where(t => t.ProfessionalId == professionalId.Value);
+
+        if (patientId.HasValue)
+            query = query.Where(t => t.PatientId == patientId.Value);
 
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<TurnoEstado>(estado, true, out var estadoEnum))
             query = query.Where(t => t.Estado == estadoEnum);
@@ -166,7 +170,7 @@ public class TurnoService : ITurnoService
         turno.Professional = professional;
         turno.Patient      = patient;
 
-        await TrySendEmailAsync(patient.Person, professional.User.Person,
+        _ = TrySendEmailAsync(patient.Person, professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Registrado, token);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -199,11 +203,11 @@ public class TurnoService : ITurnoService
         if (estadoEnum != estadoAnterior)
         {
             if (estadoEnum == TurnoEstado.Confirmado)
-                await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+                _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                     turno.FechaHora, turno.Motivo, TurnoEmailTipo.Confirmado);
 
             else if (estadoEnum == TurnoEstado.Cancelado)
-                await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+                _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                     turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
         }
 
@@ -227,7 +231,7 @@ public class TurnoService : ITurnoService
 
         await _db.SaveChangesAsync();
 
-        await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+        _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
 
         return Result<bool>.Success(true);
@@ -256,7 +260,7 @@ public class TurnoService : ITurnoService
 
         await _db.SaveChangesAsync();
 
-        await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+        _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Confirmado);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -279,6 +283,7 @@ public class TurnoService : ITurnoService
         var turnos = await _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
             .Include(t => t.Patient).ThenInclude(p => p.Person)
+            .Include(t => t.EstadoCustom)
             .Where(t => t.PatientId == patientId.Value)
             .OrderByDescending(t => t.FechaHora)
             .ToListAsync();
@@ -338,7 +343,7 @@ public class TurnoService : ITurnoService
         turno.Professional = professional;
         turno.Patient      = patient;
 
-        await TrySendEmailAsync(patient.Person, professional.User.Person,
+        _ = TrySendEmailAsync(patient.Person, professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Registrado, token);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -388,7 +393,7 @@ public class TurnoService : ITurnoService
             turno.Estado            = TurnoEstado.Cancelado;
             turno.ConfirmationToken = null;
 
-            await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+            _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                 turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
         }
 
