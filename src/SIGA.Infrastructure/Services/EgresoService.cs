@@ -65,6 +65,12 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
             r.EmpleadoNombre = $"{s.Empleado?.User?.Person?.FirstName} {s.Empleado?.User?.Person?.LastName}".Trim();
             r.Periodo        = s.Periodo;
         }
+        else if (e is EgresoFacturaLaboratorio efl)
+        {
+            r.FacturaLaboratorioId = efl.FacturaLaboratorioId;
+            r.NroFactura           = efl.FacturaLaboratorio?.NumeroFactura;
+            r.ProveedorNombre      = efl.FacturaLaboratorio?.TrabajoPedido?.LaboratorioProveedor?.Nombre;
+        }
 
         return r;
     }
@@ -86,7 +92,10 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
             .Include(e => (e as GastoGeneral)!.CategoriaGasto)
             .Include(e => (e as SalarioEmpleado)!.Empleado)
                 .ThenInclude(emp => emp!.User)
-                    .ThenInclude(u => u!.Person);
+                    .ThenInclude(u => u!.Person)
+            .Include(e => (e as EgresoFacturaLaboratorio)!.FacturaLaboratorio)
+                .ThenInclude(fl => fl!.TrabajoPedido)
+                    .ThenInclude(tp => tp!.LaboratorioProveedor);
 
     // ── Categorías ───────────────────────────────────────────────────────────────
 

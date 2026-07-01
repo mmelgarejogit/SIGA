@@ -21,6 +21,7 @@ public class TrabajoPedidoConfiguration : IEntityTypeConfiguration<TrabajoPedido
             .WithMany(x => x.TrabajosPedido)
             .UsingEntity(j => j.ToTable("trabajos_pedido_tratamientos"));
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
+        builder.Property(x => x.MedioEnvio).HasConversion<int>();
         builder.Property(x => x.Observacion).HasMaxLength(1000);
         builder.Property(x => x.ObservacionAprobacion).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).IsRequired();

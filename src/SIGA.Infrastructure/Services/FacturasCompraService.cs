@@ -159,6 +159,26 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
                 "Condición de venta inválida. Valores: Contado, Credito.",
                 ErrorType.Validation);
 
+        MetodoPago? metodoPago = null;
+        if (condicion == CondicionVenta.Contado)
+        {
+            if (!Enum.TryParse<MetodoPago>(request.MetodoPago, ignoreCase: true, out var mp))
+                return Result<FacturaCompraResponse>.Failure(
+                    "Método de pago inválido. Valores: Efectivo, Tarjeta, Transferencia, Cheque.",
+                    ErrorType.Validation);
+            metodoPago = mp;
+        }
+
+        SesionCaja? sesion = null;
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesion is null)
+                return Result<FacturaCompraResponse>.Failure(
+                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    ErrorType.Validation);
+        }
+
         var items = request.Items.Select(i => new FacturaCompraItem
         {
             ProductoId     = i.ProductoId,
@@ -203,7 +223,9 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Pendiente,
+            Estado            = condicion == CondicionVenta.Contado ? EstadoEgreso.Pagado : EstadoEgreso.Pendiente,
+            MetodoPago        = metodoPago,
+            FechaPago         = condicion == CondicionVenta.Contado ? fechaEmision : null,
             Items             = items,
         };
         factura.Monto = factura.MontoTotal;
@@ -242,6 +264,21 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
         }
 
         db.FacturasCompra.Add(factura);
+
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            db.MovimientosCaja.Add(new MovimientoCaja
+            {
+                Tipo         = TipoMovimientoCaja.Egreso,
+                Monto        = factura.Monto,
+                Concepto     = $"Pago factura compra directa — {nroFactura} — {proveedor.Nombre}",
+                MetodoPago   = MetodoPago.Efectivo,
+                SesionCajaId = sesion!.Id,
+                Fecha        = fechaEmision,
+                CreatedAt    = DateTime.UtcNow,
+            });
+        }
+
         await db.SaveChangesAsync();
 
         // Recargar con Proveedor e ítems
