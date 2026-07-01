@@ -30,4 +30,14 @@ public class Producto
 
     public ICollection<MovimientoStock> Movimientos { get; set; } = [];
     public ICollection<PedidoProveedorItem> PedidoItems { get; set; } = [];
+
+    /// <summary>
+    /// Setea el costo y deriva el precio de venta aplicando el margen (%) de la categoría.
+    /// El precio de venta es siempre calculado, nunca cargado a mano. Guaraníes sin decimales.
+    /// </summary>
+    public void AplicarCosto(decimal costo, decimal margen)
+    {
+        PrecioCosto = costo;
+        PrecioVenta = Math.Round(costo * (1 + margen / 100m), 0, MidpointRounding.AwayFromZero);
+    }
 }

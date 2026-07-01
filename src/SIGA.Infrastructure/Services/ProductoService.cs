@@ -134,8 +134,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         if (string.IsNullOrWhiteSpace(request.Categoria))
             return Result<ProductoResponse>.Failure("La categoría es obligatoria.", ErrorType.Validation);
 
-        if (request.PrecioCosto < 0 || request.PrecioVenta < 0)
-            return Result<ProductoResponse>.Failure("Los precios no pueden ser negativos.", ErrorType.Validation);
+        if (request.PrecioCosto < 0)
+            return Result<ProductoResponse>.Failure("El precio de costo no puede ser negativo.", ErrorType.Validation);
 
         if (request.StockMinimo < 0)
             return Result<ProductoResponse>.Failure("El stock mínimo no puede ser negativo.", ErrorType.Validation);
@@ -147,13 +147,16 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
                 return Result<ProductoResponse>.Failure("Ya existe un producto con ese SKU.", ErrorType.Conflict);
         }
 
+        var catCreate = await db.CategoriasProducto
+            .Where(c => c.Nombre == request.Categoria.Trim())
+            .Select(c => new { c.Margen, c.Descuento, c.Tipo })
+            .FirstOrDefaultAsync();
+
         var producto = new Producto
         {
             Nombre      = request.Nombre.Trim(),
             Categoria   = request.Categoria.Trim(),
             Sku         = request.Sku?.Trim(),
-            PrecioCosto = request.PrecioCosto,
-            PrecioVenta = request.PrecioVenta,
             MarcaId     = request.MarcaId,
             ModeloId    = request.ModeloId,
             Color       = request.Color?.Trim(),
@@ -165,17 +168,14 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
                 UpdatedAt   = DateTime.UtcNow,
             },
         };
+        // El precio de venta se deriva del costo + margen de la categoría (no se carga a mano).
+        producto.AplicarCosto(request.PrecioCosto, catCreate?.Margen ?? 0);
 
         db.Productos.Add(producto);
         await db.SaveChangesAsync();
 
         await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
         await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
-
-        var catCreate = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => new { c.Descuento, c.Tipo })
-            .FirstOrDefaultAsync();
 
         return Result<ProductoResponse>.Success(ToResponse(
             producto, catCreate?.Descuento ?? 0, 0, catCreate?.Tipo ?? TipoCategoriaProducto.Generico));
@@ -195,8 +195,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         if (string.IsNullOrWhiteSpace(request.Categoria))
             return Result<ProductoResponse>.Failure("La categoría es obligatoria.", ErrorType.Validation);
 
-        if (request.PrecioCosto < 0 || request.PrecioVenta < 0)
-            return Result<ProductoResponse>.Failure("Los precios no pueden ser negativos.", ErrorType.Validation);
+        if (request.PrecioCosto < 0)
+            return Result<ProductoResponse>.Failure("El precio de costo no puede ser negativo.", ErrorType.Validation);
 
         if (!string.IsNullOrWhiteSpace(request.Sku) && request.Sku.Trim() != producto.Sku)
         {
@@ -205,11 +205,16 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
                 return Result<ProductoResponse>.Failure("Ya existe un producto con ese SKU.", ErrorType.Conflict);
         }
 
+        var catUpdate = await db.CategoriasProducto
+            .Where(c => c.Nombre == request.Categoria.Trim())
+            .Select(c => new { c.Margen, c.Descuento, c.Tipo })
+            .FirstOrDefaultAsync();
+
         producto.Nombre      = request.Nombre.Trim();
         producto.Categoria   = request.Categoria.Trim();
         producto.Sku         = request.Sku?.Trim();
-        producto.PrecioCosto = request.PrecioCosto;
-        producto.PrecioVenta = request.PrecioVenta;
+        // El precio de venta se deriva del costo + margen de la categoría (no se carga a mano).
+        producto.AplicarCosto(request.PrecioCosto, catUpdate?.Margen ?? 0);
         producto.IsActive    = request.IsActive;
         producto.MarcaId     = request.MarcaId;
         producto.ModeloId    = request.ModeloId;
@@ -222,11 +227,6 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
 
         await db.Entry(producto).Reference(p => p.Marca).LoadAsync();
         await db.Entry(producto).Reference(p => p.Modelo).LoadAsync();
-
-        var catUpdate = await db.CategoriasProducto
-            .Where(c => c.Nombre == producto.Categoria)
-            .Select(c => new { c.Descuento, c.Tipo })
-            .FirstOrDefaultAsync();
 
         var stockActualUpdate = await StockDeProductoAsync(id);
 
@@ -467,10 +467,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
             .Select(c => c.Margen)
             .FirstOrDefaultAsync();
 
-        producto.PrecioCosto = request.PrecioCosto;
-        producto.PrecioVenta = margen > 0
-            ? Math.Round(request.PrecioCosto * (1 + margen / 100m), 2)
-            : producto.PrecioVenta;
+        producto.AplicarCosto(request.PrecioCosto, margen);
         producto.UpdatedAt = DateTime.UtcNow;
 
         if (producto.StockConfig is null)
@@ -666,6 +663,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         if (cat is null)
             return Result<CategoriaProductoResponse>.Failure("Categoría no encontrada.", ErrorType.NotFound);
 
+        var oldNombre = cat.Nombre;
         var nombre = request.Nombre.Trim();
         if (await db.CategoriasProducto.AnyAsync(c => c.Nombre == nombre && c.Id != id))
             return Result<CategoriaProductoResponse>.Failure("Ya existe una categoría con ese nombre.", ErrorType.Conflict);
@@ -684,6 +682,13 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         cat.IsActive    = request.IsActive;
 
         await db.SaveChangesAsync();
+
+        // Recalcular el precio de venta de los productos de esta categoría con el nuevo margen.
+        var productosCat = await db.Productos.Where(p => p.Categoria == oldNombre).ToListAsync();
+        foreach (var prod in productosCat)
+            prod.AplicarCosto(prod.PrecioCosto, cat.Margen);
+        if (productosCat.Count > 0)
+            await db.SaveChangesAsync();
 
         var total = await db.Productos.CountAsync(p => p.Categoria == cat.Nombre);
         return Result<CategoriaProductoResponse>.Success(new CategoriaProductoResponse

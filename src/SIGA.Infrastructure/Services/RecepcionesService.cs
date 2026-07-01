@@ -203,7 +203,12 @@ public class RecepcionesService(AppDbContext db, ICurrentUserContext current) : 
 
             // Actualizar recepcion acumulada en el ítem de la OC
             item.CantidadRecibida     += rec.CantidadRecibida;
-            item.Producto.PrecioCosto  =  item.PrecioUnitario;
+            // El costo entra por la compra; el precio de venta se recalcula con el margen de la categoría.
+            var margenProd = await db.CategoriasProducto
+                .Where(c => c.Nombre == item.Producto.Categoria)
+                .Select(c => c.Margen)
+                .FirstOrDefaultAsync();
+            item.Producto.AplicarCosto(item.PrecioUnitario, margenProd);
             item.Producto.UpdatedAt    =  DateTime.UtcNow;
 
             db.MovimientosStock.Add(new MovimientoStock
