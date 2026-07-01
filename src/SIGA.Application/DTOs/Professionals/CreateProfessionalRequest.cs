@@ -12,4 +12,7 @@ public class CreateProfessionalRequest
 
     public string LicenseNumber { get; set; } = string.Empty;
     public List<int> EspecialidadIds { get; set; } = [];
+
+    /// <summary>Sucursal a la que pertenece el profesional (se guarda en su usuario).</summary>
+    public int? SucursalId { get; set; }
 }

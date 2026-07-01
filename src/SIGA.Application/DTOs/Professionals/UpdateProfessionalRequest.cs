@@ -9,5 +9,7 @@ public class UpdateProfessionalRequest
     public string LicenseNumber { get; set; } = string.Empty;
     public List<int> EspecialidadIds { get; set; } = [];
 
+    public int? SucursalId { get; set; }
+
     public bool IsActive { get; set; }
 }

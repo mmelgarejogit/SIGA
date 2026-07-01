@@ -26,6 +26,8 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
         FechaIngreso = e.FechaIngreso.ToString("yyyy-MM-dd"),
         FechaEgreso  = e.FechaEgreso?.ToString("yyyy-MM-dd"),
         SalarioBase  = e.SalarioBase,
+        SucursalId     = e.User.SucursalId,
+        SucursalNombre = e.User.Sucursal?.Nombre,
         IsActive     = e.IsActive,
         CreatedAt    = e.CreatedAt,
     };
@@ -41,6 +43,7 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
     private IQueryable<Empleado> BaseQuery() =>
         db.Empleados
             .Include(e => e.User).ThenInclude(u => u.Person)
+            .Include(e => e.User).ThenInclude(u => u.Sucursal)
             .Include(e => e.Cargo);
 
     // ── Cargos ────────────────────────────────────────────────────────────────
@@ -124,6 +127,9 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
         if (!DateOnly.TryParse(request.FechaIngreso, out var fechaIngreso))
             return Result<EmpleadoResponse>.Failure("Fecha de ingreso inválida.", ErrorType.Validation);
 
+        if (request.SucursalId.HasValue && !await db.Sucursales.AnyAsync(s => s.Id == request.SucursalId.Value))
+            return Result<EmpleadoResponse>.Failure("La sucursal indicada no existe.", ErrorType.Validation);
+
         var now = DateTime.UtcNow;
 
         var person = new Person
@@ -140,6 +146,7 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
         var user = new User
         {
             Person       = person,
+            SucursalId   = request.SucursalId,
             PasswordHash = passwordHasher.Hash(request.Password),
             IsActive     = true,
             CreatedAt    = now,
@@ -188,11 +195,15 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
             fechaEgreso = fe;
         }
 
+        if (request.SucursalId.HasValue && !await db.Sucursales.AnyAsync(s => s.Id == request.SucursalId.Value))
+            return Result<EmpleadoResponse>.Failure("La sucursal indicada no existe.", ErrorType.Validation);
+
         var person = empleado.User.Person;
         person.FirstName   = request.FirstName.Trim();
         person.LastName    = request.LastName.Trim();
         person.PhoneNumber = request.PhoneNumber?.Trim();
         person.UpdatedAt   = DateTime.UtcNow;
+        empleado.User.SucursalId = request.SucursalId;
 
         empleado.CargoId      = request.CargoId;
         empleado.FechaIngreso = fechaIngreso;

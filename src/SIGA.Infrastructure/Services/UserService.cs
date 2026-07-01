@@ -74,21 +74,4 @@ public class UserService : IUserService
 
         return Result<bool>.Success(true);
     }
-
-    public async Task<Result<bool>> AssignSucursalAsync(int userId, int? sucursalId)
-    {
-        var user = await _dbContext.Users.FindAsync(userId);
-        if (user is null)
-            return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
-
-        if (sucursalId.HasValue &&
-            !await _dbContext.Sucursales.AnyAsync(s => s.Id == sucursalId.Value && s.IsActive))
-            return Result<bool>.Failure("La sucursal indicada no existe o está inactiva.", ErrorType.Validation);
-
-        user.SucursalId = sucursalId;
-        user.UpdatedAt  = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync();
-
-        return Result<bool>.Success(true);
-    }
 }

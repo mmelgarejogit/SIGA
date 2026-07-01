@@ -11,4 +11,5 @@ public class CrearEmpleadoRequest
     public int CargoId { get; set; }
     public string FechaIngreso { get; set; } = "";
     public decimal? SalarioBase { get; set; }
+    public int? SucursalId { get; set; }
 }

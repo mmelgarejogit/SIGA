@@ -24,6 +24,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professionals = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.User).ThenInclude(u => u.Sucursal)
             .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .ToListAsync();
 
@@ -34,6 +35,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professional = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.User).ThenInclude(u => u.Sucursal)
             .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -65,6 +67,9 @@ public class ProfessionalService : IProfessionalService
         if (role is null)
             return Result<ProfessionalResponse>.Failure("Rol de profesional no encontrado.", ErrorType.NotFound);
 
+        if (request.SucursalId.HasValue && !await _dbContext.Sucursales.AnyAsync(s => s.Id == request.SucursalId.Value))
+            return Result<ProfessionalResponse>.Failure("La sucursal indicada no existe.", ErrorType.Validation);
+
         var now = DateTime.UtcNow;
 
         var person = new Person
@@ -82,6 +87,7 @@ public class ProfessionalService : IProfessionalService
         var user = new User
         {
             Person = person,
+            SucursalId = request.SucursalId,
             PasswordHash = _passwordHasher.Hash(request.Password),
             IsActive = true,
             CreatedAt = now,
@@ -112,6 +118,7 @@ public class ProfessionalService : IProfessionalService
     {
         var professional = await _dbContext.Professionals
             .Include(p => p.User).ThenInclude(u => u.Person)
+            .Include(p => p.User).ThenInclude(u => u.Sucursal)
             .Include(p => p.Especialidades).ThenInclude(pe => pe.Especialidad)
             .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -135,6 +142,10 @@ public class ProfessionalService : IProfessionalService
         professional.User.Person.PhoneNumber = request.PhoneNumber?.Trim();
         professional.User.Person.UpdatedAt = now;
 
+        if (request.SucursalId.HasValue && !await _dbContext.Sucursales.AnyAsync(s => s.Id == request.SucursalId.Value))
+            return Result<ProfessionalResponse>.Failure("La sucursal indicada no existe.", ErrorType.Validation);
+
+        professional.User.SucursalId = request.SucursalId;
         professional.User.IsActive = request.IsActive;
         professional.User.UpdatedAt = now;
 
@@ -184,6 +195,8 @@ public class ProfessionalService : IProfessionalService
             Nombre = pe.Especialidad.Nombre,
             Descripcion = pe.Especialidad.Descripcion
         }).ToList(),
+        SucursalId = p.User.SucursalId,
+        SucursalNombre = p.User.Sucursal?.Nombre,
         IsActive = p.User.IsActive,
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt
