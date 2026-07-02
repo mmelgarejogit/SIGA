@@ -212,6 +212,7 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
         var factura = new FacturaCompra
         {
             SucursalId        = facturaBranch,
+            RegistradoPorId   = current.UserId,
             ProveedorId       = request.ProveedorId,
             PedidoProveedorId = null,
             NroFactura        = nroFactura,

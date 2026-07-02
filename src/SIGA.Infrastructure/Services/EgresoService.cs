@@ -161,6 +161,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
         var factura = new FacturaCompra
         {
             SucursalId        = await SucursalResolver.WriteBranchAsync(db, current),
+            RegistradoPorId   = current.UserId,
             ProveedorId       = request.ProveedorId,
             PedidoProveedorId = request.PedidoProveedorId,
             NroFactura        = request.NroFactura?.Trim(),
@@ -205,6 +206,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
         var honorario = new Honorario
         {
             SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
+            RegistradoPorId  = current.UserId,
             ProfessionalId   = request.ProfessionalId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -241,6 +243,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
         var gasto = new GastoGeneral
         {
             SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
+            RegistradoPorId  = current.UserId,
             CategoriaGastoId = request.CategoriaGastoId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),
@@ -278,6 +281,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
         var salario = new SalarioEmpleado
         {
             SucursalId       = await SucursalResolver.WriteBranchAsync(db, current),
+            RegistradoPorId  = current.UserId,
             EmpleadoId       = request.EmpleadoId,
             Monto            = request.Monto,
             Concepto         = request.Concepto.Trim(),

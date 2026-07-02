@@ -188,6 +188,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             NumeroComprobante = "",
             SucursalId        = await SucursalResolver.WriteBranchAsync(db, current),
             ClienteId         = request.ClienteId,
+            VendedorId        = current.UserId,
             RecetaId          = request.RecetaId,
             CondicionVenta    = condicion,
             Tipo              = tipo,

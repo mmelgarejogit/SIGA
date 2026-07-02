@@ -78,6 +78,8 @@ public static class DependencyInjection
         services.AddScoped<IStockLoteService, StockLoteService>();
         services.AddScoped<IUbicacionService, UbicacionService>();
         services.AddScoped<IReporteService, ReporteService>();
+        services.AddScoped<IReporteOperativoService, ReporteOperativoService>();
+        services.AddScoped<IReporteExporter, ReporteExporter>();
 
         services.AddHostedService<TurnoReminderService>();
 

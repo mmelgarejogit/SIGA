@@ -37,5 +37,7 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
 
         builder.HasOne(x => x.Sucursal).WithMany()
             .HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.RegistradoPor).WithMany()
+            .HasForeignKey(x => x.RegistradoPorId).OnDelete(DeleteBehavior.Restrict);
     }
 }

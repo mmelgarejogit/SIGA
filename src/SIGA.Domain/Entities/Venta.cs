@@ -11,6 +11,10 @@ public class Venta
     public int? ClienteId { get; set; }
     public Cliente? Cliente { get; set; }
 
+    /// <summary>Usuario que registró la venta (operador). Nullable: ventas históricas sin operador.</summary>
+    public int? VendedorId { get; set; }
+    public User? Vendedor { get; set; }
+
     public int? RecetaId { get; set; }
     public Receta? Receta { get; set; }
 

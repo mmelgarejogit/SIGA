@@ -204,6 +204,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         var factura = new FacturaCompra
         {
             SucursalId        = pedido.SucursalId,
+            RegistradoPorId   = current.UserId,
             ProveedorId       = pedido.ProveedorId,
             PedidoProveedorId = id,
             NroFactura        = nroFactura,
