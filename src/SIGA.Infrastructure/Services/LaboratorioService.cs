@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class LaboratorioService(AppDbContext db, ICurrentUserContext current) : ILaboratorioService
+public class LaboratorioService(AppDbContext db, ICurrentUserContext current, INotificacionInternaService notificacion) : ILaboratorioService
 {
     public async Task<Result<List<TrabajoPedidoListDto>>> GetPedidosAsync(string? estado)
     {
@@ -96,6 +96,14 @@ public class LaboratorioService(AppDbContext db, ICurrentUserContext current) : 
         // La recepción del laboratorio NO altera el estado de la venta: el cobro es
         // independiente del circuito de laboratorio (la venta ya se cobró antes de enviar).
         await db.SaveChangesAsync();
+
+        await notificacion.CrearAsync(
+            tipo: "pedido_lab_recibido",
+            mensaje: $"El pedido de laboratorio #{tp.Id} llegó y está listo para retirar.",
+            entidadOrigenTipo: "TrabajoPedido",
+            entidadOrigenId: tp.Id,
+            destinatarioSucursalId: tp.Venta.SucursalId);
+
         return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(tp));
     }
 

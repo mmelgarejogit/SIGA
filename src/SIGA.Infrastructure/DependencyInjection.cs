@@ -80,8 +80,10 @@ public static class DependencyInjection
         services.AddScoped<IReporteService, ReporteService>();
         services.AddScoped<IReporteOperativoService, ReporteOperativoService>();
         services.AddScoped<IReporteExporter, ReporteExporter>();
+        services.AddScoped<INotificacionInternaService, NotificacionInternaService>();
 
         services.AddHostedService<TurnoReminderService>();
+        services.AddHostedService<StockBajoNotificadorService>();
 
         return services;
     }

@@ -18,6 +18,7 @@ public class AuthService : IAuthService
     private readonly IHCaptchaService _hCaptchaService;
     private readonly IEmailService _emailService;
     private readonly AppOptions _appOptions;
+    private readonly ICurrentUserContext _current;
 
     public AuthService(
         AppDbContext dbContext,
@@ -25,7 +26,8 @@ public class AuthService : IAuthService
         IJwtTokenGenerator jwtTokenGenerator,
         IHCaptchaService hCaptchaService,
         IEmailService emailService,
-        IOptions<AppOptions> appOptions)
+        IOptions<AppOptions> appOptions,
+        ICurrentUserContext current)
     {
         _dbContext         = dbContext;
         _passwordHasher    = passwordHasher;
@@ -33,6 +35,7 @@ public class AuthService : IAuthService
         _hCaptchaService   = hCaptchaService;
         _emailService      = emailService;
         _appOptions        = appOptions.Value;
+        _current           = current;
     }
 
     public async Task<Result<RegisterResponse>> RegisterAsync(RegisterRequest request)
@@ -227,8 +230,29 @@ public class AuthService : IAuthService
             SucursalId     = user.SucursalId,
             SucursalNombre = user.Sucursal?.Nombre,
             RoleClaims     = roles,
-            Permissions    = permissions
+            Permissions    = permissions,
+            MustChangePassword = user.MustChangePassword
         });
+    }
+
+    public async Task<Result<bool>> ChangePasswordAsync(ChangePasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == _current.UserId);
+        if (user is null)
+            return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
+
+        if (!_passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+            return Result<bool>.Failure("La contraseña actual es incorrecta.", ErrorType.Validation);
+
+        user.PasswordHash       = _passwordHasher.Hash(request.NewPassword);
+        user.MustChangePassword = false;
+        user.UpdatedAt          = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
     }
 
     private static string BuildVerificationEmail(string firstName, string verifyUrl) => $"""

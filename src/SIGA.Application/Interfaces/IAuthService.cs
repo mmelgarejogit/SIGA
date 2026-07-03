@@ -9,4 +9,5 @@ public interface IAuthService
     Task<Result<RegisterResponse>> RegisterPatientAsync(RegisterPatientRequest request);
     Task<Result<bool>> VerifyEmailAsync(string token);
     Task<Result<LoginResponse>> LoginAsync(LoginRequest request);
+    Task<Result<bool>> ChangePasswordAsync(ChangePasswordRequest request);
 }

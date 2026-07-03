@@ -74,6 +74,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Sucursal> Sucursales => Set<Sucursal>();
     public DbSet<TransferenciaStock> TransferenciasStock => Set<TransferenciaStock>();
     public DbSet<TransferenciaStockItem> TransferenciasStockItems => Set<TransferenciaStockItem>();
+    public DbSet<NotificacionInterna> NotificacionesInternas => Set<NotificacionInterna>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

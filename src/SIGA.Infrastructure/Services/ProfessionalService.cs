@@ -90,6 +90,8 @@ public class ProfessionalService : IProfessionalService
             SucursalId = request.SucursalId,
             PasswordHash = _passwordHasher.Hash(request.Password),
             IsActive = true,
+            IsEmailVerified = true,
+            MustChangePassword = true,
             CreatedAt = now,
             UpdatedAt = now
         };

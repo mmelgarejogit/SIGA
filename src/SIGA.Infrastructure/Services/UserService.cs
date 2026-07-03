@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
+using SIGA.Domain.Security;
 using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
@@ -9,10 +10,12 @@ namespace SIGA.Infrastructure.Services;
 public class UserService : IUserService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IPasswordHasher _passwordHasher;
 
-    public UserService(AppDbContext dbContext)
+    public UserService(AppDbContext dbContext, IPasswordHasher passwordHasher)
     {
-        _dbContext = dbContext;
+        _dbContext      = dbContext;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<Result<IEnumerable<UserResponse>>> GetAllAsync()
@@ -70,6 +73,23 @@ public class UserService : IUserService
 
         user.IsActive  = false;
         user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> ResetPasswordAsync(int id, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
+            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
+
+        var user = await _dbContext.Users.FindAsync(id);
+        if (user is null)
+            return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
+
+        user.PasswordHash       = _passwordHasher.Hash(newPassword);
+        user.MustChangePassword = true;
+        user.UpdatedAt          = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
         return Result<bool>.Success(true);

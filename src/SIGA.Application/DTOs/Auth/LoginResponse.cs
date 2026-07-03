@@ -12,4 +12,5 @@ public class LoginResponse
     public string? SucursalNombre { get; set; }
     public List<string> RoleClaims { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
+    public bool MustChangePassword { get; set; }
 }

@@ -149,6 +149,8 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
             SucursalId   = request.SucursalId,
             PasswordHash = passwordHasher.Hash(request.Password),
             IsActive     = true,
+            IsEmailVerified = true,
+            MustChangePassword = true,
             CreatedAt    = now,
             UpdatedAt    = now,
         };

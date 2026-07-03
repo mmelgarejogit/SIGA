@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class TransferenciaStockService(AppDbContext db, ICurrentUserContext current) : ITransferenciaStockService
+public class TransferenciaStockService(AppDbContext db, ICurrentUserContext current, INotificacionInternaService notificacion) : ITransferenciaStockService
 {
     public async Task<Result<IEnumerable<TransferenciaResponse>>> GetAllAsync(string? estado = null)
     {
@@ -114,6 +114,14 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
         }
 
         await db.SaveChangesAsync();
+
+        await notificacion.CrearAsync(
+            tipo: "transferencia_pendiente",
+            mensaje: $"Nueva transferencia de stock #{transferencia.Id} pendiente de aprobación.",
+            entidadOrigenTipo: "TransferenciaStock",
+            entidadOrigenId: transferencia.Id,
+            destinatarioSucursalId: transferencia.SucursalDestinoId);
+
         return await GetByIdAsync(transferencia.Id);
     }
 
