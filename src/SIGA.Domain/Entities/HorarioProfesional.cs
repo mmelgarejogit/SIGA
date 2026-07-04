@@ -4,6 +4,9 @@ public class HorarioProfesional
 {
     public int Id { get; set; }
 
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int ProfessionalId { get; set; }
     public Professional Professional { get; set; } = null!;
 

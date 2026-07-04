@@ -4,6 +4,9 @@ public class ConsultaClinica
 {
     public int Id { get; set; }
 
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int PatientId { get; set; }
     public Patient Patient { get; set; } = null!;
 

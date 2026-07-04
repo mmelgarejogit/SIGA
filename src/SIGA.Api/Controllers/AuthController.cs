@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Auth;
@@ -44,6 +45,14 @@ public class AuthController : BaseController
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var result = await _authService.ChangePasswordAsync(request);
         return ToHttpResponse(result);
     }
 }

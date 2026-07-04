@@ -5,8 +5,15 @@ public class Venta
     public int Id { get; set; }
     public string NumeroComprobante { get; set; } = null!;
 
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     public int? ClienteId { get; set; }
     public Cliente? Cliente { get; set; }
+
+    /// <summary>Usuario que registró la venta (operador). Nullable: ventas históricas sin operador.</summary>
+    public int? VendedorId { get; set; }
+    public User? Vendedor { get; set; }
 
     public int? RecetaId { get; set; }
     public Receta? Receta { get; set; }

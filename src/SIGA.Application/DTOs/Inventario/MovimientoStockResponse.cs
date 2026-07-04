@@ -5,6 +5,8 @@ public class MovimientoStockResponse
     public int Id { get; set; }
     public int ProductoId { get; set; }
     public string ProductoNombre { get; set; } = "";
+    public int SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public string Tipo { get; set; } = "";
     public int Cantidad { get; set; }
     public string? Motivo { get; set; }

@@ -53,6 +53,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Honorario> Honorarios => Set<Honorario>();
     public DbSet<GastoGeneral> GastosGenerales => Set<GastoGeneral>();
     public DbSet<SalarioEmpleado> SalariosEmpleado => Set<SalarioEmpleado>();
+    public DbSet<EgresoFacturaLaboratorio> EgresosFacturaLaboratorio => Set<EgresoFacturaLaboratorio>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<ServicioTarifa> ServicioTarifas => Set<ServicioTarifa>();
     public DbSet<Venta> Ventas => Set<Venta>();
@@ -70,6 +71,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
     public DbSet<Timbrado> Timbrados => Set<Timbrado>();
     public DbSet<SesionCaja> SesionesCaja => Set<SesionCaja>();
+    public DbSet<Sucursal> Sucursales => Set<Sucursal>();
+    public DbSet<TransferenciaStock> TransferenciasStock => Set<TransferenciaStock>();
+    public DbSet<TransferenciaStockItem> TransferenciasStockItems => Set<TransferenciaStockItem>();
+    public DbSet<NotificacionInterna> NotificacionesInternas => Set<NotificacionInterna>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

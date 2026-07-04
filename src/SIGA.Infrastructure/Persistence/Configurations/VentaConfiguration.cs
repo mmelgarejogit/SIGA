@@ -30,7 +30,9 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Ignore(x => x.TotalCobrado);
         builder.Ignore(x => x.SaldoPendiente);
 
+        builder.HasOne(x => x.Sucursal).WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Vendedor).WithMany().HasForeignKey(x => x.VendedorId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Receta).WithMany().HasForeignKey(x => x.RecetaId).OnDelete(DeleteBehavior.SetNull);
         builder.HasMany(x => x.Lineas).WithOne(x => x.Venta).HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.Cobros).WithOne(x => x.Venta).HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.Restrict);

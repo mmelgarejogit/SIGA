@@ -25,6 +25,8 @@ public class TrabajoPedidoListDto
     public string? ObservacionAprobacion { get; set; }
     public string? AprobadoPorNombre { get; set; }
     public string? FechaEnvio { get; set; }
+    public string? FechaEstimadaEntrega { get; set; }
+    public string? MedioEnvio { get; set; }
     public string? FechaRecepcion { get; set; }
     public string? Observacion { get; set; }
     public FacturaLaboratorioDto? Factura { get; set; }
@@ -60,6 +62,13 @@ public class GestionarTrabajoPedidoRequest
 {
     public string Accion { get; set; } = null!;   // "Aprobar" | "Rechazar"
     public string? Observacion { get; set; }
+}
+
+/// <summary>Datos del envío al laboratorio: compromiso de entrega y medio por el que se comunicó.</summary>
+public class RegistrarEnvioRequest
+{
+    public string? FechaEstimadaEntrega { get; set; }   // "yyyy-MM-dd"
+    public string? MedioEnvio { get; set; }             // MedioEnvioLaboratorio (enum por nombre)
 }
 
 public class EmitirFacturaLaboratorioRequest

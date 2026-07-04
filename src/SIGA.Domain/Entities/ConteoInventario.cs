@@ -3,6 +3,8 @@ namespace SIGA.Domain.Entities;
 public class ConteoInventario
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public int CreadoPorId { get; set; }
     public string CreadoPorNombre { get; set; } = "";
     public DateTime FechaConteo { get; set; } = DateTime.UtcNow;

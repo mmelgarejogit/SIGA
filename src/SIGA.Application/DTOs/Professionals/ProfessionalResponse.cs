@@ -17,6 +17,9 @@ public class ProfessionalResponse
     public string LicenseNumber { get; set; } = string.Empty;
     public List<EspecialidadResponse> Especialidades { get; set; } = [];
 
+    public int? SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
+
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

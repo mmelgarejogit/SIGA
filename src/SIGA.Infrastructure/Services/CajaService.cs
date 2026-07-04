@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class CajaService(AppDbContext db) : ICajaService
+public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaService
 {
     // ── Mappers ──────────────────────────────────────────────────────────────────
 
@@ -100,10 +100,12 @@ public class CajaService(AppDbContext db) : ICajaService
 
     public async Task<Result<SesionCajaDto?>> GetSesionActualAsync()
     {
+        var branch = await SucursalResolver.WriteBranchAsync(db, current);
         var sesion = await SesionQuery()
             .FirstOrDefaultAsync(s =>
-                s.Estado == EstadoSesionCaja.Abierta ||
-                s.Estado == EstadoSesionCaja.PendienteAprobacion);
+                s.SucursalId == branch &&
+                (s.Estado == EstadoSesionCaja.Abierta ||
+                 s.Estado == EstadoSesionCaja.PendienteAprobacion));
 
         return Result<SesionCajaDto?>.Success(sesion == null ? null : MapSesion(sesion));
     }
@@ -112,32 +114,39 @@ public class CajaService(AppDbContext db) : ICajaService
     /// Efectivo con el que debería abrir la próxima caja: el conteo físico (EfectivoContado)
     /// del último cierre. El efectivo del cajón se traslada de una sesión a la siguiente.
     /// </summary>
-    private async Task<decimal> MontoAperturaSugeridoAsync() =>
+    private async Task<decimal> MontoAperturaSugeridoAsync(int sucursalId) =>
         await db.SesionesCaja
-            .Where(s => s.Estado == EstadoSesionCaja.Cerrada && s.EfectivoContado != null)
+            .Where(s => s.SucursalId == sucursalId && s.Estado == EstadoSesionCaja.Cerrada && s.EfectivoContado != null)
             .OrderByDescending(s => s.FechaCierre)
             .Select(s => s.EfectivoContado!.Value)
             .FirstOrDefaultAsync();
 
-    public async Task<Result<decimal>> GetMontoAperturaSugeridoAsync() =>
-        Result<decimal>.Success(await MontoAperturaSugeridoAsync());
+    public async Task<Result<decimal>> GetMontoAperturaSugeridoAsync()
+    {
+        var branch = await SucursalResolver.WriteBranchAsync(db, current);
+        return Result<decimal>.Success(await MontoAperturaSugeridoAsync(branch));
+    }
 
     public async Task<Result<SesionCajaDto>> AbrirSesionAsync(AbrirSesionRequest request, int userId)
     {
         if (request.MontoInicial is < 0)
             return Result<SesionCajaDto>.Failure("El monto inicial no puede ser negativo", ErrorType.Validation);
 
+        var branch = await SucursalResolver.WriteBranchAsync(db, current);
+
         var yaAbierta = await db.SesionesCaja.AnyAsync(s =>
-            s.Estado == EstadoSesionCaja.Abierta ||
-            s.Estado == EstadoSesionCaja.PendienteAprobacion);
+            s.SucursalId == branch &&
+            (s.Estado == EstadoSesionCaja.Abierta ||
+             s.Estado == EstadoSesionCaja.PendienteAprobacion));
         if (yaAbierta)
-            return Result<SesionCajaDto>.Failure("Ya hay una caja abierta", ErrorType.Conflict);
+            return Result<SesionCajaDto>.Failure("Ya hay una caja abierta en esta sucursal", ErrorType.Conflict);
 
         // Apertura automática: sin monto explícito se arranca con el efectivo del último cierre.
-        var montoInicial = request.MontoInicial ?? await MontoAperturaSugeridoAsync();
+        var montoInicial = request.MontoInicial ?? await MontoAperturaSugeridoAsync(branch);
 
         var sesion = new SesionCaja
         {
+            SucursalId    = branch,
             Estado        = EstadoSesionCaja.Abierta,
             MontoInicial  = montoInicial,
             AbiertaPorId  = userId,
@@ -243,6 +252,8 @@ public class CajaService(AppDbContext db) : ICajaService
         pageSize = Math.Min(pageSize, 100);
 
         var baseQuery = db.SesionesCaja.AsQueryable();
+        if (current.SucursalId is int b)
+            baseQuery = baseQuery.Where(s => s.SucursalId == b);
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoSesionCaja>(estado, out var estadoEnum))
             baseQuery = baseQuery.Where(s => s.Estado == estadoEnum);
 
@@ -274,8 +285,9 @@ public class CajaService(AppDbContext db) : ICajaService
         if (!DateOnly.TryParse(fecha, out var fechaParsed))
             return Result<ResumenCajaDto>.Failure("Fecha inválida", ErrorType.Validation);
 
+        var branch = current.SucursalId;
         var movimientos = await db.MovimientosCaja
-            .Where(m => m.Fecha == fechaParsed)
+            .Where(m => m.Fecha == fechaParsed && (branch == null || m.SucursalId == branch))
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
 
@@ -283,7 +295,8 @@ public class CajaService(AppDbContext db) : ICajaService
         var egresos  = movimientos.Where(m => m.Tipo == TipoMovimientoCaja.Egreso).ToList();
 
         var cantidadVentas = await db.Ventas
-            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Cancelada);
+            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Cancelada
+                && (branch == null || v.SucursalId == branch));
 
         var resumen = new ResumenCajaDto
         {
@@ -308,6 +321,9 @@ public class CajaService(AppDbContext db) : ICajaService
         var query = db.MovimientosCaja
             .Include(m => m.RegistradoPor).ThenInclude(u => u!.Person)
             .AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(m => m.SucursalId == b);
 
         if (!string.IsNullOrWhiteSpace(fechaDesde) && DateOnly.TryParse(fechaDesde, out var desde))
             query = query.Where(m => m.Fecha >= desde);

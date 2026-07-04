@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
+public class FacturasCompraService(AppDbContext db, ICurrentUserContext current) : IFacturasCompraService
 {
     // ─────────────────────────────────────────────────────────────────────────────
     // Listado con filtros
@@ -28,6 +28,9 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
             .Include(f => f.Proveedor)
             .Include(f => f.Items).ThenInclude(i => i.Producto)
             .AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(f => f.SucursalId == b);
 
         if (proveedorId.HasValue)
             query = query.Where(f => f.ProveedorId == proveedorId.Value);
@@ -156,6 +159,26 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 "Condición de venta inválida. Valores: Contado, Credito.",
                 ErrorType.Validation);
 
+        MetodoPago? metodoPago = null;
+        if (condicion == CondicionVenta.Contado)
+        {
+            if (!Enum.TryParse<MetodoPago>(request.MetodoPago, ignoreCase: true, out var mp))
+                return Result<FacturaCompraResponse>.Failure(
+                    "Método de pago inválido. Valores: Efectivo, Tarjeta, Transferencia, Cheque.",
+                    ErrorType.Validation);
+            metodoPago = mp;
+        }
+
+        SesionCaja? sesion = null;
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesion is null)
+                return Result<FacturaCompraResponse>.Failure(
+                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    ErrorType.Validation);
+        }
+
         var items = request.Items.Select(i => new FacturaCompraItem
         {
             ProductoId     = i.ProductoId,
@@ -185,8 +208,11 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
         // Calcular montos fiscales desde los ítems
         var (exento, gravado5, gravado10) = FacturaMontoCalculator.ComputeFromItems(items);
 
+        var facturaBranch = await SucursalResolver.WriteBranchAsync(db, current);
         var factura = new FacturaCompra
         {
+            SucursalId        = facturaBranch,
+            RegistradoPorId   = current.UserId,
             ProveedorId       = request.ProveedorId,
             PedidoProveedorId = null,
             NroFactura        = nroFactura,
@@ -198,7 +224,9 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Pendiente,
+            Estado            = condicion == CondicionVenta.Contado ? EstadoEgreso.Pagado : EstadoEgreso.Pendiente,
+            MetodoPago        = metodoPago,
+            FechaPago         = condicion == CondicionVenta.Contado ? fechaEmision : null,
             Items             = items,
         };
         factura.Monto = factura.MontoTotal;
@@ -216,6 +244,8 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 .Where(p => stockEntries.Select(s => s.ProductoId).Contains(p.Id))
                 .ToListAsync();
 
+            var branch = await SucursalResolver.WriteBranchAsync(db, current);
+
             foreach (var entry in stockEntries)
             {
                 var producto = productos.First(p => p.Id == entry.ProductoId);
@@ -224,6 +254,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                 db.MovimientosStock.Add(new MovimientoStock
                 {
                     ProductoId      = producto.Id,
+                    SucursalId      = branch,
                     Tipo            = "Entrada",
                     Cantidad        = entry.Cantidad,
                     Motivo          = $"Factura directa {nroFactura} — {proveedor.Nombre}",
@@ -234,6 +265,21 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
         }
 
         db.FacturasCompra.Add(factura);
+
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            db.MovimientosCaja.Add(new MovimientoCaja
+            {
+                Tipo         = TipoMovimientoCaja.Egreso,
+                Monto        = factura.Monto,
+                Concepto     = $"Pago factura compra directa — {nroFactura} — {proveedor.Nombre}",
+                MetodoPago   = MetodoPago.Efectivo,
+                SesionCajaId = sesion!.Id,
+                Fecha        = fechaEmision,
+                CreatedAt    = DateTime.UtcNow,
+            });
+        }
+
         await db.SaveChangesAsync();
 
         // Recargar con Proveedor e ítems
@@ -298,9 +344,11 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                     .Where(p => productoIds.Contains(p.Id))
                     .ToListAsync();
 
-                // Validar stock disponible desde vista
+                var branch = await SucursalResolver.WriteBranchAsync(db, current);
+
+                // Validar stock disponible desde vista (en la sucursal donde se revierte)
                 var stockActualMap = await db.StockActual
-                    .Where(s => productoIds.Contains(s.ProductoId))
+                    .Where(s => productoIds.Contains(s.ProductoId) && s.SucursalId == branch)
                     .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
 
                 var insuficientes = new List<string>();
@@ -330,6 +378,7 @@ public class FacturasCompraService(AppDbContext db) : IFacturasCompraService
                     db.MovimientosStock.Add(new MovimientoStock
                     {
                         ProductoId      = producto.Id,
+                        SucursalId      = branch,
                         Tipo            = "Salida",
                         Cantidad        = entry.Cantidad,
                         Motivo          = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",

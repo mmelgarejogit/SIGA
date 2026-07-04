@@ -16,7 +16,12 @@ public class HorarioProfesionalConfiguration : IEntityTypeConfiguration<HorarioP
         builder.Property(x => x.HoraFin).IsRequired().HasColumnType("time");
         builder.Property(x => x.Activo).IsRequired();
 
-        builder.HasIndex(x => new { x.ProfessionalId, x.DiaSemana }).IsUnique();
+        builder.HasIndex(x => new { x.ProfessionalId, x.SucursalId, x.DiaSemana }).IsUnique();
+
+        builder.HasOne(x => x.Sucursal)
+            .WithMany()
+            .HasForeignKey(x => x.SucursalId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Professional)
             .WithMany(x => x.Horarios)

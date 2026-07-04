@@ -13,22 +13,28 @@ public class TurnoService : ITurnoService
 {
     private readonly AppDbContext _db;
     private readonly IEmailService _email;
+    private readonly ICurrentUserContext _current;
     private readonly string _frontendUrl;
     private const int DuracionMinutos = 30;
 
-    public TurnoService(AppDbContext db, IEmailService email, IOptions<AppOptions> appOptions)
+    public TurnoService(AppDbContext db, IEmailService email, ICurrentUserContext current, IOptions<AppOptions> appOptions)
     {
         _db          = db;
         _email       = email;
+        _current     = current;
         _frontendUrl = appOptions.Value.FrontendUrl;
     }
 
-    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado)
+    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado, int? patientId = null)
     {
         var query = _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
             .Include(t => t.Patient).ThenInclude(p => p.Person)
+            .Include(t => t.EstadoCustom)
             .AsQueryable();
+
+        if (_current.SucursalId is int b)
+            query = query.Where(t => t.SucursalId == b);
 
         if (fecha.HasValue)
         {
@@ -40,6 +46,9 @@ public class TurnoService : ITurnoService
         if (professionalId.HasValue)
             query = query.Where(t => t.ProfessionalId == professionalId.Value);
 
+        if (patientId.HasValue)
+            query = query.Where(t => t.PatientId == patientId.Value);
+
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<TurnoEstado>(estado, true, out var estadoEnum))
             query = query.Where(t => t.Estado == estadoEnum);
 
@@ -47,16 +56,18 @@ public class TurnoService : ITurnoService
         return Result<IEnumerable<TurnoResponse>>.Success(turnos.Select(ToResponse));
     }
 
-    public async Task<Result<IEnumerable<SlotDisponibleResponse>>> GetSlotsDisponiblesAsync(int professionalId, DateOnly fecha)
+    public async Task<Result<IEnumerable<SlotDisponibleResponse>>> GetSlotsDisponiblesAsync(int professionalId, DateOnly fecha, int? sucursalId = null)
     {
         if (await _db.BloqueosFecha.AnyAsync(b => b.ProfessionalId == professionalId && b.Fecha == fecha))
             return Result<IEnumerable<SlotDisponibleResponse>>.Success([]);
 
+        var branch = sucursalId ?? _current.SucursalId;
         var horario = await _db.HorariosProfesional
             .Include(h => h.Pausas)
             .FirstOrDefaultAsync(h => h.ProfessionalId == professionalId
                                    && h.DiaSemana == fecha.DayOfWeek
-                                   && h.Activo);
+                                   && h.Activo
+                                   && (branch == null || h.SucursalId == branch));
 
         if (horario is null)
             return Result<IEnumerable<SlotDisponibleResponse>>.Success([]);
@@ -91,11 +102,14 @@ public class TurnoService : ITurnoService
         return Result<IEnumerable<SlotDisponibleResponse>>.Success(disponibles);
     }
 
-    public async Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha)
+    public async Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha, int? sucursalId = null)
     {
-        // Profesionales con un horario activo para ese día de la semana.
+        var branch = sucursalId ?? _current.SucursalId;
+
+        // Profesionales con un horario activo para ese día de la semana (en la sucursal indicada).
         var profIds = await _db.HorariosProfesional
-            .Where(h => h.DiaSemana == fecha.DayOfWeek && h.Activo)
+            .Where(h => h.DiaSemana == fecha.DayOfWeek && h.Activo
+                     && (branch == null || h.SucursalId == branch))
             .Select(h => h.ProfessionalId)
             .Distinct()
             .ToListAsync();
@@ -141,7 +155,9 @@ public class TurnoService : ITurnoService
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
-        var validationError = await ValidateSlotAsync(request.ProfessionalId, request.FechaHora);
+        var branch = await SucursalResolver.WriteBranchAsync(_db, _current);
+
+        var validationError = await ValidateSlotAsync(request.ProfessionalId, request.FechaHora, branch);
         if (validationError is not null)
             return Result<TurnoResponse>.Failure(validationError, ErrorType.Validation);
 
@@ -149,6 +165,7 @@ public class TurnoService : ITurnoService
         var token = Guid.NewGuid().ToString("N");
         var turno = new Turno
         {
+            SucursalId        = branch,
             ProfessionalId    = request.ProfessionalId,
             PatientId         = request.PatientId,
             FechaHora         = request.FechaHora,
@@ -166,7 +183,7 @@ public class TurnoService : ITurnoService
         turno.Professional = professional;
         turno.Patient      = patient;
 
-        await TrySendEmailAsync(patient.Person, professional.User.Person,
+        _ = TrySendEmailAsync(patient.Person, professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Registrado, token);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -199,11 +216,11 @@ public class TurnoService : ITurnoService
         if (estadoEnum != estadoAnterior)
         {
             if (estadoEnum == TurnoEstado.Confirmado)
-                await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+                _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                     turno.FechaHora, turno.Motivo, TurnoEmailTipo.Confirmado);
 
             else if (estadoEnum == TurnoEstado.Cancelado)
-                await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+                _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                     turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
         }
 
@@ -227,7 +244,7 @@ public class TurnoService : ITurnoService
 
         await _db.SaveChangesAsync();
 
-        await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+        _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
 
         return Result<bool>.Success(true);
@@ -256,7 +273,7 @@ public class TurnoService : ITurnoService
 
         await _db.SaveChangesAsync();
 
-        await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+        _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Confirmado);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -279,6 +296,7 @@ public class TurnoService : ITurnoService
         var turnos = await _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
             .Include(t => t.Patient).ThenInclude(p => p.Person)
+            .Include(t => t.EstadoCustom)
             .Where(t => t.PatientId == patientId.Value)
             .OrderByDescending(t => t.FechaHora)
             .ToListAsync();
@@ -313,7 +331,11 @@ public class TurnoService : ITurnoService
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
-        var validationError = await ValidateSlotAsync(request.ProfessionalId, request.FechaHora);
+        if (request.SucursalId <= 0 ||
+            !await _db.Sucursales.AnyAsync(s => s.Id == request.SucursalId && s.IsActive))
+            return Result<TurnoResponse>.Failure("Seleccioná una sucursal válida.", ErrorType.Validation);
+
+        var validationError = await ValidateSlotAsync(request.ProfessionalId, request.FechaHora, request.SucursalId);
         if (validationError is not null)
             return Result<TurnoResponse>.Failure(validationError, ErrorType.Validation);
 
@@ -321,6 +343,7 @@ public class TurnoService : ITurnoService
         var token = Guid.NewGuid().ToString("N");
         var turno = new Turno
         {
+            SucursalId        = request.SucursalId,
             ProfessionalId    = request.ProfessionalId,
             PatientId         = patientId.Value,
             FechaHora         = request.FechaHora,
@@ -338,7 +361,7 @@ public class TurnoService : ITurnoService
         turno.Professional = professional;
         turno.Patient      = patient;
 
-        await TrySendEmailAsync(patient.Person, professional.User.Person,
+        _ = TrySendEmailAsync(patient.Person, professional.User.Person,
             turno.FechaHora, turno.Motivo, TurnoEmailTipo.Registrado, token);
 
         return Result<TurnoResponse>.Success(ToResponse(turno));
@@ -388,7 +411,7 @@ public class TurnoService : ITurnoService
             turno.Estado            = TurnoEstado.Cancelado;
             turno.ConfirmationToken = null;
 
-            await TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
+            _ = TrySendEmailAsync(turno.Patient.Person, turno.Professional.User.Person,
                 turno.FechaHora, turno.Motivo, TurnoEmailTipo.Cancelado);
         }
 
@@ -401,7 +424,7 @@ public class TurnoService : ITurnoService
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private async Task<string?> ValidateSlotAsync(int professionalId, DateTime fechaHora)
+    private async Task<string?> ValidateSlotAsync(int professionalId, DateTime fechaHora, int sucursalId)
     {
         if (fechaHora < DateTime.UtcNow)
             return "No se pueden reservar turnos en fechas pasadas.";
@@ -416,9 +439,10 @@ public class TurnoService : ITurnoService
             .Include(h => h.Pausas)
             .FirstOrDefaultAsync(h => h.ProfessionalId == professionalId
                                    && h.DiaSemana == fecha.DayOfWeek
-                                   && h.Activo);
+                                   && h.Activo
+                                   && h.SucursalId == sucursalId);
 
-        if (horario is null) return "El profesional no trabaja ese día.";
+        if (horario is null) return "El profesional no trabaja ese día en esta sucursal.";
 
         var slotFin = hora.AddMinutes(DuracionMinutos);
         if (hora < horario.HoraInicio || slotFin > horario.HoraFin)

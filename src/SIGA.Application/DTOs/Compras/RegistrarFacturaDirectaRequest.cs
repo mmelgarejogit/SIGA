@@ -21,6 +21,8 @@ public class RegistrarFacturaDirectaRequest : IValidatableObject
     [Required(ErrorMessage = "La condición de venta es obligatoria.")]
     public string CondicionVenta { get; set; } = "Contado";
 
+    public string? MetodoPago { get; set; }
+
     public string? Observaciones { get; set; }
 
     [MinLength(1, ErrorMessage = "Debe incluir al menos un ítem en la factura.")]
@@ -33,6 +35,12 @@ public class RegistrarFacturaDirectaRequest : IValidatableObject
             yield return new ValidationResult(
                 "La fecha de vencimiento es obligatoria para facturas a crédito.",
                 [nameof(FechaVencimiento)]);
+
+        if (CondicionVenta?.Equals("Contado", StringComparison.OrdinalIgnoreCase) == true
+            && string.IsNullOrWhiteSpace(MetodoPago))
+            yield return new ValidationResult(
+                "El método de pago es obligatorio para facturas al contado.",
+                [nameof(MetodoPago)]);
 
         var total = Items.Sum(i => i.Cantidad * i.PrecioUnitario);
         if (total <= 0)

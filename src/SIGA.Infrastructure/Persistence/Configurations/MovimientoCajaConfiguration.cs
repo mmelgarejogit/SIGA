@@ -18,6 +18,7 @@ public class MovimientoCajaConfiguration : IEntityTypeConfiguration<MovimientoCa
         builder.Property(x => x.Referencia).HasMaxLength(200);
         builder.Property(x => x.CreatedAt).IsRequired();
 
+        builder.HasOne(x => x.Sucursal).WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Venta).WithMany().HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.Egreso).WithMany().HasForeignKey(x => x.EgresoId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.RegistradoPor).WithMany().HasForeignKey(x => x.RegistradoPorId).OnDelete(DeleteBehavior.SetNull);

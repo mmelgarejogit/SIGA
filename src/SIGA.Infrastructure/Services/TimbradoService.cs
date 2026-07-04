@@ -7,21 +7,26 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class TimbradoService(AppDbContext db) : ITimbradoService
+public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITimbradoService
 {
     public async Task<Result<IEnumerable<TimbradoDto>>> GetAllAsync()
     {
-        var items = await db.Timbrados.OrderBy(t => t.NumeroTimbrado).ToListAsync();
+        var query = db.Timbrados.Include(t => t.Sucursal).AsQueryable();
+        if (current.SucursalId is int b)
+            query = query.Where(t => t.SucursalId == b);
+        var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
 
     public async Task<Result<IEnumerable<TimbradoDto>>> GetActivosAsync()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var items = await db.Timbrados
-            .Where(t => t.IsActive && t.FechaInicioVigencia <= today && t.FechaFinVigencia >= today)
-            .OrderBy(t => t.NumeroTimbrado)
-            .ToListAsync();
+        var query = db.Timbrados
+            .Include(t => t.Sucursal)
+            .Where(t => t.IsActive && t.FechaInicioVigencia <= today && t.FechaFinVigencia >= today);
+        if (current.SucursalId is int b)
+            query = query.Where(t => t.SucursalId == b);
+        var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
 
@@ -53,8 +58,15 @@ public class TimbradoService(AppDbContext db) : ITimbradoService
             t.PuntoExpedicion == punto))
             return Result<TimbradoDto>.Failure("Ya existe un timbrado con esa serie (número, establecimiento, punto).", ErrorType.Conflict);
 
+        var sucursalId = request.SucursalId != 0
+            ? request.SucursalId
+            : await SucursalResolver.WriteBranchAsync(db, current);
+        if (!await db.Sucursales.AnyAsync(s => s.Id == sucursalId))
+            return Result<TimbradoDto>.Failure("Sucursal no encontrada.", ErrorType.Validation);
+
         var item = new Timbrado
         {
+            SucursalId = sucursalId,
             NumeroTimbrado = numTimbrado,
             Establecimiento = estable,
             PuntoExpedicion = punto,
@@ -97,6 +109,13 @@ public class TimbradoService(AppDbContext db) : ITimbradoService
             t.Id != id))
             return Result<TimbradoDto>.Failure("Ya existe otro timbrado con esa serie (número, establecimiento, punto).", ErrorType.Conflict);
 
+        if (request.SucursalId != 0 && request.SucursalId != item.SucursalId)
+        {
+            if (!await db.Sucursales.AnyAsync(s => s.Id == request.SucursalId))
+                return Result<TimbradoDto>.Failure("Sucursal no encontrada.", ErrorType.Validation);
+            item.SucursalId = request.SucursalId;
+        }
+
         item.NumeroTimbrado = numTimbrado;
         item.Establecimiento = estable;
         item.PuntoExpedicion = punto;
@@ -121,6 +140,8 @@ public class TimbradoService(AppDbContext db) : ITimbradoService
     private static TimbradoDto ToDto(Timbrado t) => new()
     {
         Id = t.Id,
+        SucursalId = t.SucursalId,
+        SucursalNombre = t.Sucursal?.Nombre,
         NumeroTimbrado = t.NumeroTimbrado,
         Establecimiento = t.Establecimiento,
         PuntoExpedicion = t.PuntoExpedicion,

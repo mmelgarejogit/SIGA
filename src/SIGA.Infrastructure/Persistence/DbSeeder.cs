@@ -34,6 +34,7 @@ public static class DbSeeder
         "ver_mis_turnos",
         "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
         "ver_empleados",     "gestionar_empleados",
+        "ver_sucursales",    "gestionar_sucursales", "ver_todas_sucursales", "transferir_stock",
     ];
 
     private static readonly string[] AdminPermissions =
@@ -138,6 +139,22 @@ public static class DbSeeder
             if (toAdd.Count > 0) db.RolePermissions.AddRange(toAdd);
             if (toRemove.Count > 0) db.RolePermissions.RemoveRange(toRemove);
             if (toAdd.Count > 0 || toRemove.Count > 0) await db.SaveChangesAsync();
+        }
+
+        // 3b. Sucursal por defecto "Casa Central" (idempotente por Código).
+        //     La migración 047 también la inserta para poder backfillear; acá se garantiza
+        //     que exista en cualquier entorno aunque se haya partido de una base limpia.
+        if (!await db.Sucursales.AnyAsync(s => s.Codigo == "CC"))
+        {
+            db.Sucursales.Add(new Sucursal
+            {
+                Nombre    = "Casa Central",
+                Codigo    = "CC",
+                IsActive  = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
         }
 
         // 4. Estados Config iniciales

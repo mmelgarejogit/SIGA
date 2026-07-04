@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class ComprasService(AppDbContext db) : IComprasService
+public class ComprasService(AppDbContext db, ICurrentUserContext current) : IComprasService
 {
     // ─────────────────────────────────────────────────────────────────────────────
     // Crear pedido (Borrador)
@@ -38,6 +38,7 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         var pedido = new PedidoProveedor
         {
+            SucursalId    = await SucursalResolver.WriteBranchAsync(db, current),
             ProveedorId   = request.ProveedorId,
             Estado        = EstadoPedido.Borrador,
             Observaciones = request.Observaciones?.Trim(),
@@ -174,6 +175,26 @@ public class ComprasService(AppDbContext db) : IComprasService
         if (!Enum.TryParse<CondicionVenta>(request.CondicionVenta, ignoreCase: true, out var condicion))
             return Result<PedidoResponse>.Failure("Condición de venta inválida. Valores: Contado, Credito.", ErrorType.Validation);
 
+        MetodoPago? metodoPago = null;
+        if (condicion == CondicionVenta.Contado)
+        {
+            if (!Enum.TryParse<MetodoPago>(request.MetodoPago, ignoreCase: true, out var mp))
+                return Result<PedidoResponse>.Failure(
+                    "Método de pago inválido. Valores: Efectivo, Tarjeta, Transferencia, Cheque.",
+                    ErrorType.Validation);
+            metodoPago = mp;
+        }
+
+        SesionCaja? sesion = null;
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            if (sesion is null)
+                return Result<PedidoResponse>.Failure(
+                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    ErrorType.Validation);
+        }
+
         // Construir ítems: desde el request si se enviaron, sino copiar desde OC con IVA 10%
         var facturaItems = BuildFacturaItems(request.Items, pedido.Items);
 
@@ -182,6 +203,8 @@ public class ComprasService(AppDbContext db) : IComprasService
 
         var factura = new FacturaCompra
         {
+            SucursalId        = pedido.SucursalId,
+            RegistradoPorId   = current.UserId,
             ProveedorId       = pedido.ProveedorId,
             PedidoProveedorId = id,
             NroFactura        = nroFactura,
@@ -193,12 +216,29 @@ public class ComprasService(AppDbContext db) : IComprasService
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Pendiente,
+            Estado            = condicion == CondicionVenta.Contado ? EstadoEgreso.Pagado : EstadoEgreso.Pendiente,
+            MetodoPago        = metodoPago,
+            FechaPago         = condicion == CondicionVenta.Contado ? fechaEmision : null,
             Items             = facturaItems,
         };
         factura.Monto = factura.MontoTotal;
 
         db.FacturasCompra.Add(factura);
+
+        if (metodoPago == MetodoPago.Efectivo)
+        {
+            db.MovimientosCaja.Add(new MovimientoCaja
+            {
+                Tipo         = TipoMovimientoCaja.Egreso,
+                Monto        = factura.Monto,
+                Concepto     = $"Pago factura compra — OC #{id} — {pedido.Proveedor.Nombre}",
+                MetodoPago   = MetodoPago.Efectivo,
+                EgresoId     = null, // se actualizará tras SaveChanges si se requiere
+                SesionCajaId = sesion!.Id,
+                Fecha        = fechaEmision,
+                CreatedAt    = DateTime.UtcNow,
+            });
+        }
 
         pedido.Estado    = EstadoPedido.Facturada;
         pedido.UpdatedAt = DateTime.UtcNow;
@@ -254,6 +294,7 @@ public class ComprasService(AppDbContext db) : IComprasService
         db.MovimientosStock.Add(new MovimientoStock
         {
             ProductoId      = item.ProductoId,
+            SucursalId      = await SucursalResolver.WriteBranchAsync(db, current),
             Tipo            = "Salida",
             Cantidad        = request.Cantidad,
             Motivo          = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
@@ -282,6 +323,9 @@ public class ComprasService(AppDbContext db) : IComprasService
         int? proveedorId, string? estado, int page, int pageSize)
     {
         var query = db.PedidosProveedor.AsQueryable();
+
+        if (current.SucursalId is int b)
+            query = query.Where(p => p.SucursalId == b);
 
         if (proveedorId.HasValue)
             query = query.Where(p => p.ProveedorId == proveedorId.Value);

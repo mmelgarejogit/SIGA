@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class VentaService(AppDbContext db) : IVentaService
+public class VentaService(AppDbContext db, ICurrentUserContext current) : IVentaService
 {
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ public class VentaService(AppDbContext db) : IVentaService
     {
         Id                = v.Id,
         NumeroComprobante = v.NumeroComprobante,
+        SucursalId        = v.SucursalId,
+        SucursalNombre    = v.Sucursal?.Nombre,
         ClienteId         = v.ClienteId,
         ClienteNombre     = v.Cliente == null
             ? "Consumidor Final"
@@ -94,6 +96,7 @@ public class VentaService(AppDbContext db) : IVentaService
 
     private IQueryable<Venta> BaseQuery() =>
         db.Ventas
+            .Include(v => v.Sucursal)
             .Include(v => v.Cliente).ThenInclude(c => c!.Person)
             .Include(v => v.Lineas).ThenInclude(l => l.Producto)
             .Include(v => v.Lineas).ThenInclude(l => l.Servicio)
@@ -124,6 +127,9 @@ public class VentaService(AppDbContext db) : IVentaService
         int? clienteId, int page, int pageSize)
     {
         var query = BaseQuery();
+
+        if (current.SucursalId is int b)
+            query = query.Where(v => v.SucursalId == b);
 
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoVenta>(estado, out var e))
             query = query.Where(v => v.Estado == e);
@@ -180,7 +186,9 @@ public class VentaService(AppDbContext db) : IVentaService
         var venta = new Venta
         {
             NumeroComprobante = "",
+            SucursalId        = await SucursalResolver.WriteBranchAsync(db, current),
             ClienteId         = request.ClienteId,
+            VendedorId        = current.UserId,
             RecetaId          = request.RecetaId,
             CondicionVenta    = condicion,
             Tipo              = tipo,
@@ -447,7 +455,7 @@ public class VentaService(AppDbContext db) : IVentaService
 
         // No se puede registrar un cobro en efectivo sin una caja abierta (el efectivo debe
         // quedar asociado a una sesión para el arqueo del cierre).
-        var sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+        var sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == venta.SucursalId);
         if (lineas.Any(l => l.metodo == MetodoPago.Efectivo) && sesionCaja is null)
             return Result<VentaDto>.Failure(
                 "No hay una caja abierta. Abrí la caja antes de registrar un cobro en efectivo.", ErrorType.Conflict);
@@ -474,6 +482,7 @@ public class VentaService(AppDbContext db) : IVentaService
                 Monto           = monto,
                 Concepto        = $"Cobro {tipoCobro} — venta {venta.NumeroComprobante}",
                 MetodoPago      = metodo,
+                SucursalId      = venta.SucursalId,
                 VentaId         = venta.Id,
                 SesionCajaId    = sesionCaja?.Id,
                 RegistradoPorId = userId,
@@ -507,13 +516,13 @@ public class VentaService(AppDbContext db) : IVentaService
         SesionCaja? sesionCaja = null;
         if (GeneraMovimientoEfectivoEmision(venta))
         {
-            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == venta.SucursalId);
             if (sesionCaja is null)
                 return Result<VentaDto>.Failure(
                     "No hay una caja abierta. Abrí la caja antes de registrar la venta de contado en efectivo.", ErrorType.Conflict);
         }
 
-        AplicarEgresosDeEmision(venta, now, sesionCaja);
+        AplicarEgresosDeEmision(venta, now, sesionCaja, venta.SucursalId);
 
         venta.Comprobante = new Comprobante
         {
@@ -549,6 +558,8 @@ public class VentaService(AppDbContext db) : IVentaService
             return Result<VentaDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         if (!timbrado.IsActive)
             return Result<VentaDto>.Failure("El timbrado está inactivo.", ErrorType.Conflict);
+        if (timbrado.SucursalId != venta.SucursalId)
+            return Result<VentaDto>.Failure("El timbrado no pertenece a la sucursal de la venta.", ErrorType.Conflict);
 
         var fechaEmision = DateOnly.Parse(request.FechaEmision);
         if (fechaEmision < timbrado.FechaInicioVigencia || fechaEmision > timbrado.FechaFinVigencia)
@@ -583,7 +594,7 @@ public class VentaService(AppDbContext db) : IVentaService
         SesionCaja? sesionCaja = null;
         if (GeneraMovimientoEfectivoEmision(venta))
         {
-            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
+            sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == venta.SucursalId);
             if (sesionCaja is null)
                 return Result<VentaDto>.Failure(
                     "No hay una caja abierta. Abrí la caja antes de registrar la venta de contado en efectivo.", ErrorType.Conflict);
@@ -591,7 +602,7 @@ public class VentaService(AppDbContext db) : IVentaService
 
         timbrado.UltimoNumero = numero;
 
-        AplicarEgresosDeEmision(venta, now, sesionCaja);
+        AplicarEgresosDeEmision(venta, now, sesionCaja, venta.SucursalId);
 
         venta.Estado           = EstadoVenta.ComprobanteEmitido;
         venta.FechaComprobante = DateOnly.FromDateTime(now);
@@ -606,7 +617,7 @@ public class VentaService(AppDbContext db) : IVentaService
     /// EGRESO de stock por cada línea de producto e INGRESO de caja para ventas de contado
     /// que aún no registraron cobros (evita duplicar la caja si ya hubo cobros/seña/recibo).
     /// </summary>
-    private void AplicarEgresosDeEmision(Venta venta, DateTime now, SesionCaja? sesion)
+    private void AplicarEgresosDeEmision(Venta venta, DateTime now, SesionCaja? sesion, int sucursalId)
     {
         // Egreso de stock por cada línea de producto
         foreach (var linea in venta.Lineas.Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue))
@@ -614,6 +625,7 @@ public class VentaService(AppDbContext db) : IVentaService
             db.MovimientosStock.Add(new MovimientoStock
             {
                 ProductoId      = linea.ProductoId!.Value,
+                SucursalId      = sucursalId,
                 Tipo            = "Salida",
                 Cantidad        = linea.Cantidad,
                 Motivo          = $"Comprobante venta {venta.NumeroComprobante}",
@@ -633,6 +645,7 @@ public class VentaService(AppDbContext db) : IVentaService
                 Monto        = venta.Total,
                 Concepto     = $"Comprobante venta {venta.NumeroComprobante}",
                 MetodoPago   = MetodoPago.Efectivo,
+                SucursalId   = venta.SucursalId,
                 VentaId      = venta.Id,
                 SesionCajaId = sesion?.Id,
                 Fecha        = DateOnly.FromDateTime(now),
@@ -830,6 +843,7 @@ public class VentaService(AppDbContext db) : IVentaService
         // Confirmar — transacción atómica de stock y caja
         devolucion.Estado = EstadoDevolucion.Confirmada;
         var fecha = DateOnly.FromDateTime(now);
+        var sucursalId = devolucion.Venta.SucursalId;
 
         foreach (var linea in devolucion.Lineas)
         {
@@ -837,6 +851,7 @@ public class VentaService(AppDbContext db) : IVentaService
             db.MovimientosStock.Add(new MovimientoStock
             {
                 ProductoId      = linea.ProductoDevueltoId,
+                SucursalId      = sucursalId,
                 Tipo            = "Entrada",
                 Cantidad        = linea.CantidadDevuelta,
                 Motivo          = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
@@ -851,6 +866,7 @@ public class VentaService(AppDbContext db) : IVentaService
                 db.MovimientosStock.Add(new MovimientoStock
                 {
                     ProductoId      = linea.ProductoNuevoId.Value,
+                    SucursalId      = sucursalId,
                     Tipo            = "Salida",
                     Cantidad        = linea.CantidadNueva ?? 0,
                     Motivo          = $"Cambio #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
@@ -878,6 +894,7 @@ public class VentaService(AppDbContext db) : IVentaService
                     Monto      = totalDevuelto,
                     Concepto   = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
                     MetodoPago = MetodoPago.Efectivo,
+                    SucursalId = sucursalId,
                     VentaId    = devolucion.VentaId,
                     Fecha      = fecha,
                     CreatedAt  = now,

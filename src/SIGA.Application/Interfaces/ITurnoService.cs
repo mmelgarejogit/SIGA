@@ -5,9 +5,9 @@ namespace SIGA.Application.Interfaces;
 
 public interface ITurnoService
 {
-    Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado);
-    Task<Result<IEnumerable<SlotDisponibleResponse>>> GetSlotsDisponiblesAsync(int professionalId, DateOnly fecha);
-    Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha);
+    Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado, int? patientId = null);
+    Task<Result<IEnumerable<SlotDisponibleResponse>>> GetSlotsDisponiblesAsync(int professionalId, DateOnly fecha, int? sucursalId = null);
+    Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha, int? sucursalId = null);
     Task<Result<TurnoResponse>> CreateAsync(CreateTurnoRequest request);
     Task<Result<TurnoResponse>> UpdateEstadoAsync(int id, UpdateTurnoEstadoRequest request);
     Task<Result<bool>> CancelAsync(int id);

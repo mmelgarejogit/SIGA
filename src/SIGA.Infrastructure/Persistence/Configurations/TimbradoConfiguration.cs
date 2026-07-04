@@ -22,5 +22,8 @@ public class TimbradoConfiguration : IEntityTypeConfiguration<Timbrado>
         builder.Property(x => x.CreatedAt).IsRequired();
 
         builder.HasIndex(x => new { x.NumeroTimbrado, x.Establecimiento, x.PuntoExpedicion }).IsUnique();
+
+        builder.HasOne(x => x.Sucursal).WithMany()
+            .HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
     }
 }

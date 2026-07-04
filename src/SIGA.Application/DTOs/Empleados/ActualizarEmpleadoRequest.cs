@@ -9,4 +9,5 @@ public class ActualizarEmpleadoRequest
     public string FechaIngreso { get; set; } = "";
     public string? FechaEgreso { get; set; }
     public decimal? SalarioBase { get; set; }
+    public int? SucursalId { get; set; }
 }

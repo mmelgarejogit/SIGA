@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class ReporteService(AppDbContext db) : IReporteService
+public class ReporteService(AppDbContext db, ICurrentUserContext current) : IReporteService
 {
     private static readonly string[] MesesCortos =
         { "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic" };
@@ -15,6 +15,7 @@ public class ReporteService(AppDbContext db) : IReporteService
     public async Task<Result<ReporteVentasDto>> GetReporteVentasAsync(DateOnly desde, DateOnly hasta, string agrupacion)
     {
         var agrup = agrupacion is "mes" or "semana" or "dia" ? agrupacion : "dia";
+        var branch = current.SucursalId;
 
         // ── Ventas con comprobante emitido en el rango (Facturado, top, condición, fiscal, saldo) ──
         var ventasEmitidas = await db.Ventas
@@ -24,7 +25,8 @@ public class ReporteService(AppDbContext db) : IReporteService
             .Where(v => v.Estado == EstadoVenta.ComprobanteEmitido
                      && v.FechaComprobante != null
                      && v.FechaComprobante >= desde
-                     && v.FechaComprobante <= hasta)
+                     && v.FechaComprobante <= hasta
+                     && (branch == null || v.SucursalId == branch))
             .ToListAsync();
 
         // ── Cobros no anulados en el rango (Cobrado, métodos de pago, cajeros) ──
@@ -32,7 +34,8 @@ public class ReporteService(AppDbContext db) : IReporteService
             .Include(c => c.Lineas)
             .Include(c => c.RegistradoPor).ThenInclude(u => u.Person)
             .AsSplitQuery()
-            .Where(c => !c.Anulado && c.Fecha >= desde && c.Fecha <= hasta)
+            .Where(c => !c.Anulado && c.Fecha >= desde && c.Fecha <= hasta
+                     && (branch == null || c.Venta.SucursalId == branch))
             .ToListAsync();
 
         var totalFacturado = ventasEmitidas.Sum(v => v.Total);
@@ -41,7 +44,8 @@ public class ReporteService(AppDbContext db) : IReporteService
 
         // ── Presupuestos / conversión (ventas creadas en el rango, no canceladas) ──
         var estadosCreados = await db.Ventas
-            .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta && v.Estado != EstadoVenta.Cancelada)
+            .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta && v.Estado != EstadoVenta.Cancelada
+                     && (branch == null || v.SucursalId == branch))
             .Select(v => v.Estado)
             .ToListAsync();
         var cantidadPresupuestos = estadosCreados.Count;
@@ -179,9 +183,11 @@ public class ReporteService(AppDbContext db) : IReporteService
         var now     = DateTime.UtcNow;
 
         // ── Turnos del rango (por FechaHora) ──
+        var branch = current.SucursalId;
         var turnos = await db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
-            .Where(t => t.FechaHora >= desdeDt && t.FechaHora <= hastaDt)
+            .Where(t => t.FechaHora >= desdeDt && t.FechaHora <= hastaDt
+                     && (branch == null || t.SucursalId == branch))
             .ToListAsync();
 
         var totalTurnos = turnos.Count;
@@ -276,7 +282,12 @@ public class ReporteService(AppDbContext db) : IReporteService
             .Where(p => p.IsActive)
             .ToListAsync();
 
-        var stockMap = await db.StockActual.ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
+        var branch = current.SucursalId;
+        var stockMap = await db.StockActual
+            .Where(s => branch == null || s.SucursalId == branch)
+            .GroupBy(s => s.ProductoId)
+            .Select(g => new { ProductoId = g.Key, Stock = g.Sum(x => x.StockActual) })
+            .ToDictionaryAsync(x => x.ProductoId, x => x.Stock);
         int StockOf(Producto p) => stockMap.GetValueOrDefault(p.Id, 0);
         int MinOf(Producto p) => p.StockConfig?.StockMinimo ?? 0;
 
@@ -381,11 +392,14 @@ public class ReporteService(AppDbContext db) : IReporteService
     {
         var agrup = agrupacion is "mes" or "semana" or "dia" ? agrupacion : "dia";
 
+        var branch = current.SucursalId;
+
         // ── Facturas de compra del rango (por FechaEmision, excluye anuladas/rechazadas) ──
         var facturas = await db.FacturasCompra
             .Include(f => f.Proveedor)
             .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta
-                     && f.Estado != EstadoEgreso.Anulado && f.Estado != EstadoEgreso.Rechazado)
+                     && f.Estado != EstadoEgreso.Anulado && f.Estado != EstadoEgreso.Rechazado
+                     && (branch == null || f.SucursalId == branch))
             .ToListAsync();
 
         var montoFacturado = facturas.Sum(f => f.MontoTotal);
@@ -395,10 +409,12 @@ public class ReporteService(AppDbContext db) : IReporteService
             .Sum(f => f.MontoTotal);
 
         var ordenesCompra = await db.PedidosProveedor
-            .CountAsync(p => p.FechaOrden != null && p.FechaOrden >= desde && p.FechaOrden <= hasta);
+            .CountAsync(p => p.FechaOrden != null && p.FechaOrden >= desde && p.FechaOrden <= hasta
+                     && (branch == null || p.SucursalId == branch));
 
         var recepciones = await db.RecepcionesMercaderia
-            .CountAsync(r => r.FechaRecepcion >= desde && r.FechaRecepcion <= hasta);
+            .CountAsync(r => r.FechaRecepcion >= desde && r.FechaRecepcion <= hasta
+                     && (branch == null || r.SucursalId == branch));
 
         // ── Serie temporal (monto facturado) ──
         var buckets = EnumerateBuckets(desde, hasta, agrup);

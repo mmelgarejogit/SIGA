@@ -3,6 +3,8 @@ namespace SIGA.Domain.Entities;
 public class PedidoProveedor
 {
     public int Id { get; set; }
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public int ProveedorId { get; set; }
     public Proveedor Proveedor { get; set; } = null!;
     public EstadoPedido Estado { get; set; } = EstadoPedido.Borrador;

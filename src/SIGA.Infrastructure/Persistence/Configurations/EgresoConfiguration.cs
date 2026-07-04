@@ -15,7 +15,8 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
             .HasValue<FacturaCompra>(TipoEgreso.FacturaCompra)
             .HasValue<Honorario>(TipoEgreso.Honorario)
             .HasValue<GastoGeneral>(TipoEgreso.GastoGeneral)
-            .HasValue<SalarioEmpleado>(TipoEgreso.Salario);
+            .HasValue<SalarioEmpleado>(TipoEgreso.Salario)
+            .HasValue<EgresoFacturaLaboratorio>(TipoEgreso.FacturaLaboratorio);
 
         builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
@@ -33,5 +34,10 @@ public class EgresoConfiguration : IEntityTypeConfiguration<Egreso>
         builder.Property(x => x.MotivoPagoExterno).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
+
+        builder.HasOne(x => x.Sucursal).WithMany()
+            .HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.RegistradoPor).WithMany()
+            .HasForeignKey(x => x.RegistradoPorId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -11,6 +11,8 @@ public class UserResponse
     public string? PhoneNumber { get; set; }
     public bool IsActive { get; set; }
     public string Type { get; set; } = string.Empty;
+    public int? SucursalId { get; set; }
+    public string? SucursalNombre { get; set; }
     public List<string> Roles { get; set; } = [];
     public DateTime CreatedAt { get; set; }
 }
