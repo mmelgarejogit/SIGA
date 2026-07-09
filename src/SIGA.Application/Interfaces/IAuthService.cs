@@ -10,4 +10,6 @@ public interface IAuthService
     Task<Result<bool>> VerifyEmailAsync(string token);
     Task<Result<LoginResponse>> LoginAsync(LoginRequest request);
     Task<Result<bool>> ChangePasswordAsync(ChangePasswordRequest request);
+    Task<Result<bool>> RequestPasswordResetAsync(ForgotPasswordRequest request);
+    Task<Result<bool>> ResetPasswordWithTokenAsync(ResetPasswordWithTokenRequest request);
 }

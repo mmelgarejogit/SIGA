@@ -4,6 +4,7 @@ public class CobroLineaRequest
 {
     public string MetodoPago { get; set; } = "Efectivo";
     public decimal Monto { get; set; }
+    public string? Referencia { get; set; }
 }
 
 public class RegistrarCobroRequest

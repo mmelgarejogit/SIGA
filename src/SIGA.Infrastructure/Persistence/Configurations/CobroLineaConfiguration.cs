@@ -12,5 +12,6 @@ public class CobroLineaConfiguration : IEntityTypeConfiguration<CobroLinea>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.MetodoPago).HasConversion<int>().IsRequired();
         builder.Property(x => x.Monto).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Referencia).HasMaxLength(200);
     }
 }

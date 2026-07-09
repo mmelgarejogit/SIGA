@@ -112,7 +112,7 @@ public class ClienteService : IClienteService
         if (!TryParseTipo(request.TipoFacturacion, out var tipo))
             return Result<ClienteResponse>.Failure("El tipo de facturación no es válido.", ErrorType.Validation);
 
-        var facturacionError = ValidarFacturacion(tipo, request.RazonSocial, request.RucCiFiscal, request.Email);
+        var facturacionError = ValidarFacturacion(request.RazonSocial, request.RucCiFiscal, request.Email);
         if (facturacionError is not null)
             return Result<ClienteResponse>.Failure(facturacionError, ErrorType.Validation);
 
@@ -183,7 +183,7 @@ public class ClienteService : IClienteService
         if (!TryParseTipo(request.TipoFacturacion, out var tipo))
             return Result<ClienteResponse>.Failure("El tipo de facturación no es válido.", ErrorType.Validation);
 
-        var facturacionError = ValidarFacturacion(tipo, request.RazonSocial, request.RucCiFiscal, request.Email);
+        var facturacionError = ValidarFacturacion(request.RazonSocial, request.RucCiFiscal, request.Email);
         if (facturacionError is not null)
             return Result<ClienteResponse>.Failure(facturacionError, ErrorType.Validation);
 
@@ -257,15 +257,12 @@ public class ClienteService : IClienteService
         return Enum.TryParse(value.Trim(), ignoreCase: true, out tipo);
     }
 
-    private static string? ValidarFacturacion(TipoFacturacion tipo, string? razonSocial, string? rucCiFiscal, string? email)
+    private static string? ValidarFacturacion(string? razonSocial, string? rucCiFiscal, string? email)
     {
-        if (tipo == TipoFacturacion.Juridica)
-        {
-            if (string.IsNullOrWhiteSpace(razonSocial))
-                return "La razón social es obligatoria para facturación jurídica.";
-            if (string.IsNullOrWhiteSpace(rucCiFiscal))
-                return "El RUC es obligatorio para facturación jurídica.";
-        }
+        if (string.IsNullOrWhiteSpace(razonSocial))
+            return "La razón social es obligatoria.";
+        if (string.IsNullOrWhiteSpace(rucCiFiscal))
+            return "El RUC es obligatorio.";
 
         if (!string.IsNullOrWhiteSpace(email) && !EmailFormat.IsMatch(email.Trim()))
             return "El formato del email de facturación no es válido.";
