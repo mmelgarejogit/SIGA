@@ -255,6 +255,109 @@ public class AuthService : IAuthService
         return Result<bool>.Success(true);
     }
 
+    public async Task<Result<bool>> RequestPasswordResetAsync(ForgotPasswordRequest request)
+    {
+        if (!await _hCaptchaService.VerifyAsync(request.HCaptchaToken))
+            return Result<bool>.Failure("La verificación de seguridad falló. Intentá de nuevo.", ErrorType.Validation);
+
+        var email = request.Email.Trim().ToLower();
+
+        var user = await _dbContext.Users
+            .Include(u => u.Person)
+            .FirstOrDefaultAsync(u => u.Person.Email == email);
+
+        // No revelamos si el email existe ni si el envío falló: siempre devolvemos éxito
+        // genérico. Si el proveedor de email tira una excepción (dominio no verificado,
+        // proveedor caído, etc.) la absorbemos acá para no filtrar esa diferencia al cliente
+        // ni dejar un token generado sin que el usuario pueda llegar a usarlo.
+        if (user is not null && user.IsActive)
+        {
+            var token = Guid.NewGuid().ToString("N");
+            var resetUrl = $"{_appOptions.FrontendUrl}/restablecer-contrasena?token={token}";
+
+            try
+            {
+                await _emailService.SendAsync(user.Person.Email, "Restablecé tu contraseña — SIGA-Óptica",
+                    BuildPasswordResetEmail(user.Person.FirstName, resetUrl));
+
+                user.PasswordResetToken          = token;
+                user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddHours(1);
+                user.UpdatedAt                   = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+            }
+            catch
+            {
+                // Ver comentario arriba: no propagamos el error del proveedor de email.
+            }
+        }
+
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> ResetPasswordWithTokenAsync(ResetPasswordWithTokenRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
+            u.PasswordResetToken == request.Token &&
+            u.PasswordResetTokenExpiresAt != null &&
+            u.PasswordResetTokenExpiresAt > DateTime.UtcNow);
+
+        if (user is null)
+            return Result<bool>.Failure("El enlace no es válido o expiró.", ErrorType.NotFound);
+
+        user.PasswordHash                = _passwordHasher.Hash(request.NewPassword);
+        user.PasswordResetToken          = null;
+        user.PasswordResetTokenExpiresAt = null;
+        user.MustChangePassword          = false;
+        user.UpdatedAt                   = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
+
+    private static string BuildPasswordResetEmail(string firstName, string resetUrl) => $"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head><meta charset="UTF-8"></head>
+        <body style="margin:0;padding:0;background-color:#F7F9FE;font-family:Arial,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td align="center" style="padding:40px 20px;">
+                <table width="560" cellpadding="0" cellspacing="0"
+                  style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+                  <tr>
+                    <td style="background:#00288E;padding:28px 40px;">
+                      <p style="margin:0;color:#ffffff;font-size:22px;font-weight:900;">SIGA-Óptica</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:40px;">
+                      <h2 style="margin:0 0 12px;color:#181C20;font-size:22px;">Restablecé tu contraseña</h2>
+                      <p style="color:#444653;margin:0 0 8px;">Hola <strong>{firstName}</strong>,</p>
+                      <p style="color:#444653;margin:0 0 32px;">
+                        Recibimos un pedido para restablecer tu contraseña. Hacé clic en el botón para elegir una nueva
+                        (el enlace vence en 1 hora):
+                      </p>
+                      <a href="{resetUrl}"
+                        style="display:inline-block;background:#00288E;color:#ffffff;text-decoration:none;
+                               padding:14px 32px;border-radius:9999px;font-weight:700;font-size:15px;">
+                        Restablecer contraseña
+                      </a>
+                      <p style="color:#757684;font-size:12px;margin:32px 0 0;">
+                        Si no pediste esto podés ignorar este mensaje: tu contraseña actual sigue siendo válida.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+        """;
+
     private static string BuildVerificationEmail(string firstName, string verifyUrl) => $"""
         <!DOCTYPE html>
         <html lang="es">

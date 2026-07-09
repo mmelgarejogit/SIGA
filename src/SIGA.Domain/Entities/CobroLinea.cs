@@ -9,4 +9,5 @@ public class CobroLinea
 
     public MetodoPago MetodoPago { get; set; }
     public decimal Monto { get; set; }
+    public string? Referencia { get; set; }
 }

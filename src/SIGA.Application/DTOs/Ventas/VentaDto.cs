@@ -19,6 +19,7 @@ public class CobroLineaDto
     public int Id { get; set; }
     public string MetodoPago { get; set; } = "";
     public decimal Monto { get; set; }
+    public string? Referencia { get; set; }
 }
 
 public class CobroDto

@@ -55,6 +55,20 @@ public class AuthController : BaseController
         var result = await _authService.ChangePasswordAsync(request);
         return ToHttpResponse(result);
     }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var result = await _authService.RequestPasswordResetAsync(request);
+        return ToHttpResponse(result);
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordWithTokenRequest request)
+    {
+        var result = await _authService.ResetPasswordWithTokenAsync(request);
+        return ToHttpResponse(result);
+    }
 }
 
 [ApiController]

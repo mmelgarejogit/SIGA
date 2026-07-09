@@ -348,6 +348,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
                 SesionCajaId    = sesion.Id,
                 RegistradoPorId = userId,
                 Fecha           = fechaPago,
+                Referencia      = request.NroComprobante,
                 CreatedAt       = DateTime.UtcNow,
             });
         }

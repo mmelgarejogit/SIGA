@@ -63,6 +63,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                 Id         = l.Id,
                 MetodoPago = l.MetodoPago.ToString(),
                 Monto      = l.Monto,
+                Referencia = l.Referencia,
             }).ToList(),
             CreatedAt  = c.CreatedAt,
         }).ToList(),
@@ -182,6 +183,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
         var condicion = Enum.TryParse<CondicionVenta>(request.CondicionVenta, out var c) ? c : CondicionVenta.Contado;
         var tipo      = Enum.TryParse<TipoVenta>(request.Tipo ?? "Directa", out var tv) ? tv : TipoVenta.Directa;
+
+        if (tipo == TipoVenta.TrabajoAPedido && request.RecetaId is null)
+            return Result<VentaDto>.Failure("La receta es obligatoria para una venta a pedido.", ErrorType.Validation);
 
         var venta = new Venta
         {
@@ -350,7 +354,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         if (!venta.PuedeConfirmarse())
             return Result<VentaDto>.Failure("Solo se pueden confirmar ventas en estado Borrador", ErrorType.Conflict);
 
-        // Receta obligatoria al confirmar una venta a pedido (en presupuesto es opcional).
+        // Defensa adicional: CrearVentaAsync ya exige la receta para todo trabajo a pedido
+        // (venta o presupuesto), así que esto nunca debería dispararse en la práctica.
         if (venta.Tipo == TipoVenta.TrabajoAPedido && venta.RecetaId is null)
             return Result<VentaDto>.Failure("La receta es obligatoria para confirmar una venta a pedido.", ErrorType.Conflict);
 
@@ -437,14 +442,15 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         if (!Enum.TryParse<TipoCobro>(request.Tipo, out var tipoCobro))
             return Result<VentaDto>.Failure("Tipo de cobro inválido", ErrorType.Validation);
 
-        var lineas = new List<(MetodoPago metodo, decimal monto)>();
+        var lineas = new List<(MetodoPago metodo, decimal monto, string? referencia)>();
         foreach (var l in request.Lineas)
         {
             if (!Enum.TryParse<MetodoPago>(l.MetodoPago, out var metodo))
                 return Result<VentaDto>.Failure($"Método de pago inválido: {l.MetodoPago}", ErrorType.Validation);
             if (l.Monto <= 0)
                 return Result<VentaDto>.Failure("El monto de cada línea debe ser mayor a cero", ErrorType.Validation);
-            lineas.Add((metodo, l.Monto));
+            var referencia = string.IsNullOrWhiteSpace(l.Referencia) ? null : l.Referencia.Trim();
+            lineas.Add((metodo, l.Monto, referencia));
         }
 
         var montoTotal = lineas.Sum(l => l.monto);
@@ -472,9 +478,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             CreatedAt       = DateTime.UtcNow,
         };
 
-        foreach (var (metodo, monto) in lineas)
+        foreach (var (metodo, monto, referencia) in lineas)
         {
-            cobro.Lineas.Add(new CobroLinea { MetodoPago = metodo, Monto = monto });
+            cobro.Lineas.Add(new CobroLinea { MetodoPago = metodo, Monto = monto, Referencia = referencia });
 
             db.MovimientosCaja.Add(new MovimientoCaja
             {
@@ -487,6 +493,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                 SesionCajaId    = sesionCaja?.Id,
                 RegistradoPorId = userId,
                 Fecha           = fecha,
+                Referencia      = referencia,
                 CreatedAt       = DateTime.UtcNow,
             });
         }
