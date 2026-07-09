@@ -133,3 +133,5 @@ Sigue el patrón **TipoLente** (referencia exacta de cada archivo entre parénte
 
 - 2026-06-09 — Plan creado. Pendiente confirmar las 5 decisiones de diseño (§2) y comenzar
   por el backend (B1).
+
+> **Auditado 2026-07-08:** el encabezado de este documento dice "🟡 Planificado — pendiente de implementación", pero está **desactualizado**: confirmado contra código (`VentaService.cs`, `TimbradosController`, `api-reference.md`) que este plan **ya está implementado en su totalidad** — numeración automática por timbrado incluida. Fusionado en [modules/08-ventas.md](./modules/08-ventas.md). Este archivo se mantiene por referencia histórica.
