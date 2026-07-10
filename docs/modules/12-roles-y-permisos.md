@@ -11,7 +11,7 @@ Ver [`schema.md` Grupo A](../schema.md#grupo-a--identidad-personas-y-personal).
 | Entidad | Rol |
 |---|---|
 | `Role` | Rol configurable con nombre. `Type` (`admin`\|`professional`\|`patient`, nullable e **inmutable**) marca los 3 roles de sistema |
-| `Permission` | Catálogo fijo de ~45 permisos granulares (`ver_pacientes`, `crear_venta`, `gestionar_laboratorio`, etc.), uno por policy de `Program.cs` |
+| `Permission` | Catálogo fijo de 55 permisos granulares sembrados por `DbSeeder.AllPermissions` (`ver_pacientes`, `crear_venta`, `gestionar_laboratorio`, etc.). 54 tienen policy homónima en `Program.cs`; la excepción es `ver_recepcion`, que está en el seed pero **no** tiene policy declarada (verificado 2026-07-09) — no se puede usar hoy en un `[Authorize(Policy=...)]` aunque exista en la base. |
 | `RolePermission` | Pivote many-to-many — la asignación real de permisos a un rol |
 
 ## Reglas de negocio clave
@@ -37,7 +37,7 @@ Detalle completo en [`api-reference.md` § 1](../api-reference.md#1-identidad-y-
 
 ## Flujo típico
 
-CRUD estándar sin pasos multi-capa no triviales — no amerita diagrama de secuencia. La única mecánica particular es que el formulario de rol (`RolFormView`) presenta los ~45 `Permission` agrupados por módulo de negocio (cards), y guarda la selección completa como el nuevo set de `RolePermission` del rol (reemplazo total, no diffing incremental).
+CRUD estándar sin pasos multi-capa no triviales — no amerita diagrama de secuencia. La única mecánica particular es que el formulario de rol (`RolFormView`) presenta los 55 `Permission` agrupados por módulo de negocio (cards), y guarda la selección completa como el nuevo set de `RolePermission` del rol (reemplazo total, no diffing incremental).
 
 ## Vistas de frontend
 

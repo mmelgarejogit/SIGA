@@ -11,7 +11,7 @@ Jerarquía de fuentes al leer/escribir estos documentos: **código real** > memo
 
 ## Referencia de API
 
-- **[api-reference.md](./api-reference.md)** — inventario completo de los 35 controllers / ~140 endpoints (verbo, ruta, policy de permiso, DTOs de request/response), agrupado en los mismos 14 módulos de negocio. *(escrito 2026-07-08)* Incluye 3 hallazgos de código anotados inline (no de documentación, quedan para revisión aparte): posible bug copy-paste en `RolesController.GetUsersByRole`, `ServiciosController` agrupado bajo Catálogo pero funcionalmente comercial, policy inconsistente en `reportes/compras`.
+- **[api-reference.md](./api-reference.md)** — inventario completo de los 35 controllers / 230 endpoints (verbo, ruta, policy de permiso, DTOs de request/response), agrupado en los mismos 14 módulos de negocio. *(escrito 2026-07-08; conteo de endpoints corregido 2026-07-09 — la tabla ya tenía las 230 filas correctas, solo el resumen en prosa decía "~140")* Incluye 3 hallazgos de código anotados inline (no de documentación, quedan para revisión aparte): posible bug copy-paste en `RolesController.GetUsersByRole`, `ServiciosController` agrupado bajo Catálogo pero funcionalmente comercial, policy inconsistente en `reportes/compras`.
 
 ## Decisiones de diseño (ADR)
 

@@ -403,7 +403,7 @@ Horarios de profesional viven en un controller aparte, ver `HorariosController` 
 | POST | /api/egresos/gastos | `gestionar_egresos` (heredado) | `CrearGastoGeneralRequest` | — (subtipo `GastoGeneral`) |
 | PUT | /api/egresos/{id}/aprobar | `aprobar_egresos` | — | — |
 | PUT | /api/egresos/{id}/rechazar | `aprobar_egresos` | `RechazarEgresoRequest` | — |
-| PUT | /api/egresos/{id}/pago | `gestionar_egresos` (heredado) — con chequeo extra: pago externo requiere claim `aprobar_egresos` y `MotivoExterno` obligatorio | `RegistrarPagoRequest` | — |
+| PUT | /api/egresos/{id}/pago | `pagar_egresos` (override explícito a nivel de método, no hereda `gestionar_egresos` de la clase) — con chequeo extra: pago externo requiere además el claim `aprobar_egresos` y `MotivoExterno` obligatorio | `RegistrarPagoRequest` | — |
 | PUT | /api/egresos/{id}/anular | `gestionar_egresos` (heredado) | `AnularEgresoRequest` | — |
 | GET | /api/egresos/categorias | `ver_egresos` | — | listado de `CategoriaGasto` — confirma que vive acá, sin controller propio |
 | POST | /api/egresos/categorias | `gestionar_egresos` (heredado) | `CrearCategoriaGastoRequest` | — |

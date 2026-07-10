@@ -1,6 +1,6 @@
 # Arquitectura del Sistema — SIGA Óptica
 
-> Reescrito completo el 2026-07-08. La versión anterior de este documento describía una versión muy temprana del sistema (~7 tablas: `persons`, `users`, `patients`, `professionals`, `appointments`, `clinical_records`, `sales`). El sistema actual tiene 35 controllers, 70 entidades/tablas reales (más ~22 enums) y 90 vistas de frontend — este documento describe el sistema real, verificado contra el código.
+> Reescrito completo el 2026-07-08 (números re-verificados 2026-07-09). La versión anterior de este documento describía una versión muy temprana del sistema (~7 tablas: `persons`, `users`, `patients`, `professionals`, `appointments`, `clinical_records`, `sales`). El sistema actual tiene 35 controllers (230 endpoints), 69 clases de entidad + 22 enums de negocio (91 tipos en 87 archivos de `SIGA.Domain/Entities`) y 90 vistas de frontend — este documento describe el sistema real, verificado contra el código.
 
 ## Visión general
 
@@ -44,15 +44,15 @@ graph TB
 ## Capas del backend
 
 ### `SIGA.Domain`
-Entidades de dominio puras (`Entities/`, 70 clases + ~22 enums, todas en un único namespace plano `SIGA.Domain.Entities`) y abstracciones de seguridad (`Security/IPasswordHasher`). Sin dependencias hacia afuera — es la capa más interna.
+Entidades de dominio puras (`Entities/`, 69 clases + 22 enums = 91 tipos en 87 archivos — 3 archivos declaran más de un tipo: `Comprobante.cs` y `Devolucion.cs` (2 enums + 1 clase cada uno), `SesionCaja.cs` (1 enum + 1 clase); todas en un único namespace plano `SIGA.Domain.Entities`) y abstracciones de seguridad (`Security/IPasswordHasher`). Sin dependencias hacia afuera — es la capa más interna.
 
 ### `SIGA.Application`
 Contratos que consume `SIGA.Api` e implementa `SIGA.Infrastructure`: interfaces de servicio (`Interfaces/IXxxService`), DTOs de request/response (`DTOs/`) y el wrapper `Common/Result<T>` para modelar éxito/error sin excepciones de control de flujo. No contiene lógica de negocio ni acceso a datos.
 
 ### `SIGA.Infrastructure`
 La capa más grande — contiene toda la lógica de negocio y persistencia:
-- **`Services/`** — implementación de cada `IXxxService` (≈40 servicios registrados, ver `DependencyInjection.AddInfrastructure`). Un servicio por módulo de negocio (`VentaService`, `LaboratorioService`, `EgresoService`, `TransferenciaStockService`, etc.), más 2 `BackgroundService` (`TurnoReminderService`, `StockBajoNotificadorService`, ver más abajo).
-- **`Persistence/`** — `AppDbContext`, `Configurations/` (una clase `IEntityTypeConfiguration<T>` por entidad, Fluent API — fuente de verdad de constraints/índices/relaciones reales, más completa que las propiedades de la entidad sola) y `Migrations/` (EF Core, ~55 migraciones a la fecha).
+- **`Services/`** — implementación de cada `IXxxService` (48 servicios registrados, ver `DependencyInjection.AddInfrastructure`; 43 interfaces en `Application/Interfaces` — algunos servicios no exponen interface propia). Un servicio por módulo de negocio (`VentaService`, `LaboratorioService`, `EgresoService`, `TransferenciaStockService`, etc.), más 2 `BackgroundService` (`TurnoReminderService`, `StockBajoNotificadorService`, ver más abajo).
+- **`Persistence/`** — `AppDbContext`, `Configurations/` (una clase `IEntityTypeConfiguration<T>` por entidad, Fluent API — fuente de verdad de constraints/índices/relaciones reales, más completa que las propiedades de la entidad sola) y `Migrations/` (EF Core, 81 migraciones ejecutables — 163 archivos contando `*.Designer.cs` y el snapshot; verificado 2026-07-09 contra el directorio real, ver nota de `NNN` no confiable en `schema.md`).
 - **`Security/`** — `Pbkdf2PasswordHasher`, `JwtTokenGenerator`, `CurrentUserContext` (implementa `ICurrentUserContext`: expone `UserId`/`SucursalId`/`EsGlobal`/`TienePermiso` vía `IHttpContextAccessor`, usado por los servicios transaccionales para filtrar/estampar por sucursal).
 - **`Options/`** — POCOs de configuración (`ResendOptions`, `HCaptchaOptions`, `AppOptions`).
 
@@ -62,7 +62,7 @@ Controllers (35, uno por recurso — livianos, delegan a los servicios) y `Progr
 ## Pipeline HTTP y seguridad (`Program.cs`)
 
 1. **Autenticación JWT Bearer** — `TokenValidationParameters` valida issuer/audience/lifetime/signing key (`Jwt:Issuer`/`Jwt:Audience`/`Jwt:Secret` en configuración).
-2. **Autorización por permisos, no por rol** — el JWT lleva un claim `"permission"` por cada permiso concedido (no un claim de rol). `Program.cs` define ~45 policies (una por permiso: `ver_pacientes`, `crear_venta`, `gestionar_laboratorio`, etc.) que simplemente exigen `RequireClaim("permission", perm)`. Dos policies compuestas usan `RequireAssertion` para OR de permisos: `cancelar_pedido` (creador `gestionar_pedidos` O aprobador `aprobar_pedidos`) y `ver_disponibles` (staff `ver_agenda` O paciente autogestionando `ver_mis_turnos`).
+2. **Autorización por permisos, no por rol** — el JWT lleva un claim `"permission"` por cada permiso concedido (no un claim de rol). `Program.cs` define 54 policies simples (una por permiso: `ver_pacientes`, `crear_venta`, `gestionar_laboratorio`, etc.) que exigen `RequireClaim("permission", perm)`, más 2 policies compuestas con `RequireAssertion` para OR de permisos: `cancelar_pedido` (creador `gestionar_pedidos` O aprobador `aprobar_pedidos`) y `ver_disponibles` (staff `ver_agenda` O paciente autogestionando `ver_mis_turnos`) — 56 policies en total. El seed (`DbSeeder.AllPermissions`) siembra 55 permisos (`ver_recepcion` existe en el seed pero no tiene policy declarada en `Program.cs` — asimetría real, verificar antes de usarlo en un `[Authorize(Policy=...)]`).
 3. **`app.UseAuthentication()` → `app.UseAuthorization()` → `app.MapControllers()`.**
 4. **Arranque (dentro de un scope, antes de `app.Run()`):**
    - `db.Database.MigrateAsync()` — aplica migraciones pendientes automáticamente al arrancar (no hay paso manual de `dotnet ef database update` en el flujo normal).
@@ -77,6 +77,8 @@ El sistema es explícitamente **permission-based**: un `Role` es solo una colecc
 ## Multi-sucursal
 
 Desde 2026-06-27 (proyecto transversal, todas las fases 0–6 completas en código y **commiteadas y pusheadas** a `matias-gaona` — commits `b289615`/`6d4a72b`, confirmado 2026-07-08): casi todo lo transaccional (stock, ventas, caja, timbrado, compras/recepciones, egresos, turnos/agenda, consultas clínicas) está scopeado por `SucursalId`. Quedan **globales**: catálogos (productos, marcas, categorías, servicios, etc.) y personas (`Patient`, `Cliente`, `Professional`, `User` de rol admin). El scoping se resuelve centralmente en `ICurrentUserContext`, no repitiendo la lógica en cada servicio. Detalle completo en `schema.md` (grupo Comercial) y en [`modules/15-sucursales.md`](./modules/15-sucursales.md).
+
+**Conteo exacto (verificado 2026-07-09 contra `Persistence/Configurations/*.cs`):** 16 objetos con dimensión sucursal — 14 entidades con columna `SucursalId` literal (`User`, `Venta`, `MovimientoCaja`, `MovimientoStock`, `SesionCaja`, `StockLote`, `Timbrado`, `Turno`, `ConsultaClinica`, `HorarioProfesional`, `Egreso`, `PedidoProveedor`, `RecepcionMercaderia`, `ConteoInventario`), 1 con nombre distinto (`NotificacionInterna.DestinatarioSucursalId`, broadcast) y 1 vista derivada (`StockActualView`/`vw_stock_actual`). **`User.SucursalId` es la única columna nullable del grupo** (`null` = usuario global); en las demás es obligatoria. El aislamiento es 100% manual: no hay global query filter de EF ni RLS de Postgres — cada servicio nuevo tiene que recordar el guard `if (current.SucursalId is int b) query = query.Where(x => x.SucursalId == b)` en lectura y `SucursalResolver.WriteBranchAsync` en escritura, o filtra datos entre sucursales sin ningún error visible.
 
 ## Módulos de negocio → Controllers
 
@@ -121,13 +123,13 @@ Dos `BackgroundService` registrados en `DependencyInjection`:
 
 - Controllers livianos: reciben el request, llaman al servicio, devuelven `ToHttpResponse(result)`. Sin lógica de negocio ni acceso a `DbContext`.
 - DTOs nunca exponen entidades de dominio directamente.
-- Paginación uniforme en listados (`page`/`pageSize`/`search`/`sortBy`/`sortOrder`/`isActive`) con response shape `{ items, totalCount, page, pageSize, totalPages }`.
+- Paginación: `page`/`pageSize`/`search`/`isActive` sí se usan en la práctica, con response shape `{ items, totalCount, page, pageSize, totalPages }`. **Ojo:** `CLAUDE.md` también documenta `sortBy`/`sortOrder` como parte del contrato uniforme, pero verificado contra código (2026-07-09, `grep` sobre `SIGA.Api/Controllers`) **ningún controller los implementa realmente** — es contrato aspiracional, no vigente. Tampoco hay un estándar único para el filtro activo/inactivo: `isActive` (bool?) en unos controllers, `status` (string) en otros, `soloActivos` (bool) en Empleados.
 - Todos los servicios se registran en `SIGA.Infrastructure.DependencyInjection.AddInfrastructure()` — nunca directamente en `Program.cs`.
 
 ## Frontend como cliente
 
-`SIGA-Web` consume la API vía HTTP/JSON con el JWT en `Authorization: Bearer`. El token trae los claims `permission` (uno por permiso), `professional_id` (si aplica) y `sucursal_id` (si el usuario tiene sucursal fija) — el frontend los usa para mostrar/ocultar UI, pero la autorización real siempre se re-valida en el backend vía policies. Ver `SIGA-Web/docs/frontend-architecture.md` (pendiente, Fase 5).
+`SIGA-Web` consume la API vía HTTP/JSON con el JWT en `Authorization: Bearer`. El token trae los claims `permission` (uno por permiso), `professional_id` (si aplica) y `sucursal_id` (si el usuario tiene sucursal fija) — el frontend los usa para mostrar/ocultar UI, pero la autorización real siempre se re-valida en el backend vía policies. Ver [`SIGA-Web/docs/frontend-architecture.md`](../../SIGA-Web/docs/frontend-architecture.md) (nota: solo ~37 de las 56 policies del backend están mapeadas a rutas del router/menú del frontend — el resto se chequea a nivel de acción con `hasPermission` o todavía no se usa en la UI).
 
 ---
 
-**Relacionado:** `schema.md` (modelo de datos completo), `api-reference.md` (pendiente), `modules/*.md` (pendiente) — ver `README.md` para el índice completo.
+**Relacionado:** `schema.md` (modelo de datos completo), [`api-reference.md`](./api-reference.md) (35 controllers / 230 endpoints), [`modules/*.md`](./modules/) (los 15 módulos de negocio) — ver `README.md` para el índice completo.

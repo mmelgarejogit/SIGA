@@ -1,13 +1,13 @@
 # Esquema de Base de Datos — SIGA Óptica
 
-> Reescrito completo el 2026-07-08 a partir de las 70 entidades reales en `SIGA.Domain/Entities` (más ~22 enums) y las convenciones Fluent API en `SIGA.Infrastructure/Persistence/Configurations`. La versión anterior de este documento describía ~13 tablas de una versión muy temprana del sistema y está completamente obsoleta.
+> Reescrito completo el 2026-07-08 (conteos re-verificados 2026-07-09) a partir de las 69 clases de entidad reales en `SIGA.Domain/Entities` (más 22 enums de negocio — 91 tipos en 87 archivos) y las convenciones Fluent API en `SIGA.Infrastructure/Persistence/Configurations`. La versión anterior de este documento describía ~13 tablas de una versión muy temprana del sistema y está completamente obsoleta.
 
 ## Cómo leer este documento
 
 - Los diagramas usan el **nombre de la clase C#** (PascalCase) como identificador de entidad, no el nombre físico de la tabla. Postgres usa snake_case (confirmado explícitamente vía `builder.ToTable("...")` para varias entidades — ej. `Egreso`→`egresos`, `Cliente`→`clientes`, `Venta`→`ventas`, `TrabajoPedido`→`trabajos_pedido`); para el resto, asumir la misma convención pero confirmar contra el `*Configuration.cs` puntual antes de escribir SQL a mano.
 - Los diagramas Mermaid muestran **PK, FK y los campos de negocio más relevantes** — no todos los campos. El detalle completo de cada entidad está en la lista de "Diccionario de datos" que sigue a cada diagrama.
 - Convención transversal no repetida en cada entidad: la gran mayoría de las entidades tienen `CreatedAt` (`DateTime`) y muchas `UpdatedAt`; varias tienen `IsActive`/`Activo` (bool) para borrado lógico. Solo se listan explícitamente cuando su ausencia o comportamiento es relevante.
-- El esquema físico es **uno solo**; se divide en 3 diagramas únicamente por legibilidad (68–70 entidades en un solo ER es ilegible), no porque sean bases de datos separadas. Las FKs que cruzan de un grupo a otro se anotan igual.
+- El esquema físico es **uno solo**; se divide en 3 diagramas únicamente por legibilidad (69 entidades en un solo ER es ilegible), no porque sean bases de datos separadas. Las FKs que cruzan de un grupo a otro se anotan igual.
 
 ---
 
@@ -161,7 +161,7 @@ erDiagram
 
 **`Patient`** — marca que una `Person` es paciente. `UserId` nullable: puede existir sin cuenta de acceso (alta por recepción con solo CI/contacto); si más adelante se le da acceso al portal, se setea `UserId`. Es **global** (sin `SucursalId` propio) — elige sucursal al reservar cada turno.
 
-**`Professional`** — siempre requiere `User` (1:1, obligatorio). `LicenseNumber` es la matrícula. La especialidad es many-to-many vía `ProfesionalEspecialidad` (un profesional puede tener más de una).
+**`Professional`** — siempre requiere `User` (1:1, obligatorio). `LicenseNumber` es la matrícula. **Trampa real (verificado, la entidad no tiene el campo):** `Professional` NO tiene `PersonId` propio — llega a `Person` únicamente atravesando `User` (`Professional.User.PersonId`). Un query que intente `professional.PersonId` directo no compila. La especialidad es many-to-many vía `ProfesionalEspecialidad` (un profesional puede tener más de una).
 
 **`HorarioProfesional` / `PausaHorario` / `BloqueoFecha`** — disponibilidad del profesional para agenda. `HorarioProfesional` es por sucursal (índice único `ProfessionalId+SucursalId+DiaSemana`, según memoria de proyecto — confirmar en `HorarioProfesionalConfiguration.cs` si se documenta este módulo en detalle). `BloqueoFecha` son excepciones puntuales (ej. vacaciones).
 
@@ -683,6 +683,19 @@ erDiagram
 
 ---
 
+## Índices, constraints y convenciones de tipos
+
+Verificado 2026-07-09 contra `Persistence/Configurations/*.cs` directamente (no solo memoria):
+
+- **26 índices únicos** (`HasIndex(...).IsUnique()`) en todo el modelo. Los más relevantes: `persons.CI`, `persons.Email` (con `AreNullsDistinct(true)` — permite múltiples `NULL`), `professionals.LicenseNumber` y `professionals.UserId`, `users.PersonId` y `patients.PersonId`, `timbrados` compuesto (`NumeroTimbrado`, `Establecimiento`, `PuntoExpedicion`), `turnos` (`ProfessionalId`, `FechaHora`), `horarios_profesional` (`ProfessionalId`, `SucursalId`, `DiaSemana`), `bloqueos_fecha` (`ProfessionalId`, `Fecha`), `sucursales.Codigo`, `permissions` (`Entidad`, `Nombre`).
+- **FKs con `OnDelete` explícito:** 56 `Restrict` (default defensivo, no deja borrar un padre con hijos), 19 `Cascade` (reservado para hijos de composición: líneas de venta, de pedido, etc.) y 12 `SetNull` (el hijo sobrevive sin el padre). EF autoindexa cada FK.
+- **Dinero — siempre `numeric`, nunca `float`/`double`, pero con una inconsistencia real de escala:** 15 columnas `numeric(18,2)` (la mayoría de montos de venta/stock) contra 6 columnas `numeric(18,0)` (Guaraníes sin centavos, en `Empleado`, `Egreso`, `FacturaCompra` y `FacturaCompraItem`). Mezclar ambas escalas en una suma o comparación puede dar redondeos raros en reportes — hay que revisar la escala real de la columna antes de asumir. Porcentajes son `numeric(5,2)` (2 declarados vía `HasColumnType`, 7 vía `HasPrecision(5,2)`); hay un caso suelto `numeric(14,2)` en `Tratamiento`.
+- **Fechas/horas:** `DateTime` mapea a `timestamp with time zone` (UTC) en todo el modelo; fechas puras (`BirthDate`, campos `Fecha`) mapean a `date`; horas de disponibilidad a `time`.
+- **Auditoría (`CreatedAt`/`UpdatedAt`) se setea en la aplicación** (`DateTime.UtcNow` en la entidad), no hay `DEFAULT now()` ni trigger en la base — un `INSERT`/`UPDATE` por SQL crudo deja esas columnas sin valor.
+- **Soft delete (`IsActive`) es manual, sin query filter global** — cada servicio decide si filtra por `IsActive`; no asumir que una consulta ya excluye inactivos.
+- **Enums de negocio se guardan como `int`** (16 configuraciones con `HasConversion<int>()`). No hay `CHECK` en la base que valide el rango — un valor fuera de rango entra sin error por SQL crudo. Tampoco hay `CHECK` para montos `>= 0` ni stock no negativo.
+- **Migraciones — el prefijo `NNN` del nombre NO es fiable como orden.** Hay prefijos duplicados (`003, 008, 021, 022, 023, 024, 025, 026, 027, 031, 032, 033, 041, 042, 043, 047, 048` aparecen dos veces cada uno), el `NNN` más alto es `058` aunque hay 81 migraciones ejecutables, y 7 migraciones no tienen `NNN` en absoluto (`AddInventario`, `AddTurnoNotifications`, `AddModuloCompras`, `AddModuloEgresos`, `AgregaCamposFiscalesProveedorYFacturaCompra`, `AgregaModuloVentasYCaja`, `Timbrados`). El único orden real es el timestamp de 14 dígitos al inicio del nombre de archivo (y el `Migrations` history de EF) — no guiarse por `NNN`.
+
 ## Patrones de diseño transversales
 
 - **Herencia TPH** (`Egreso` y sus 5 subtipos) — única jerarquía de herencia real del modelo; todo lo demás es composición/FK plana.
@@ -694,4 +707,4 @@ erDiagram
 
 ---
 
-**Relacionado:** `architecture.md` (capas y componentes), `api-reference.md` (pendiente, Fase 3), `modules/*.md` (pendiente, Fase 4) — ver `README.md` para el índice completo.
+**Relacionado:** [`architecture.md`](./architecture.md) (capas y componentes), [`api-reference.md`](./api-reference.md) (35 controllers / 230 endpoints), [`modules/*.md`](./modules/) (los 15 módulos de negocio) — ver `README.md` para el índice completo.

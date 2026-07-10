@@ -25,7 +25,7 @@ Ver [`schema.md` § Grupo C](../schema.md#grupo-c--comercial-ventas-laboratorio-
 - Un egreso **pagado no se puede anular**; solo egresos en otros estados.
 - **Dos caminos generan una `FacturaCompra`, no uno solo:** (a) `POST /api/egresos/facturas` (alta directa, sin OC) y (b) `ComprasService.RegistrarFacturaAsync` cuando la factura está ligada a una `PedidoProveedor` (ver [`10-compras.md`](./10-compras.md)). Ambos crean el mismo tipo de entidad `Egreso`/`FacturaCompra`, por caminos de código distintos.
 - ⚠️ **Inconsistencia real encontrada (2026-07-08):** al pagar un egreso vía `EgresoService.RegistrarPagoAsync`, el `MovimientoCaja` generado sí se vincula correctamente (`EgresoId = egreso.Id`). Pero cuando `ComprasService.RegistrarFacturaAsync` paga una `FacturaCompra` en efectivo *en el mismo paso* que la crea, el `MovimientoCaja` que genera queda con `EgresoId = null` (comentario en el propio código: `// se actualizará tras SaveChanges si se requiere` — no se ve una actualización posterior). Es una inconsistencia de código real entre los dos caminos de pago, no un error de esta documentación — vale la pena revisarla aparte.
-- El route guard del frontend en `/egresos/pagos/:id` exige el permiso `pagar_egresos`, que **no aparece** en la tabla de policies documentada para `PUT /api/egresos/{id}/pago` en `api-reference.md` (ahí figura `gestionar_egresos`, con chequeo adicional de `aprobar_egresos` solo para pago externo). Confirmar si `pagar_egresos` es un permiso real del backend o un meta de ruta desactualizado en el frontend.
+- **Corrección (2026-07-09):** el permiso `pagar_egresos` que exige el route guard del frontend en `/egresos/pagos/:id` **sí es un permiso real y correcto** — `EgresosController.RegistrarPago` tiene `[Authorize(Policy = "pagar_egresos")]` explícito a nivel de método, que sobreescribe el `gestionar_egresos` de la clase. `api-reference.md` § 10 tenía este endpoint mal documentado (decía `gestionar_egresos`, heredado de la clase, sin notar el override del método) — ya corregido. El chequeo adicional de `aprobar_egresos` sigue aplicando solo para pago externo.
 
 ## Endpoints
 
@@ -90,4 +90,4 @@ Rutas bajo `/caja/*` y `/egresos/*` (`SIGA-Web/src/router/index.ts`):
 
 ## Estado
 
-✅ Implementado end-to-end. ⚠️ Dos hallazgos de código reales anotados arriba (inconsistencia de `MovimientoCaja.EgresoId` sin setear en un camino de pago, y posible desalineación del permiso `pagar_egresos`) — quedan para revisión de código aparte, no bloquean el uso del módulo.
+✅ Implementado end-to-end. ⚠️ Un hallazgo de código real anotado arriba (inconsistencia de `MovimientoCaja.EgresoId` sin setear en un camino de pago) — queda para revisión de código aparte, no bloquea el uso del módulo. El permiso `pagar_egresos` fue verificado como correcto (ver nota arriba); no es un hallazgo de código.
