@@ -683,10 +683,16 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
 
         await db.SaveChangesAsync();
 
-        // Recalcular el precio de venta de los productos de esta categoría con el nuevo margen.
+        // Re-vincular el campo string legado al nuevo nombre y recalcular el precio de venta
+        // de los productos de esta categoría con el nuevo margen. Sin el re-vínculo, los
+        // productos quedan buscando una categoría con el nombre viejo (que ya no existe) en
+        // cada lookup por nombre posterior, incluido el margen=0 por defecto de AplicarCosto.
         var productosCat = await db.Productos.Where(p => p.Categoria == oldNombre).ToListAsync();
         foreach (var prod in productosCat)
+        {
+            prod.Categoria = nombre;
             prod.AplicarCosto(prod.PrecioCosto, cat.Margen);
+        }
         if (productosCat.Count > 0)
             await db.SaveChangesAsync();
 

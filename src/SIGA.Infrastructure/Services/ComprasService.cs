@@ -233,7 +233,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra — OC #{id} — {pedido.Proveedor.Nombre}",
                 MetodoPago   = MetodoPago.Efectivo,
-                EgresoId     = null, // se actualizará tras SaveChanges si se requiere
+                Egreso       = factura, // FacturaCompra hereda de Egreso (misma PK) — EF resuelve el FK tras SaveChanges
                 SesionCajaId = sesion!.Id,
                 Fecha        = fechaEmision,
                 CreatedAt    = DateTime.UtcNow,

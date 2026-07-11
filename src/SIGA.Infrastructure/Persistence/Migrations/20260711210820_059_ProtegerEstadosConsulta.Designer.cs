@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SIGA.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SIGA.Infrastructure.Persistence;
 namespace SIGA.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711210820_059_ProtegerEstadosConsulta")]
+    partial class _059_ProtegerEstadosConsulta
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -455,8 +458,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CitaId");
 
                     b.HasIndex("EstadoConfigId");
 
@@ -2966,11 +2967,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SIGA.Domain.Entities.ConsultaClinica", b =>
                 {
-                    b.HasOne("SIGA.Domain.Entities.Turno", "Cita")
-                        .WithMany()
-                        .HasForeignKey("CitaId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SIGA.Domain.Entities.EstadoConfig", "EstadoConfig")
                         .WithMany()
                         .HasForeignKey("EstadoConfigId");
@@ -2992,8 +2988,6 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SucursalId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Cita");
 
                     b.Navigation("EstadoConfig");
 

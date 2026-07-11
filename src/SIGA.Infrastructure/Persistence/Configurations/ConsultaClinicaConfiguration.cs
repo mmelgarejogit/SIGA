@@ -37,5 +37,10 @@ public class ConsultaClinicaConfiguration : IEntityTypeConfiguration<ConsultaCli
             .WithMany()
             .HasForeignKey(x => x.ProfessionalId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Cita)
+            .WithMany()
+            .HasForeignKey(x => x.CitaId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
