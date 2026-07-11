@@ -229,6 +229,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
+                SucursalId   = pedido.SucursalId,
                 Tipo         = TipoMovimientoCaja.Egreso,
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra — OC #{id} — {pedido.Proveedor.Nombre}",
