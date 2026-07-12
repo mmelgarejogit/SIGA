@@ -29,9 +29,6 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.EstadoConfig)
             .AsQueryable();
 
-        if (_current.SucursalId is int suc)
-            query = query.Where(c => c.SucursalId == suc);
-
         if (patientId.HasValue)
             query = query.Where(c => c.PatientId == patientId.Value);
 

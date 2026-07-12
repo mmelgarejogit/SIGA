@@ -119,7 +119,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
     public async Task<Result<PedidoResponse>> ConfirmarPedidoAsync(int id)
     {
-        var pedido = await db.PedidosProveedor.FindAsync(id);
+        var pedido = await db.PedidosProveedor.FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
@@ -296,10 +296,10 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         {
             ProductoId      = item.ProductoId,
             SucursalId      = await SucursalResolver.WriteBranchAsync(db, current),
-            Tipo            = "Salida",
+            Tipo            = TipoMovimientoStock.Salida,
             Cantidad        = request.Cantidad,
             Motivo          = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
-            Estado          = "Aprobado",
+            Estado          = EstadoMovimientoStock.Aprobado,
             FechaAprobacion = DateTime.UtcNow,
         });
 
@@ -324,9 +324,6 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         int? proveedorId, string? estado, int page, int pageSize)
     {
         var query = db.PedidosProveedor.AsQueryable();
-
-        if (current.SucursalId is int b)
-            query = query.Where(p => p.SucursalId == b);
 
         if (proveedorId.HasValue)
             query = query.Where(p => p.ProveedorId == proveedorId.Value);
@@ -388,7 +385,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
     public async Task<Result<PedidoResponse>> CancelarPedidoAsync(int id)
     {
-        var pedido = await db.PedidosProveedor.FindAsync(id);
+        var pedido = await db.PedidosProveedor.FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 

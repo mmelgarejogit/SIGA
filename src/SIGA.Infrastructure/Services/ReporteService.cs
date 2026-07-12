@@ -25,11 +25,12 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
             .Where(v => v.Estado == EstadoVenta.ComprobanteEmitido
                      && v.FechaComprobante != null
                      && v.FechaComprobante >= desde
-                     && v.FechaComprobante <= hasta
-                     && (branch == null || v.SucursalId == branch))
+                     && v.FechaComprobante <= hasta)
             .ToListAsync();
 
         // ── Cobros no anulados en el rango (Cobrado, métodos de pago, cajeros) ──
+        // Cobro no tiene SucursalId propio y no está en el filtro global — se scopea
+        // a mano vía la Venta a la que pertenece.
         var cobros = await db.Cobros
             .Include(c => c.Lineas)
             .Include(c => c.RegistradoPor).ThenInclude(u => u.Person)
@@ -44,8 +45,7 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
 
         // ── Presupuestos / conversión (ventas creadas en el rango, no canceladas) ──
         var estadosCreados = await db.Ventas
-            .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta && v.Estado != EstadoVenta.Cancelada
-                     && (branch == null || v.SucursalId == branch))
+            .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta && v.Estado != EstadoVenta.Cancelada)
             .Select(v => v.Estado)
             .ToListAsync();
         var cantidadPresupuestos = estadosCreados.Count;
@@ -183,11 +183,9 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
         var now     = DateTime.UtcNow;
 
         // ── Turnos del rango (por FechaHora) ──
-        var branch = current.SucursalId;
         var turnos = await db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
-            .Where(t => t.FechaHora >= desdeDt && t.FechaHora <= hastaDt
-                     && (branch == null || t.SucursalId == branch))
+            .Where(t => t.FechaHora >= desdeDt && t.FechaHora <= hastaDt)
             .ToListAsync();
 
         var totalTurnos = turnos.Count;
@@ -282,9 +280,7 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
             .Where(p => p.IsActive)
             .ToListAsync();
 
-        var branch = current.SucursalId;
         var stockMap = await db.StockActual
-            .Where(s => branch == null || s.SucursalId == branch)
             .GroupBy(s => s.ProductoId)
             .Select(g => new { ProductoId = g.Key, Stock = g.Sum(x => x.StockActual) })
             .ToDictionaryAsync(x => x.ProductoId, x => x.Stock);
@@ -340,20 +336,20 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
         var hastaDt = DateTime.SpecifyKind(hasta.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
 
         var movimientos = await db.MovimientosStock
-            .Where(m => m.Estado == "Aprobado" && m.FechaMovimiento >= desdeDt && m.FechaMovimiento <= hastaDt)
+            .Where(m => m.Estado == EstadoMovimientoStock.Aprobado && m.FechaMovimiento >= desdeDt && m.FechaMovimiento <= hastaDt)
             .Select(m => new { m.Tipo, m.Cantidad, m.FechaMovimiento })
             .ToListAsync();
 
-        var totalEntradas = movimientos.Where(m => m.Tipo == "Entrada").Sum(m => m.Cantidad);
-        var totalSalidas  = movimientos.Where(m => m.Tipo == "Salida").Sum(m => m.Cantidad);
+        var totalEntradas = movimientos.Where(m => m.Tipo == TipoMovimientoStock.Entrada).Sum(m => m.Cantidad);
+        var totalSalidas  = movimientos.Where(m => m.Tipo == TipoMovimientoStock.Salida).Sum(m => m.Cantidad);
 
         var buckets = EnumerateBuckets(desde, hasta, agrup);
         var entradasPorBucket = movimientos
-            .Where(m => m.Tipo == "Entrada")
+            .Where(m => m.Tipo == TipoMovimientoStock.Entrada)
             .GroupBy(m => BucketKey(DateOnly.FromDateTime(m.FechaMovimiento), agrup))
             .ToDictionary(g => g.Key, g => g.Sum(m => m.Cantidad));
         var salidasPorBucket = movimientos
-            .Where(m => m.Tipo == "Salida")
+            .Where(m => m.Tipo == TipoMovimientoStock.Salida)
             .GroupBy(m => BucketKey(DateOnly.FromDateTime(m.FechaMovimiento), agrup))
             .ToDictionary(g => g.Key, g => g.Sum(m => m.Cantidad));
 
@@ -392,14 +388,11 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
     {
         var agrup = agrupacion is "mes" or "semana" or "dia" ? agrupacion : "dia";
 
-        var branch = current.SucursalId;
-
         // ── Facturas de compra del rango (por FechaEmision, excluye anuladas/rechazadas) ──
         var facturas = await db.FacturasCompra
             .Include(f => f.Proveedor)
             .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta
-                     && f.Estado != EstadoEgreso.Anulado && f.Estado != EstadoEgreso.Rechazado
-                     && (branch == null || f.SucursalId == branch))
+                     && f.Estado != EstadoEgreso.Anulado && f.Estado != EstadoEgreso.Rechazado)
             .ToListAsync();
 
         var montoFacturado = facturas.Sum(f => f.MontoTotal);
@@ -409,12 +402,10 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
             .Sum(f => f.MontoTotal);
 
         var ordenesCompra = await db.PedidosProveedor
-            .CountAsync(p => p.FechaOrden != null && p.FechaOrden >= desde && p.FechaOrden <= hasta
-                     && (branch == null || p.SucursalId == branch));
+            .CountAsync(p => p.FechaOrden != null && p.FechaOrden >= desde && p.FechaOrden <= hasta);
 
         var recepciones = await db.RecepcionesMercaderia
-            .CountAsync(r => r.FechaRecepcion >= desde && r.FechaRecepcion <= hasta
-                     && (branch == null || r.SucursalId == branch));
+            .CountAsync(r => r.FechaRecepcion >= desde && r.FechaRecepcion <= hasta);
 
         // ── Serie temporal (monto facturado) ──
         var buckets = EnumerateBuckets(desde, hasta, agrup);

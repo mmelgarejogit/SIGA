@@ -252,8 +252,6 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         pageSize = Math.Min(pageSize, 100);
 
         var baseQuery = db.SesionesCaja.AsQueryable();
-        if (current.SucursalId is int b)
-            baseQuery = baseQuery.Where(s => s.SucursalId == b);
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoSesionCaja>(estado, out var estadoEnum))
             baseQuery = baseQuery.Where(s => s.Estado == estadoEnum);
 
@@ -285,9 +283,8 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         if (!DateOnly.TryParse(fecha, out var fechaParsed))
             return Result<ResumenCajaDto>.Failure("Fecha inválida", ErrorType.Validation);
 
-        var branch = current.SucursalId;
         var movimientos = await db.MovimientosCaja
-            .Where(m => m.Fecha == fechaParsed && (branch == null || m.SucursalId == branch))
+            .Where(m => m.Fecha == fechaParsed)
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
 
@@ -295,8 +292,7 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         var egresos  = movimientos.Where(m => m.Tipo == TipoMovimientoCaja.Egreso).ToList();
 
         var cantidadVentas = await db.Ventas
-            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Cancelada
-                && (branch == null || v.SucursalId == branch));
+            .CountAsync(v => v.FechaVenta == fechaParsed && v.Estado != EstadoVenta.Cancelada);
 
         var resumen = new ResumenCajaDto
         {
@@ -321,9 +317,6 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         var query = db.MovimientosCaja
             .Include(m => m.RegistradoPor).ThenInclude(u => u!.Person)
             .AsQueryable();
-
-        if (current.SucursalId is int b)
-            query = query.Where(m => m.SucursalId == b);
 
         if (!string.IsNullOrWhiteSpace(fechaDesde) && DateOnly.TryParse(fechaDesde, out var desde))
             query = query.Where(m => m.Fecha >= desde);
@@ -353,7 +346,7 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
 
     public async Task<Result<bool>> DeleteMovimientoAsync(int id)
     {
-        var movimiento = await db.MovimientosCaja.FindAsync(id);
+        var movimiento = await db.MovimientosCaja.FirstOrDefaultAsync(m => m.Id == id);
         if (movimiento == null) return Result<bool>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
 
         db.MovimientosCaja.Remove(movimiento);

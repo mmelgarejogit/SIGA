@@ -405,17 +405,17 @@ public static class DevDataSeeder
             .Select(x => new MovimientoStock
             {
                 ProductoId      = x.p.Id,
-                Tipo            = "Entrada",
+                Tipo            = TipoMovimientoStock.Entrada,
                 Cantidad        = x.act,
                 Motivo          = "Ingreso inicial",
-                Estado          = "Aprobado",
+                Estado          = EstadoMovimientoStock.Aprobado,
                 FechaMovimiento = x.p.CreatedAt,
                 FechaAprobacion = x.p.CreatedAt,
             });
         db.MovimientosStock.AddRange(movimientosIniciales);
         await db.SaveChangesAsync();
 
-        var tiposMovimiento = new[] { "Entrada", "Salida", "Salida", "Ajuste" };
+        var tiposMovimiento = new[] { TipoMovimientoStock.Entrada, TipoMovimientoStock.Salida, TipoMovimientoStock.Salida, TipoMovimientoStock.Ajuste };
         string[] motivosMov =
         [
             "Compra a proveedor", "Venta al cliente", "Pérdida / rotura",
@@ -429,7 +429,7 @@ public static class DevDataSeeder
             for (int m = 0; m < qty; m++)
             {
                 var tipo     = tiposMovimiento[Rng.Next(tiposMovimiento.Length)];
-                var cantidad = tipo == "Ajuste" ? Rng.Next(5, 30) : Rng.Next(1, 12);
+                var cantidad = tipo == TipoMovimientoStock.Ajuste ? Rng.Next(5, 30) : Rng.Next(1, 12);
 
                 movimientos.Add(new MovimientoStock
                 {

@@ -11,7 +11,7 @@ public class MovimientoCajaConfiguration : IEntityTypeConfiguration<MovimientoCa
         builder.ToTable("movimientos_caja");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
-        builder.Property(x => x.Monto).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Monto).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.Concepto).IsRequired().HasMaxLength(300);
         builder.Property(x => x.MetodoPago).HasConversion<int>().IsRequired();
         builder.Property(x => x.Fecha).IsRequired();

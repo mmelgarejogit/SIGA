@@ -17,15 +17,10 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
     private string? CurrentUserName =>
         http.HttpContext?.User.FindFirstValue("name");
 
-    // Filtro de sucursal para LECTURAS de stock: usuario con sucursal → la suya;
-    // usuario global (admin) → null = suma de todas las sucursales.
-    private int? ReadBranch => current.SucursalId;
-
     private async Task<int> StockDeProductoAsync(int productoId)
     {
-        var branch = ReadBranch;
         return await db.StockActual
-            .Where(s => s.ProductoId == productoId && (branch == null || s.SucursalId == branch))
+            .Where(s => s.ProductoId == productoId)
             .SumAsync(s => (int?)s.StockActual) ?? 0;
     }
 
@@ -53,10 +48,9 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
 
         if (bajoStock == true)
         {
-            var branch = ReadBranch;
             query = query.Where(p =>
                 (db.StockActual
-                    .Where(s => s.ProductoId == p.Id && (branch == null || s.SucursalId == branch))
+                    .Where(s => s.ProductoId == p.Id)
                     .Sum(s => (int?)s.StockActual) ?? 0)
                 <=
                 (db.ProductosStockConfig
@@ -83,9 +77,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
             .ToListAsync();
 
         var productoIds = productos.Select(p => p.Id).ToList();
-        var branchFilter = ReadBranch;
         var stockMap = await db.StockActual
-            .Where(s => productoIds.Contains(s.ProductoId) && (branchFilter == null || s.SucursalId == branchFilter))
+            .Where(s => productoIds.Contains(s.ProductoId))
             .GroupBy(s => s.ProductoId)
             .Select(g => new { ProductoId = g.Key, Stock = g.Sum(x => x.StockActual) })
             .ToDictionaryAsync(x => x.ProductoId, x => x.Stock);
@@ -288,7 +281,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         if (producto is null)
             return Result<MovimientoStockResponse>.Failure("Producto no encontrado.", ErrorType.NotFound);
 
-        if (!new[] { "Entrada", "Salida", "Ajuste" }.Contains(request.Tipo))
+        if (!Enum.TryParse<TipoMovimientoStock>(request.Tipo, ignoreCase: true, out var tipoCreate))
             return Result<MovimientoStockResponse>.Failure("Tipo inválido. Use Entrada, Salida o Ajuste.", ErrorType.Validation);
 
         if (request.Cantidad <= 0)
@@ -307,14 +300,14 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         {
             ProductoId         = productoId,
             SucursalId         = await SucursalResolver.WriteBranchAsync(db, current),
-            Tipo               = request.Tipo,
+            Tipo               = tipoCreate,
             Cantidad           = request.Cantidad,
             Motivo             = motivoNombre,
             MotivoMovimientoId = request.MotivoMovimientoId,
             FechaMovimiento    = request.FechaMovimiento?.ToUniversalTime() ?? DateTime.UtcNow,
             CreadoPorId        = CurrentUserId,
             CreadoPorNombre    = CurrentUserName,
-            Estado             = "Pendiente",
+            Estado             = EstadoMovimientoStock.Pendiente,
         };
 
         db.MovimientosStock.Add(movimiento);
@@ -326,7 +319,8 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
     public async Task<Result<MovimientoStockResponse>> AprobarRechazarMovimientoAsync(
         int id, AprobarRechazarMovimientoRequest request)
     {
-        if (!new[] { "Aprobado", "Rechazado" }.Contains(request.Estado))
+        if (!Enum.TryParse<EstadoMovimientoStock>(request.Estado, ignoreCase: true, out var estadoParsed)
+            || (estadoParsed != EstadoMovimientoStock.Aprobado && estadoParsed != EstadoMovimientoStock.Rechazado))
             return Result<MovimientoStockResponse>.Failure("Estado inválido.", ErrorType.Validation);
 
         var movimiento = await db.MovimientosStock
@@ -336,19 +330,19 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         if (movimiento is null)
             return Result<MovimientoStockResponse>.Failure("Movimiento no encontrado.", ErrorType.NotFound);
 
-        if (movimiento.Estado != "Pendiente")
+        if (movimiento.Estado != EstadoMovimientoStock.Pendiente)
             return Result<MovimientoStockResponse>.Failure("Solo se pueden gestionar movimientos en estado Pendiente.", ErrorType.Validation);
 
-        if (request.Estado == "Aprobado")
+        if (estadoParsed == EstadoMovimientoStock.Aprobado)
         {
             var stockActual = await db.StockActual
                 .Where(s => s.ProductoId == movimiento.ProductoId && s.SucursalId == movimiento.SucursalId)
                 .SumAsync(s => (int?)s.StockActual) ?? 0;
 
-            if (movimiento.Tipo == "Salida" && stockActual < movimiento.Cantidad)
+            if (movimiento.Tipo == TipoMovimientoStock.Salida && stockActual < movimiento.Cantidad)
                 return Result<MovimientoStockResponse>.Failure("Stock insuficiente para aprobar la salida.", ErrorType.Validation);
 
-            if (movimiento.Tipo == "Ajuste")
+            if (movimiento.Tipo == TipoMovimientoStock.Ajuste)
             {
                 // Convertir Ajuste a delta: registrar movimiento compensatorio aprobado
                 var delta = movimiento.Cantidad - stockActual;
@@ -358,13 +352,13 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
                     {
                         ProductoId      = movimiento.ProductoId,
                         SucursalId      = movimiento.SucursalId,
-                        Tipo            = delta > 0 ? "Entrada" : "Salida",
+                        Tipo            = delta > 0 ? TipoMovimientoStock.Entrada : TipoMovimientoStock.Salida,
                         Cantidad        = Math.Abs(delta),
                         Motivo          = $"Ajuste #{movimiento.Id}",
                         FechaMovimiento = DateTime.UtcNow,
                         CreadoPorId     = CurrentUserId,
                         CreadoPorNombre = CurrentUserName,
-                        Estado                  = "Aprobado",
+                        Estado                  = EstadoMovimientoStock.Aprobado,
                         AprobadoPorNombre       = CurrentUserName,
                         FechaAprobacion         = DateTime.UtcNow,
                         ObservacionesAprobacion = request.Observaciones?.Trim(),
@@ -374,7 +368,7 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
             }
         }
 
-        movimiento.Estado                  = request.Estado;
+        movimiento.Estado                  = estadoParsed;
         movimiento.AprobadoPorNombre       = CurrentUserName;
         movimiento.FechaAprobacion         = DateTime.UtcNow;
         movimiento.ObservacionesAprobacion = request.Observaciones?.Trim();
@@ -401,7 +395,6 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         var movimientosQuery = db.MovimientosStock
             .Include(m => m.Sucursal)
             .Where(m => m.ProductoId == productoId);
-        if (ReadBranch is int rb) movimientosQuery = movimientosQuery.Where(m => m.SucursalId == rb);
 
         var movimientos = await movimientosQuery
             .OrderByDescending(m => m.CreatedAt)
@@ -416,14 +409,11 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
     {
         var query = db.MovimientosStock.Include(m => m.Producto).Include(m => m.Sucursal).AsQueryable();
 
-        if (ReadBranch is int rb)
-            query = query.Where(m => m.SucursalId == rb);
+        if (!string.IsNullOrWhiteSpace(tipo) && Enum.TryParse<TipoMovimientoStock>(tipo, ignoreCase: true, out var tipoFiltro))
+            query = query.Where(m => m.Tipo == tipoFiltro);
 
-        if (!string.IsNullOrWhiteSpace(tipo))
-            query = query.Where(m => m.Tipo == tipo);
-
-        if (!string.IsNullOrWhiteSpace(estado))
-            query = query.Where(m => m.Estado == estado);
+        if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoMovimientoStock>(estado, ignoreCase: true, out var estadoFiltro))
+            query = query.Where(m => m.Estado == estadoFiltro);
 
         var totalCount = await query.CountAsync();
 
@@ -581,13 +571,13 @@ public class ProductoService(AppDbContext db, IHttpContextAccessor http, ICurren
         ProductoNombre          = productoNombre,
         SucursalId              = m.SucursalId,
         SucursalNombre          = m.Sucursal?.Nombre,
-        Tipo                    = m.Tipo,
+        Tipo                    = m.Tipo.ToString(),
         Cantidad                = m.Cantidad,
         Motivo                  = m.Motivo,
         MotivoMovimientoId      = m.MotivoMovimientoId,
         FechaMovimiento         = m.FechaMovimiento,
         CreadoPorNombre         = m.CreadoPorNombre,
-        Estado                  = m.Estado,
+        Estado                  = m.Estado.ToString(),
         AprobadoPorNombre       = m.AprobadoPorNombre,
         FechaAprobacion         = m.FechaAprobacion,
         ObservacionesAprobacion = m.ObservacionesAprobacion,

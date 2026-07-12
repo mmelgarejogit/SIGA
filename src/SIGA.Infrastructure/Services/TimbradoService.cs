@@ -12,8 +12,6 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
     public async Task<Result<IEnumerable<TimbradoDto>>> GetAllAsync()
     {
         var query = db.Timbrados.Include(t => t.Sucursal).AsQueryable();
-        if (current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
         var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
@@ -24,15 +22,13 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         var query = db.Timbrados
             .Include(t => t.Sucursal)
             .Where(t => t.IsActive && t.FechaInicioVigencia <= today && t.FechaFinVigencia >= today);
-        if (current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
         var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
 
     public async Task<Result<TimbradoDto>> GetByIdAsync(int id)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<TimbradoDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         return Result<TimbradoDto>.Success(ToDto(item));
     }
@@ -86,7 +82,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
 
     public async Task<Result<TimbradoDto>> UpdateAsync(int id, UpdateTimbradoRequest request)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<TimbradoDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
 
         var numTimbrado = request.NumeroTimbrado.Trim();
@@ -130,7 +126,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
 
     public async Task<Result<bool>> DeactivateAsync(int id)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<bool>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         item.IsActive = false;
         await db.SaveChangesAsync();

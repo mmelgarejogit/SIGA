@@ -426,9 +426,6 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
     {
         var query = BaseQuery();
 
-        if (current.SucursalId is int b)
-            query = query.Where(e => e.SucursalId == b);
-
         if (!string.IsNullOrWhiteSpace(tipo) && Enum.TryParse<TipoEgreso>(tipo, ignoreCase: true, out var t))
             query = query.Where(e => e.Tipo == t);
 

@@ -17,12 +17,8 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
             .Include(t => t.Items).ThenInclude(i => i.Producto)
             .AsQueryable();
 
-        // Usuario de sucursal: ve las transferencias donde participa (origen o destino).
-        if (current.SucursalId is int b)
-            query = query.Where(t => t.SucursalOrigenId == b || t.SucursalDestinoId == b);
-
-        if (!string.IsNullOrWhiteSpace(estado))
-            query = query.Where(t => t.Estado == estado);
+        if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoTransferenciaStock>(estado, ignoreCase: true, out var estadoFiltro))
+            query = query.Where(t => t.Estado == estadoFiltro);
 
         var items = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
         return Result<IEnumerable<TransferenciaResponse>>.Success(items.Select(ToResponse));
@@ -82,7 +78,7 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
             SucursalOrigenId  = origenId,
             SucursalDestinoId = request.SucursalDestinoId,
             Fecha             = DateOnly.FromDateTime(now),
-            Estado            = "Pendiente",
+            Estado            = EstadoTransferenciaStock.Pendiente,
             CreadoPorId       = userId.ToString(),
             CreadoPorNombre   = userName,
             Observaciones     = request.Observaciones?.Trim(),
@@ -103,10 +99,10 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
             {
                 ProductoId      = c.ProductoId,
                 SucursalId      = origenId,
-                Tipo            = "Salida",
+                Tipo            = TipoMovimientoStock.Salida,
                 Cantidad        = c.Cantidad,
                 Motivo          = $"Transferencia a sucursal #{request.SucursalDestinoId}",
-                Estado          = "Aprobado",
+                Estado          = EstadoMovimientoStock.Aprobado,
                 FechaMovimiento = now,
                 FechaAprobacion = now,
                 CreadoPorNombre = userName,
@@ -116,7 +112,7 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
         await db.SaveChangesAsync();
 
         await notificacion.CrearAsync(
-            tipo: "transferencia_pendiente",
+            tipo: TipoNotificacion.TransferenciaPendiente,
             mensaje: $"Nueva transferencia de stock #{transferencia.Id} pendiente de aprobación.",
             entidadOrigenTipo: "TransferenciaStock",
             entidadOrigenId: transferencia.Id,
@@ -134,7 +130,7 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
         if (t is null)
             return Result<TransferenciaResponse>.Failure("Transferencia no encontrada.", ErrorType.NotFound);
 
-        if (t.Estado != "Pendiente")
+        if (t.Estado != EstadoTransferenciaStock.Pendiente)
             return Result<TransferenciaResponse>.Failure("La transferencia ya fue gestionada.", ErrorType.Conflict);
 
         // Solo la sucursal de destino (o un admin global) acepta/rechaza.
@@ -152,16 +148,16 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
                 {
                     ProductoId      = item.ProductoId,
                     SucursalId      = t.SucursalDestinoId,
-                    Tipo            = "Entrada",
+                    Tipo            = TipoMovimientoStock.Entrada,
                     Cantidad        = item.Cantidad,
                     Motivo          = $"Transferencia recibida desde sucursal #{t.SucursalOrigenId}",
-                    Estado          = "Aprobado",
+                    Estado          = EstadoMovimientoStock.Aprobado,
                     FechaMovimiento = now,
                     FechaAprobacion = now,
                     CreadoPorNombre = userName,
                 });
             }
-            t.Estado = "Aceptada";
+            t.Estado = EstadoTransferenciaStock.Aceptada;
         }
         else
         {
@@ -172,16 +168,16 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
                 {
                     ProductoId      = item.ProductoId,
                     SucursalId      = t.SucursalOrigenId,
-                    Tipo            = "Entrada",
+                    Tipo            = TipoMovimientoStock.Entrada,
                     Cantidad        = item.Cantidad,
                     Motivo          = $"Transferencia #{t.Id} rechazada — devolución al origen",
-                    Estado          = "Aprobado",
+                    Estado          = EstadoMovimientoStock.Aprobado,
                     FechaMovimiento = now,
                     FechaAprobacion = now,
                     CreadoPorNombre = userName,
                 });
             }
-            t.Estado = "Rechazada";
+            t.Estado = EstadoTransferenciaStock.Rechazada;
         }
 
         t.RecibidoPorNombre = userName;
@@ -211,7 +207,7 @@ public class TransferenciaStockService(AppDbContext db, ICurrentUserContext curr
         SucursalDestinoId     = t.SucursalDestinoId,
         SucursalDestinoNombre = t.SucursalDestino?.Nombre ?? "",
         Fecha                 = t.Fecha.ToString("yyyy-MM-dd"),
-        Estado                = t.Estado,
+        Estado                = t.Estado.ToString(),
         CreadoPorNombre       = t.CreadoPorNombre,
         RecibidoPorNombre     = t.RecibidoPorNombre,
         Observaciones         = t.Observaciones,

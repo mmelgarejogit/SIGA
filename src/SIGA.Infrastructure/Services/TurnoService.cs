@@ -33,9 +33,6 @@ public class TurnoService : ITurnoService
             .Include(t => t.EstadoCustom)
             .AsQueryable();
 
-        if (_current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
-
         if (fecha.HasValue)
         {
             var from = DateTime.SpecifyKind(fecha.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
@@ -61,7 +58,10 @@ public class TurnoService : ITurnoService
         if (await _db.BloqueosFecha.AnyAsync(b => b.ProfessionalId == professionalId && b.Fecha == fecha))
             return Result<IEnumerable<SlotDisponibleResponse>>.Success([]);
 
-        var branch = sucursalId ?? _current.SucursalId;
+        // La identidad del que llama siempre gana; sucursalId solo sirve para que un
+        // usuario global (sin sucursal propia) filtre por una sucursal en particular
+        // (mismo patrón que ReporteOperativoService.ResolveBranch).
+        var branch = _current.SucursalId ?? sucursalId;
         var horario = await _db.HorariosProfesional
             .Include(h => h.Pausas)
             .FirstOrDefaultAsync(h => h.ProfessionalId == professionalId
@@ -104,7 +104,9 @@ public class TurnoService : ITurnoService
 
     public async Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha, int? sucursalId = null)
     {
-        var branch = sucursalId ?? _current.SucursalId;
+        // La identidad del que llama siempre gana; sucursalId solo sirve para que un
+        // usuario global (sin sucursal propia) filtre por una sucursal en particular.
+        var branch = _current.SucursalId ?? sucursalId;
 
         // Profesionales con un horario activo para ese día de la semana (en la sucursal indicada).
         var profIds = await _db.HorariosProfesional
