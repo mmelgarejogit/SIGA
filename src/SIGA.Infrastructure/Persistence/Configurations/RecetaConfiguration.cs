@@ -22,6 +22,11 @@ public class RecetaConfiguration : IEntityTypeConfiguration<Receta>
         builder.Property(x => x.AvConCorreccion).HasMaxLength(20);
         builder.Property(x => x.Observaciones).HasMaxLength(1000);
 
+        builder.HasOne(x => x.Sucursal)
+            .WithMany()
+            .HasForeignKey(x => x.SucursalId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.ConsultaClinica)
             .WithOne(x => x.Receta)
             .HasForeignKey<Receta>(x => x.ConsultaClinicaId)

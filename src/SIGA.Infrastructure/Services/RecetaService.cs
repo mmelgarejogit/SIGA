@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class RecetaService(AppDbContext db) : IRecetaService
+public class RecetaService(AppDbContext db, ICurrentUserContext current) : IRecetaService
 {
     public async Task<Result<IEnumerable<RecetaResponse>>> GetByClienteAsync(int clienteId)
     {
@@ -41,6 +41,7 @@ public class RecetaService(AppDbContext db) : IRecetaService
         var now = DateTime.UtcNow;
         var receta = new Receta
         {
+            SucursalId            = await SucursalResolver.WriteBranchAsync(db, current),
             ConsultaClinicaId     = null,
             PersonId              = personId,
             FechaEmision          = request.FechaEmision,

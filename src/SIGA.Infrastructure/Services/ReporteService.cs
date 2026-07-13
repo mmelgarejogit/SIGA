@@ -176,7 +176,8 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
 
     public async Task<Result<ReporteCitasDto>> GetReporteCitasAsync(DateOnly desde, DateOnly hasta, string agrupacion)
     {
-        var agrup = agrupacion is "mes" or "semana" or "dia" ? agrupacion : "dia";
+        var agrup  = agrupacion is "mes" or "semana" or "dia" ? agrupacion : "dia";
+        var branch = current.SucursalId;
 
         var desdeDt = DateTime.SpecifyKind(desde.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
         var hastaDt = DateTime.SpecifyKind(hasta.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
@@ -199,8 +200,13 @@ public class ReporteService(AppDbContext db, ICurrentUserContext current) : IRep
             .CountAsync(c => c.IsActive && c.FechaConsulta >= desdeDt && c.FechaConsulta <= hastaDt);
 
         // ── Recetas emitidas del rango (por FechaEmision) ──
+        // Receta tiene SucursalId propio (dónde se emitió/cargó) pero no está en el filtro
+        // global a propósito: RecetaService.GetByClienteAsync necesita verlas cross-sucursal
+        // para el flujo de venta a pedido. Acá sí se acota a mano, igual que ya hace este
+        // método con Cobro en el reporte de ventas.
         var recetas = await db.Recetas
-            .CountAsync(r => r.FechaEmision >= desde && r.FechaEmision <= hasta);
+            .CountAsync(r => r.FechaEmision >= desde && r.FechaEmision <= hasta
+                           && (branch == null || r.SucursalId == branch));
 
         // ── Serie temporal (turnos vs completados) ──
         var buckets = EnumerateBuckets(desde, hasta, agrup);
