@@ -47,6 +47,10 @@ public class ProfessionalService : IProfessionalService
 
     public async Task<Result<ProfessionalResponse>> CreateAsync(CreateProfessionalRequest request)
     {
+        var passwordError = PasswordPolicy.Validate(request.Password);
+        if (passwordError is not null)
+            return Result<ProfessionalResponse>.Failure(passwordError, ErrorType.Validation);
+
         if (await _dbContext.Persons.AnyAsync(p => p.CI == request.CI))
             return Result<ProfessionalResponse>.Failure("CI already in use.", ErrorType.Conflict);
 

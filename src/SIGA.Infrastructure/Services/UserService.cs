@@ -80,12 +80,13 @@ public class UserService : IUserService
 
     public async Task<Result<bool>> ResetPasswordAsync(int id, string newPassword)
     {
-        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
-            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
-
         var user = await _dbContext.Users.FindAsync(id);
         if (user is null)
             return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
+
+        var passwordError = PasswordPolicy.ValidateNew(newPassword, user.PasswordHash, _passwordHasher);
+        if (passwordError is not null)
+            return Result<bool>.Failure(passwordError, ErrorType.Validation);
 
         user.PasswordHash       = _passwordHasher.Hash(newPassword);
         user.MustChangePassword = true;
