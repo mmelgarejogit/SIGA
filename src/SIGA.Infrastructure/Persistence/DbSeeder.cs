@@ -29,7 +29,7 @@ public static class DbSeeder
         "gestionar_caja",    "aprobar_cierres_caja",
         "ver_reportes",
         "ver_dashboard",
-        "ver_notificaciones",
+        "ver_notificaciones",   "gestionar_notificaciones",
         "gestionar_configuracion",
         "ver_mis_turnos",
         "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",

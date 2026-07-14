@@ -80,6 +80,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserCo
     public DbSet<TransferenciaStock> TransferenciasStock => Set<TransferenciaStock>();
     public DbSet<TransferenciaStockItem> TransferenciasStockItems => Set<TransferenciaStockItem>();
     public DbSet<NotificacionInterna> NotificacionesInternas => Set<NotificacionInterna>();
+    public DbSet<NotificacionPreferencia> NotificacionesPreferencias => Set<NotificacionPreferencia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
