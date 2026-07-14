@@ -82,6 +82,15 @@ public class VentaDto
     public decimal MontoSeña { get; set; }
     public decimal TotalCobrado { get; set; }
     public decimal SaldoPendiente { get; set; }
+
+    // Plan de cuotas (todos null si la venta no tiene un plan definido)
+    public int? CantidadCuotas { get; set; }
+    public int? FrecuenciaCuotasDias { get; set; }
+    public decimal? MontoCuota { get; set; }
+    public int? CuotasPagadas { get; set; }
+    public string? ProximaCuotaVencimiento { get; set; }
+    public bool CuotaVencida { get; set; }
+
     public string? Observaciones { get; set; }
     public List<VentaLineaDto> Lineas { get; set; } = new();
     public List<CobroDto> Cobros { get; set; } = new();

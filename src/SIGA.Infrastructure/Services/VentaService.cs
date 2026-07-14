@@ -36,6 +36,12 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         MontoSeña         = v.MontoSeña,
         TotalCobrado      = v.TotalCobrado,
         SaldoPendiente    = v.SaldoPendiente,
+        CantidadCuotas          = v.CantidadCuotas,
+        FrecuenciaCuotasDias    = v.FrecuenciaCuotasDias,
+        MontoCuota              = v.MontoCuota,
+        CuotasPagadas           = v.CuotasPagadas,
+        ProximaCuotaVencimiento = v.ProximaCuotaVencimiento?.ToString("yyyy-MM-dd"),
+        CuotaVencida            = v.CuotaVencida,
         Observaciones     = v.Observaciones,
         CreatedAt         = v.CreatedAt,
         Lineas = v.Lineas.Select(l => new VentaLineaDto
@@ -198,6 +204,10 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             Tipo              = tipo,
             FechaVenta        = DateOnly.Parse(request.FechaVenta),
             ValidezDias       = request.ValidezDias < 1 ? 15 : request.ValidezDias,
+            // El plan de cuotas solo tiene sentido en ventas a Crédito; en Contado se ignora
+            // aunque venga en el request, para no dejar datos inconsistentes.
+            CantidadCuotas        = condicion == CondicionVenta.Credito ? request.CantidadCuotas : null,
+            FrecuenciaCuotasDias  = condicion == CondicionVenta.Credito ? request.FrecuenciaCuotasDias : null,
             Observaciones     = request.Observaciones,
             Estado            = EstadoVenta.Borrador,
             CreatedAt         = DateTime.UtcNow,
@@ -288,6 +298,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
         venta.CondicionVenta = condicion;
         venta.FechaVenta     = DateOnly.Parse(request.FechaVenta);
+        venta.CantidadCuotas       = condicion == CondicionVenta.Credito ? request.CantidadCuotas : null;
+        venta.FrecuenciaCuotasDias = condicion == CondicionVenta.Credito ? request.FrecuenciaCuotasDias : null;
         venta.Observaciones  = request.Observaciones;
         venta.UpdatedAt      = DateTime.UtcNow;
 
@@ -459,12 +471,11 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                 $"El monto del cobro ({montoTotal:N0}) supera el saldo pendiente ({venta.SaldoPendiente:N0})",
                 ErrorType.Validation);
 
-        // No se puede registrar un cobro en efectivo sin una caja abierta (el efectivo debe
-        // quedar asociado a una sesión para el arqueo del cierre).
+        // Todo cobro debe quedar asociado a una sesión de caja abierta.
         var sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == venta.SucursalId);
-        if (lineas.Any(l => l.metodo == MetodoPago.Efectivo) && sesionCaja is null)
+        if (sesionCaja is null)
             return Result<VentaDto>.Failure(
-                "No hay una caja abierta. Abrí la caja antes de registrar un cobro en efectivo.", ErrorType.Conflict);
+                "No hay una caja abierta. Abrí la caja antes de registrar cobros.", ErrorType.Conflict);
 
         var fecha      = DateOnly.TryParse(request.Fecha, out var f) ? f : DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -895,16 +906,20 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
             if (totalDevuelto > 0)
             {
+                var sesionDevolucion = await db.SesionesCaja
+                    .FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == sucursalId);
+
                 db.MovimientosCaja.Add(new MovimientoCaja
                 {
-                    Tipo       = TipoMovimientoCaja.Egreso,
-                    Monto      = totalDevuelto,
-                    Concepto   = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
-                    MetodoPago = MetodoPago.Efectivo,
-                    SucursalId = sucursalId,
-                    VentaId    = devolucion.VentaId,
-                    Fecha      = fecha,
-                    CreatedAt  = now,
+                    Tipo         = TipoMovimientoCaja.Egreso,
+                    Monto        = totalDevuelto,
+                    Concepto     = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
+                    MetodoPago   = MetodoPago.Efectivo,
+                    SucursalId   = sucursalId,
+                    VentaId      = devolucion.VentaId,
+                    SesionCajaId = sesionDevolucion?.Id,
+                    Fecha        = fecha,
+                    CreatedAt    = now,
                 });
             }
         }

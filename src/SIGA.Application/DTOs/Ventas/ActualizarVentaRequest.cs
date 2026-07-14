@@ -9,6 +9,11 @@ public class ActualizarVentaRequest
 {
     public string CondicionVenta { get; set; } = "Contado";
     public string FechaVenta { get; set; } = null!;
+
+    // Plan de cuotas (opcional, solo aplica cuando CondicionVenta = "Credito").
+    public int? CantidadCuotas { get; set; }
+    public int? FrecuenciaCuotasDias { get; set; }
+
     public string? Observaciones { get; set; }
     public List<AgregarLineaRequest> Lineas { get; set; } = new();
 

@@ -186,12 +186,12 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         }
 
         SesionCaja? sesion = null;
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
             if (sesion is null)
                 return Result<PedidoResponse>.Failure(
-                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    "No hay una caja abierta. Abrí la caja antes de registrar un pago.",
                     ErrorType.Validation);
         }
 
@@ -225,15 +225,15 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
         db.FacturasCompra.Add(factura);
 
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
                 Tipo         = TipoMovimientoCaja.Egreso,
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra — OC #{id} — {pedido.Proveedor.Nombre}",
-                MetodoPago   = MetodoPago.Efectivo,
-                EgresoId     = null, // se actualizará tras SaveChanges si se requiere
+                MetodoPago   = metodoPago.Value,
+                EgresoId     = null,
                 SesionCajaId = sesion!.Id,
                 Fecha        = fechaEmision,
                 CreatedAt    = DateTime.UtcNow,

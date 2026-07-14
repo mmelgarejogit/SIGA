@@ -170,12 +170,12 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
         }
 
         SesionCaja? sesion = null;
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
             if (sesion is null)
                 return Result<FacturaCompraResponse>.Failure(
-                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    "No hay una caja abierta. Abrí la caja antes de registrar un pago.",
                     ErrorType.Validation);
         }
 
@@ -266,14 +266,14 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
 
         db.FacturasCompra.Add(factura);
 
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
                 Tipo         = TipoMovimientoCaja.Egreso,
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra directa — {nroFactura} — {proveedor.Nombre}",
-                MetodoPago   = MetodoPago.Efectivo,
+                MetodoPago   = metodoPago.Value,
                 SesionCajaId = sesion!.Id,
                 Fecha        = fechaEmision,
                 CreatedAt    = DateTime.UtcNow,
