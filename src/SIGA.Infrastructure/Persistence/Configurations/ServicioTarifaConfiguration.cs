@@ -10,7 +10,7 @@ public class ServicioTarifaConfiguration : IEntityTypeConfiguration<ServicioTari
     {
         builder.ToTable("servicio_tarifas");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Precio).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Precio).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 

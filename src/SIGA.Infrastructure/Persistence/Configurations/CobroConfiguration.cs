@@ -11,7 +11,7 @@ public class CobroConfiguration : IEntityTypeConfiguration<Cobro>
         builder.ToTable("cobros");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
-        builder.Property(x => x.MontoTotal).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.MontoTotal).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.Fecha).IsRequired();
         builder.Property(x => x.Anulado).IsRequired();
         builder.Property(x => x.RegistradoPorId).IsRequired();

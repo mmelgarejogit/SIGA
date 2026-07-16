@@ -13,9 +13,9 @@ public class FacturaVentaConfiguration : IEntityTypeConfiguration<FacturaVenta>
         builder.Property(x => x.NumeroFactura).IsRequired().HasMaxLength(50);
         builder.Property(x => x.Timbrado).IsRequired().HasMaxLength(50);
         builder.Property(x => x.Establecimiento).IsRequired().HasMaxLength(20);
-        builder.Property(x => x.MontoExento).IsRequired().HasColumnType("numeric(18,2)");
-        builder.Property(x => x.MontoGravado5).IsRequired().HasColumnType("numeric(18,2)");
-        builder.Property(x => x.MontoGravado10).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.MontoExento).IsRequired().HasColumnType("numeric(18,0)");
+        builder.Property(x => x.MontoGravado5).IsRequired().HasColumnType("numeric(18,0)");
+        builder.Property(x => x.MontoGravado10).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.FechaEmision).IsRequired();
         builder.Property(x => x.Observaciones).HasMaxLength(1000);
         builder.Property(x => x.CreatedAt).IsRequired();

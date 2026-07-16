@@ -11,7 +11,7 @@ public class TransferenciaStock
     public Sucursal SucursalDestino { get; set; } = null!;
 
     public DateOnly Fecha { get; set; }
-    public string Estado { get; set; } = "Pendiente"; // Pendiente | Aceptada | Rechazada
+    public EstadoTransferenciaStock Estado { get; set; } = EstadoTransferenciaStock.Pendiente;
 
     public string? CreadoPorId { get; set; }
     public string? CreadoPorNombre { get; set; }

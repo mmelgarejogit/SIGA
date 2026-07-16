@@ -98,7 +98,7 @@ public class LaboratorioService(AppDbContext db, ICurrentUserContext current, IN
         await db.SaveChangesAsync();
 
         await notificacion.CrearAsync(
-            tipo: "pedido_lab_recibido",
+            tipo: TipoNotificacion.PedidoLabRecibido,
             mensaje: $"El pedido de laboratorio #{tp.Id} llegó y está listo para retirar.",
             entidadOrigenTipo: "TrabajoPedido",
             entidadOrigenId: tp.Id,

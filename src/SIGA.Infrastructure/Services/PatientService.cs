@@ -212,6 +212,7 @@ public class PatientService : IPatientService
     {
         Id          = p.Id,
         UserId      = p.UserId,
+        PersonId    = p.PersonId,
         CI          = p.Person.CI,
         FirstName   = p.Person.FirstName,
         LastName    = p.Person.LastName,

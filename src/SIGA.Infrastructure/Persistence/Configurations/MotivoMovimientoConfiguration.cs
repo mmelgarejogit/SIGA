@@ -12,7 +12,7 @@ public class MotivoMovimientoConfiguration : IEntityTypeConfiguration<MotivoMovi
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Nombre).IsRequired().HasMaxLength(200);
-        builder.Property(x => x.Tipo).IsRequired().HasMaxLength(20);
+        builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
 

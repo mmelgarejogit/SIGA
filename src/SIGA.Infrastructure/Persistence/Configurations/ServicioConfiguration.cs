@@ -12,7 +12,7 @@ public class ServicioConfiguration : IEntityTypeConfiguration<Servicio>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Nombre).IsRequired().HasMaxLength(200);
         builder.Property(x => x.Descripcion).HasMaxLength(1000);
-        builder.Property(x => x.Precio).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Precio).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();

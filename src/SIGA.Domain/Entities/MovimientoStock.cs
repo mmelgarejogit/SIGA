@@ -7,7 +7,7 @@ public class MovimientoStock
     public Producto Producto { get; set; } = null!;
     public int SucursalId { get; set; }
     public Sucursal? Sucursal { get; set; }
-    public string Tipo { get; set; } = ""; // Entrada | Salida
+    public TipoMovimientoStock Tipo { get; set; }
     public int Cantidad { get; set; }
     public string? Motivo { get; set; }
     public int? MotivoMovimientoId { get; set; }
@@ -15,7 +15,7 @@ public class MovimientoStock
     public DateTime FechaMovimiento { get; set; } = DateTime.UtcNow;
     public string? CreadoPorId { get; set; }
     public string? CreadoPorNombre { get; set; }
-    public string Estado { get; set; } = "Pendiente"; // Pendiente | Aprobado | Rechazado
+    public EstadoMovimientoStock Estado { get; set; } = EstadoMovimientoStock.Pendiente;
     public string? AprobadoPorNombre { get; set; }
     public DateTime? FechaAprobacion { get; set; }
     public string? ObservacionesAprobacion { get; set; }

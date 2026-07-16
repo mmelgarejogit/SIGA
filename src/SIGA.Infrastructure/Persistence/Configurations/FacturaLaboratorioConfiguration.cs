@@ -12,7 +12,7 @@ public class FacturaLaboratorioConfiguration : IEntityTypeConfiguration<FacturaL
         builder.HasKey(x => x.Id);
         builder.Property(x => x.NumeroFactura).IsRequired().HasMaxLength(50);
         builder.Property(x => x.Timbrado).HasMaxLength(20);
-        builder.Property(x => x.Monto).IsRequired().HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Monto).IsRequired().HasColumnType("numeric(18,0)");
         builder.Property(x => x.Observaciones).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).IsRequired();
 

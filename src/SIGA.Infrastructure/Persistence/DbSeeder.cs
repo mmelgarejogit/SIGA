@@ -29,7 +29,7 @@ public static class DbSeeder
         "gestionar_caja",    "aprobar_cierres_caja",
         "ver_reportes",
         "ver_dashboard",
-        "ver_notificaciones",
+        "ver_notificaciones",   "gestionar_notificaciones",
         "gestionar_configuracion",
         "ver_mis_turnos",
         "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
@@ -60,10 +60,10 @@ public static class DbSeeder
         ("Pedido",   "Enviado",    "#3B82F6", "Enviado",    true,  2),
         ("Pedido",   "Recibido",   "#10B981", "Recibido",   true,  3),
         ("Pedido",   "Cancelado",  "#EF4444", "Cancelado",  true,  4),
-        ("Consulta", "Pendiente",  "#F59E0B", "Pendiente",  false, 1),
-        ("Consulta", "Abierta",    "#3B82F6", "Abierta",    false, 2),
-        ("Consulta", "Cerrada",    "#10B981", "Cerrada",    false, 3),
-        ("Consulta", "Cancelada",  "#EF4444", "Cancelada",  false, 4),
+        ("Consulta", "Pendiente",  "#F59E0B", "Pendiente",  true,  1),
+        ("Consulta", "Abierta",    "#3B82F6", "Abierta",    true,  2),
+        ("Consulta", "Cerrada",    "#10B981", "Cerrada",    true,  3),
+        ("Consulta", "Cancelada",  "#EF4444", "Cancelada",  true,  4),
     ];
 
     private static readonly string[] EspecialidadesIniciales =

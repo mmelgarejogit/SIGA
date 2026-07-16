@@ -135,9 +135,6 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
     {
         var query = BaseQuery();
 
-        if (current.SucursalId is int b)
-            query = query.Where(v => v.SucursalId == b);
-
         if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoVenta>(estado, out var e))
             query = query.Where(v => v.Estado == e);
 
@@ -397,7 +394,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
     public async Task<Result<VentaDto>> CancelarVentaAsync(int id, CancelarVentaRequest request)
     {
-        var venta = await db.Ventas.FindAsync(id);
+        var venta = await db.Ventas.FirstOrDefaultAsync(v => v.Id == id);
         if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
         if (!venta.PuedeCancelarse())
             return Result<VentaDto>.Failure(
@@ -571,7 +568,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         if (venta.Comprobante != null)
             return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
 
-        var timbrado = await db.Timbrados.FindAsync(request.TimbradoId);
+        var timbrado = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == request.TimbradoId);
         if (timbrado == null)
             return Result<VentaDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         if (!timbrado.IsActive)
@@ -644,11 +641,11 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             {
                 ProductoId      = linea.ProductoId!.Value,
                 SucursalId      = sucursalId,
-                Tipo            = "Salida",
+                Tipo            = TipoMovimientoStock.Salida,
                 Cantidad        = linea.Cantidad,
                 Motivo          = $"Comprobante venta {venta.NumeroComprobante}",
                 FechaMovimiento = now,
-                Estado          = "Aprobado",
+                Estado          = EstadoMovimientoStock.Aprobado,
                 CreatedAt       = now,
             });
         }
@@ -887,11 +884,11 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             {
                 ProductoId      = linea.ProductoDevueltoId,
                 SucursalId      = sucursalId,
-                Tipo            = "Entrada",
+                Tipo            = TipoMovimientoStock.Entrada,
                 Cantidad        = linea.CantidadDevuelta,
                 Motivo          = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
                 FechaMovimiento = now,
-                Estado          = "Aprobado",
+                Estado          = EstadoMovimientoStock.Aprobado,
                 CreatedAt       = now,
             });
 
@@ -902,11 +899,11 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                 {
                     ProductoId      = linea.ProductoNuevoId.Value,
                     SucursalId      = sucursalId,
-                    Tipo            = "Salida",
+                    Tipo            = TipoMovimientoStock.Salida,
                     Cantidad        = linea.CantidadNueva ?? 0,
                     Motivo          = $"Cambio #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
                     FechaMovimiento = now,
-                    Estado          = "Aprobado",
+                    Estado          = EstadoMovimientoStock.Aprobado,
                     CreatedAt       = now,
                 });
             }

@@ -11,7 +11,7 @@ public class NotificacionInternaConfiguration : IEntityTypeConfiguration<Notific
         builder.ToTable("notificaciones_internas");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Tipo).IsRequired().HasMaxLength(50);
+        builder.Property(x => x.Tipo).HasConversion<int>().IsRequired();
         builder.Property(x => x.Mensaje).IsRequired().HasMaxLength(500);
         builder.Property(x => x.EntidadOrigenTipo).HasMaxLength(50);
 

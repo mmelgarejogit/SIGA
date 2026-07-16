@@ -11,7 +11,7 @@ public class TransferenciaStockConfiguration : IEntityTypeConfiguration<Transfer
         builder.ToTable("transferencias_stock");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Estado).IsRequired().HasMaxLength(20);
+        builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
         builder.Property(x => x.CreadoPorId).HasMaxLength(50);
         builder.Property(x => x.CreadoPorNombre).HasMaxLength(200);
         builder.Property(x => x.RecibidoPorNombre).HasMaxLength(200);

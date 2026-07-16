@@ -1,10 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 
 namespace SIGA.Infrastructure.Persistence;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserContext? currentUser = null) : DbContext(options)
 {
+    // null = usuario global (admin) o contexto sin ICurrentUserContext (seeders, background
+    // services, herramientas de diseño como `dotnet ef migrations add`) — el filtro es un no-op.
+    private int? SucursalFiltro => currentUser?.SucursalId;
+
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
@@ -75,10 +80,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TransferenciaStock> TransferenciasStock => Set<TransferenciaStock>();
     public DbSet<TransferenciaStockItem> TransferenciasStockItems => Set<TransferenciaStockItem>();
     public DbSet<NotificacionInterna> NotificacionesInternas => Set<NotificacionInterna>();
+    public DbSet<NotificacionPreferencia> NotificacionesPreferencias => Set<NotificacionPreferencia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        AplicarFiltrosDeSucursal(modelBuilder);
+    }
+
+    // Aislamiento multi-sucursal: cada entidad con dimensión de sucursal queda restringida
+    // a la sucursal del usuario actual en TODA query (list, GetById, Include, etc.), sin
+    // depender de que cada servicio recuerde aplicar el guard a mano. Un usuario global
+    // (SucursalFiltro == null) no queda restringido. No afecta INSERT/UPDATE/DELETE — eso
+    // sigue resuelto por SucursalResolver.WriteBranchAsync en el momento de escribir.
+    //
+    // Excluidas a propósito:
+    //   - User: SucursalId es la asignación del propio usuario, no una fila "propiedad" de
+    //     esa sucursal — filtrarla rompería Include(x => x.RegistradoPor) desde entidades ya
+    //     scopeadas y la gestión de usuarios de otras sucursales por parte de un admin.
+    //   - NotificacionInterna: DestinatarioSucursalId es un campo de targeting de broadcast
+    //     (null = todas), no de ownership — NotificacionInternaService.VisibleQuery() ya
+    //     combina esa lógica con el permiso ver_todas_sucursales; un filtro de una sola
+    //     columna no puede expresar lo mismo.
+    private void AplicarFiltrosDeSucursal(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ConsultaClinica>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<ConteoInventario>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<Egreso>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<HorarioProfesional>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<MovimientoCaja>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<MovimientoStock>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<PedidoProveedor>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<RecepcionMercaderia>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<StockActualView>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<StockLote>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<SesionCaja>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<Timbrado>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<Turno>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+        modelBuilder.Entity<Venta>().HasQueryFilter(e => SucursalFiltro == null || e.SucursalId == SucursalFiltro);
+
+        // TransferenciaStock no tiene SucursalId propio: pertenece a dos sucursales a la vez
+        // (origen/destino), visible desde ambas puntas.
+        modelBuilder.Entity<TransferenciaStock>().HasQueryFilter(e =>
+            SucursalFiltro == null || e.SucursalOrigenId == SucursalFiltro || e.SucursalDestinoId == SucursalFiltro);
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Roles;
+using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 using SIGA.Infrastructure.Persistence;
@@ -138,6 +139,55 @@ public class RoleService : IRoleService
             .ToListAsync();
 
         return Result<IEnumerable<RoleResponse>>.Success(roles.Select(ToResponse));
+    }
+
+    public async Task<Result<IEnumerable<UserResponse>>> GetUsersByRoleAsync(int roleId)
+    {
+        var roleExists = await _dbContext.Roles.AnyAsync(r => r.Id == roleId);
+        if (!roleExists)
+            return Result<IEnumerable<UserResponse>>.Failure("Role not found.", ErrorType.NotFound);
+
+        var users = await _dbContext.Users
+            .Where(u => u.UserRoles.Any(ur => ur.RoleId == roleId))
+            .Include(u => u.Person)
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.Professional)
+            .Include(u => u.Patient)
+            .Include(u => u.Sucursal)
+            .OrderByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        return Result<IEnumerable<UserResponse>>.Success(users.Select(ToUserResponse));
+    }
+
+    private static UserResponse ToUserResponse(User u)
+    {
+        string type;
+        if (u.Professional is not null)
+            type = "Profesional";
+        else if (u.Patient is not null)
+            type = "Paciente";
+        else if (u.UserRoles.Any(ur => ur.Role.Name == "Admin"))
+            type = "Administrador";
+        else
+            type = "Usuario";
+
+        return new UserResponse
+        {
+            UserId         = u.Id,
+            PersonId       = u.PersonId,
+            CI             = u.Person.CI,
+            FirstName      = u.Person.FirstName,
+            LastName       = u.Person.LastName,
+            Email          = u.Person.Email,
+            PhoneNumber    = u.Person.PhoneNumber,
+            IsActive       = u.IsActive,
+            Type           = type,
+            SucursalId     = u.SucursalId,
+            SucursalNombre = u.Sucursal?.Nombre,
+            Roles          = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+            CreatedAt      = u.CreatedAt,
+        };
     }
 
     private async Task SetPermissionsAsync(int roleId, List<string> permissionNames)

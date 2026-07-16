@@ -61,7 +61,7 @@ public class RolesController : BaseController
     [Authorize(Policy = "ver_roles")]
     public async Task<IActionResult> GetUsersByRole(int id)
     {
-        var result = await _roleService.GetRolesByUserAsync(id);
+        var result = await _roleService.GetUsersByRoleAsync(id);
         return ToHttpResponse(result);
     }
 }

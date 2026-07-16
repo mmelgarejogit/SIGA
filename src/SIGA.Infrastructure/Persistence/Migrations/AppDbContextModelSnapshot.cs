@@ -255,7 +255,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("date");
 
                     b.Property<decimal>("MontoTotal")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<int>("RegistradoPorId")
                         .HasColumnType("integer");
@@ -290,7 +290,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Monto")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<string>("Referencia")
                         .HasMaxLength(200)
@@ -456,6 +456,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CitaId");
+
                     b.HasIndex("EstadoConfigId");
 
                     b.HasIndex("PatientId");
@@ -488,9 +490,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("FechaAprobacion")
                         .HasColumnType("timestamp with time zone");
@@ -941,7 +942,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("date");
 
                     b.Property<decimal>("Monto")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<string>("NumeroFactura")
                         .IsRequired()
@@ -989,13 +990,13 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("date");
 
                     b.Property<decimal>("MontoExento")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<decimal>("MontoGravado10")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<decimal>("MontoGravado5")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<string>("NumeroFactura")
                         .IsRequired()
@@ -1139,10 +1140,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -1175,7 +1174,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Monto")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<string>("Referencia")
                         .HasMaxLength(200)
@@ -1234,9 +1233,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("FechaAprobacion")
                         .HasColumnType("timestamp with time zone");
@@ -1259,9 +1257,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int>("SucursalId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -1309,10 +1306,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -1321,6 +1316,40 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.HasIndex("DestinatarioSucursalId", "Leido");
 
                     b.ToTable("notificaciones_internas", (string)null);
+                });
+
+            modelBuilder.Entity("SIGA.Domain.Entities.NotificacionPreferencia", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RecibirEmail")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly?>("VentanaSilencioFin")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("VentanaSilencioInicio")
+                        .HasColumnType("time without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId")
+                        .IsUnique();
+
+                    b.ToTable("notificaciones_preferencias", (string)null);
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.Patient", b =>
@@ -1915,6 +1944,9 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<int?>("PersonId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("SucursalId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1924,6 +1956,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("PersonId");
+
+                    b.HasIndex("SucursalId");
 
                     b.ToTable("recetas", (string)null);
                 });
@@ -1996,7 +2030,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<decimal>("Precio")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2021,7 +2055,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Precio")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<int?>("ProfessionalId")
                         .HasColumnType("integer");
@@ -2061,13 +2095,13 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal?>("Diferencia")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<decimal?>("EfectivoContado")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<decimal?>("EfectivoEsperado")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
@@ -2082,7 +2116,7 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("MontoInicial")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<string>("MotivoRechazo")
                         .HasMaxLength(500)
@@ -2416,10 +2450,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly>("Fecha")
                         .HasColumnType("date");
@@ -2735,10 +2767,10 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)");
 
                     b.Property<decimal>("Descuento")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<decimal>("PrecioUnitario")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,0)");
 
                     b.Property<int?>("ProductoId")
                         .HasColumnType("integer");
@@ -2970,6 +3002,11 @@ namespace SIGA.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SIGA.Domain.Entities.ConsultaClinica", b =>
                 {
+                    b.HasOne("SIGA.Domain.Entities.Turno", "Cita")
+                        .WithMany()
+                        .HasForeignKey("CitaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SIGA.Domain.Entities.EstadoConfig", "EstadoConfig")
                         .WithMany()
                         .HasForeignKey("EstadoConfigId");
@@ -2991,6 +3028,8 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SucursalId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Cita");
 
                     b.Navigation("EstadoConfig");
 
@@ -3305,6 +3344,17 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                     b.Navigation("DestinatarioUsuario");
                 });
 
+            modelBuilder.Entity("SIGA.Domain.Entities.NotificacionPreferencia", b =>
+                {
+                    b.HasOne("SIGA.Domain.Entities.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("SIGA.Domain.Entities.Patient", b =>
                 {
                     b.HasOne("SIGA.Domain.Entities.Person", "Person")
@@ -3519,9 +3569,17 @@ namespace SIGA.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("SIGA.Domain.Entities.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("SucursalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("ConsultaClinica");
 
                     b.Navigation("Person");
+
+                    b.Navigation("Sucursal");
                 });
 
             modelBuilder.Entity("SIGA.Domain.Entities.RolePermission", b =>

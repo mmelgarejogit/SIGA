@@ -11,11 +11,11 @@ public class SesionCajaConfiguration : IEntityTypeConfiguration<SesionCaja>
         builder.ToTable("sesiones_caja");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
-        builder.Property(x => x.MontoInicial).HasColumnType("numeric(18,2)").IsRequired();
+        builder.Property(x => x.MontoInicial).HasColumnType("numeric(18,0)").IsRequired();
         builder.Property(x => x.FechaApertura).IsRequired();
-        builder.Property(x => x.EfectivoContado).HasColumnType("numeric(18,2)");
-        builder.Property(x => x.EfectivoEsperado).HasColumnType("numeric(18,2)");
-        builder.Property(x => x.Diferencia).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.EfectivoContado).HasColumnType("numeric(18,0)");
+        builder.Property(x => x.EfectivoEsperado).HasColumnType("numeric(18,0)");
+        builder.Property(x => x.Diferencia).HasColumnType("numeric(18,0)");
         builder.Property(x => x.ObservacionCierre).HasMaxLength(500);
 
         builder.Property(x => x.MotivoRechazo).HasMaxLength(500);

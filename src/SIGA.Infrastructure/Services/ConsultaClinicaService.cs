@@ -29,9 +29,6 @@ public class ConsultaClinicaService : IConsultaClinicaService
             .Include(c => c.EstadoConfig)
             .AsQueryable();
 
-        if (_current.SucursalId is int suc)
-            query = query.Where(c => c.SucursalId == suc);
-
         if (patientId.HasValue)
             query = query.Where(c => c.PatientId == patientId.Value);
 
@@ -191,6 +188,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
             consulta.Receta = new Receta
             {
+                SucursalId = consulta.SucursalId,
                 PersonId = personIdReceta,
                 FechaEmision = request.Receta.FechaEmision,
                 OdEsferico = request.Receta.OdEsferico,
@@ -286,6 +284,7 @@ public class ConsultaClinicaService : IConsultaClinicaService
 
             consulta.Receta = new Receta
             {
+                SucursalId = consulta.SucursalId,
                 ConsultaClinicaId = consultaId,
                 PersonId = personIdReceta,
                 FechaEmision = request.FechaEmision,

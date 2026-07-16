@@ -8,6 +8,8 @@ public class ConteoInventarioConfiguration : IEntityTypeConfiguration<ConteoInve
 {
     public void Configure(EntityTypeBuilder<ConteoInventario> builder)
     {
+        builder.Property(c => c.Estado).HasConversion<int>().IsRequired();
+
         builder.HasOne(c => c.Sucursal)
             .WithMany()
             .HasForeignKey(c => c.SucursalId)

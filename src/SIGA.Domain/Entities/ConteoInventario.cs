@@ -8,7 +8,7 @@ public class ConteoInventario
     public int CreadoPorId { get; set; }
     public string CreadoPorNombre { get; set; } = "";
     public DateTime FechaConteo { get; set; } = DateTime.UtcNow;
-    public string Estado { get; set; } = "Pendiente"; // Pendiente | Aprobado | Rechazado
+    public EstadoConteoInventario Estado { get; set; } = EstadoConteoInventario.Pendiente;
     public string? Observaciones { get; set; }
     public string? AprobadoPorNombre { get; set; }
     public DateTime? FechaAprobacion { get; set; }
