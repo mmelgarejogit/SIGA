@@ -114,6 +114,14 @@ public class VentasController(IVentaService ventaService) : BaseController
 
     // ── Devoluciones ──────────────────────────────────────────────────────────────
 
+    [HttpGet("devoluciones/pendientes")]
+    [Authorize(Policy = "gestionar_ventas")]
+    public async Task<IActionResult> GetDevolucionesPendientes()
+    {
+        var result = await ventaService.GetDevolucionesPendientesAsync();
+        return ToHttpResponse(result);
+    }
+
     [HttpPost("{id:int}/devoluciones")]
     [Authorize(Policy = "registrar_venta")]
     public async Task<IActionResult> SolicitarDevolucion(int id, [FromBody] SolicitarDevolucionRequest request)

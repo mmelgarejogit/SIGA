@@ -23,5 +23,6 @@ public interface IVentaService
     // Devoluciones
     Task<Result<DevolucionDto>> SolicitarDevolucionAsync(int ventaId, SolicitarDevolucionRequest request, int userId, string userName);
     Task<Result<List<DevolucionDto>>> GetDevolucionesAsync(int ventaId);
+    Task<Result<List<DevolucionDto>>> GetDevolucionesPendientesAsync();
     Task<Result<DevolucionDto>> GestionarDevolucionAsync(int devolucionId, GestionarDevolucionRequest request, int userId, string userName);
 }

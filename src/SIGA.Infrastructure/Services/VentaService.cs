@@ -703,6 +703,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         Id                    = d.Id,
         VentaId               = d.VentaId,
         NumeroComprobante     = d.Venta?.NumeroComprobante ?? "",
+        ClienteNombre         = d.Venta?.Cliente == null
+            ? "Consumidor Final"
+            : $"{d.Venta.Cliente.Person?.FirstName} {d.Venta.Cliente.Person?.LastName}".Trim(),
         Tipo                  = d.Tipo.ToString(),
         Estado                = d.Estado.ToString(),
         Motivo                = d.Motivo,
@@ -822,6 +825,20 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             .Include(d => d.ConfirmadoPor!)
             .Where(d => d.VentaId == ventaId)
             .OrderByDescending(d => d.CreatedAt)
+            .ToListAsync();
+
+        return Result<List<DevolucionDto>>.Success(devoluciones.Select(MapDevolucion).ToList());
+    }
+
+    public async Task<Result<List<DevolucionDto>>> GetDevolucionesPendientesAsync()
+    {
+        var devoluciones = await db.Devoluciones
+            .Include(d => d.Venta).ThenInclude(v => v.Cliente).ThenInclude(c => c!.Person)
+            .Include(d => d.Lineas).ThenInclude(l => l.ProductoDevuelto)
+            .Include(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
+            .Include(d => d.SolicitadoPor).ThenInclude(u => u.Person)
+            .Where(d => d.Estado == EstadoDevolucion.Pendiente)
+            .OrderBy(d => d.CreatedAt)
             .ToListAsync();
 
         return Result<List<DevolucionDto>>.Success(devoluciones.Select(MapDevolucion).ToList());

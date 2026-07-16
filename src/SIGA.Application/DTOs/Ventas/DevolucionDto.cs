@@ -16,6 +16,7 @@ public class DevolucionDto
     public int Id { get; set; }
     public int VentaId { get; set; }
     public string NumeroComprobante { get; set; } = "";
+    public string ClienteNombre { get; set; } = "";
     public string Tipo { get; set; } = "";
     public string Estado { get; set; } = "";
     public string Motivo { get; set; } = "";
