@@ -118,7 +118,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoDevuelto)
             .Include(v => v.Devoluciones).ThenInclude(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
             .Include(v => v.Devoluciones).ThenInclude(d => d.SolicitadoPor).ThenInclude(u => u.Person)
-            .Include(v => v.Devoluciones).ThenInclude(d => d.ConfirmadoPor!);
+            .Include(v => v.Devoluciones).ThenInclude(d => d.ConfirmadoPor!)
+            .Include(v => v.Devoluciones).ThenInclude(d => d.NotaCredito);
 
     // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -394,18 +395,71 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
     public async Task<Result<VentaDto>> CancelarVentaAsync(int id, CancelarVentaRequest request)
     {
-        var venta = await db.Ventas.FirstOrDefaultAsync(v => v.Id == id);
+        var venta = await db.Ventas
+            .Include(v => v.Cobros)
+            .Include(v => v.TrabajoPedido)
+            .FirstOrDefaultAsync(v => v.Id == id);
         if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
         if (!venta.PuedeCancelarse())
             return Result<VentaDto>.Failure(
                 "No se puede cancelar una venta en el estado actual", ErrorType.Conflict);
 
+        var now = DateTime.UtcNow;
+        var totalCobrado = venta.TotalCobrado;
+
+        // Disposición de la seña: si es un trabajo a pedido ya enviado/recibido del laboratorio, la
+        // seña NO se reembolsa (el cristal personalizado ya se fabricó, cero valor de reventa; la seña
+        // cubre ese costo). En cualquier otro caso —pedido aún no enviado o producto de stock— se
+        // reintegra lo cobrado.
+        var trabajoYaEnLab = venta.TrabajoPedido is not null
+            && venta.TrabajoPedido.Estado is EstadoTrabajoPedido.Enviado or EstadoTrabajoPedido.Recibido;
+
+        string? notaSeña = null;
+        if (totalCobrado > 0)
+        {
+            if (trabajoYaEnLab)
+            {
+                notaSeña = $"Seña retenida (trabajo ya enviado al laboratorio): {totalCobrado:N0}";
+            }
+            else
+            {
+                // Reintegro en efectivo: como toda salida de dinero, exige una caja abierta.
+                var sesionCaja = await db.SesionesCaja
+                    .FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == venta.SucursalId);
+                if (sesionCaja is null)
+                    return Result<VentaDto>.Failure(
+                        "No hay una caja abierta. Abrí la caja antes de reembolsar la seña.", ErrorType.Conflict);
+
+                db.MovimientosCaja.Add(new MovimientoCaja
+                {
+                    Tipo         = TipoMovimientoCaja.Egreso,
+                    Monto        = totalCobrado,
+                    Concepto     = $"Reembolso de seña — cancelación venta {venta.NumeroComprobante}",
+                    MetodoPago   = MetodoPago.Efectivo,
+                    SucursalId   = venta.SucursalId,
+                    VentaId      = venta.Id,
+                    SesionCajaId = sesionCaja.Id,
+                    Fecha        = DateOnly.FromDateTime(now),
+                    CreatedAt    = now,
+                });
+
+                // Los cobros se anulan: la plata volvió, TotalCobrado queda en 0.
+                foreach (var cobro in venta.Cobros.Where(c => !c.Anulado))
+                    cobro.Anulado = true;
+
+                notaSeña = $"Seña reembolsada: {totalCobrado:N0}";
+            }
+        }
+
         venta.Estado      = EstadoVenta.Cancelada;
-        venta.UpdatedAt   = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(request.Motivo))
-            venta.Observaciones = string.IsNullOrWhiteSpace(venta.Observaciones)
-                ? $"Cancelada: {request.Motivo}"
-                : $"{venta.Observaciones} | Cancelada: {request.Motivo}";
+        venta.UpdatedAt   = now;
+
+        var partes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(request.Motivo)) partes.Add($"Cancelada: {request.Motivo}");
+        else partes.Add("Cancelada");
+        if (notaSeña is not null) partes.Add(notaSeña);
+        var nota = string.Join(" | ", partes);
+        venta.Observaciones = string.IsNullOrWhiteSpace(venta.Observaciones) ? nota : $"{venta.Observaciones} | {nota}";
 
         await db.SaveChangesAsync();
         return await GetVentaByIdAsync(id);
@@ -513,6 +567,16 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         return await GetVentaByIdAsync(request.VentaId);
     }
 
+    // Un trabajo a pedido solo se factura al entregar: no se puede emitir el comprobante hasta que el
+    // trabajo vuelva del laboratorio (estado Recibido). Así la venta sigue cancelable durante toda la
+    // fabricación y no se emite un documento fiscal por un producto que el cliente todavía no recibió.
+    private static Result<VentaDto>? ValidarTrabajoListoParaEmitir(Venta venta) =>
+        venta.TrabajoPedido is not null && venta.TrabajoPedido.Estado != EstadoTrabajoPedido.Recibido
+            ? Result<VentaDto>.Failure(
+                "El trabajo a pedido todavía no volvió del laboratorio. Solo se puede emitir el comprobante cuando el trabajo está Recibido (listo para entregar).",
+                ErrorType.Conflict)
+            : null;
+
     public async Task<Result<VentaDto>> EmitirComprobanteAsync(int ventaId, int userId)
     {
         var venta = await BaseQuery().FirstOrDefaultAsync(v => v.Id == ventaId);
@@ -525,6 +589,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         // Documento fiscal excluyente: no se puede emitir recibo si ya hay factura.
         if (venta.Factura != null)
             return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
+        if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
+            return errTrabajo;
 
         var now = DateTime.UtcNow;
 
@@ -567,6 +633,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
         if (venta.Comprobante != null)
             return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
+        if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
+            return errTrabajo;
 
         var timbrado = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == request.TimbradoId);
         if (timbrado == null)
@@ -720,6 +788,17 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             ProductoNuevoNombre    = l.ProductoNuevo?.Nombre,
             CantidadNueva          = l.CantidadNueva,
         }).ToList(),
+        NotaCredito = d.NotaCredito == null ? null : new NotaCreditoDto
+        {
+            Id                = d.NotaCredito.Id,
+            NumeroNotaCredito = d.NotaCredito.NumeroNotaCredito,
+            Timbrado          = d.NotaCredito.Timbrado,
+            MontoExento       = d.NotaCredito.MontoExento,
+            MontoGravado5     = d.NotaCredito.MontoGravado5,
+            MontoGravado10    = d.NotaCredito.MontoGravado10,
+            Total             = d.NotaCredito.Total,
+            FechaEmision      = d.NotaCredito.FechaEmision.ToString("yyyy-MM-dd"),
+        },
         CreatedAt = d.CreatedAt,
     };
 
@@ -765,10 +844,15 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             return Result<DevolucionDto>.Failure(
                 "Solo se pueden registrar devoluciones de ventas con comprobante emitido", ErrorType.Conflict);
 
+        // Una sola devolución por venta (una rechazada no bloquea un nuevo intento)
+        if (venta.Devoluciones.Any(d => d.Estado != EstadoDevolucion.Rechazada))
+            return Result<DevolucionDto>.Failure(
+                "Esta venta ya tiene una devolución registrada", ErrorType.Conflict);
+
         if (!Enum.TryParse<TipoDevolucion>(request.Tipo, out var tipo))
             return Result<DevolucionDto>.Failure("Tipo de devolución inválido. Use 'Devolucion' o 'Cambio'", ErrorType.Validation);
 
-        // Validar líneas
+        // Validar líneas (cantidad > 0 y datos de cambio)
         foreach (var l in request.Lineas)
         {
             if (l.CantidadDevuelta <= 0)
@@ -777,6 +861,24 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             if (tipo == TipoDevolucion.Cambio && (!l.ProductoNuevoId.HasValue || (l.CantidadNueva ?? 0) <= 0))
                 return Result<DevolucionDto>.Failure(
                     "Para cambios, cada línea debe tener producto nuevo y cantidad nueva", ErrorType.Validation);
+        }
+
+        // No se puede devolver más de lo vendido (agregado por producto)
+        var vendidoPorProducto = venta.Lineas
+            .Where(l => l.ProductoId.HasValue)
+            .GroupBy(l => l.ProductoId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.Cantidad));
+
+        foreach (var grupo in request.Lineas.GroupBy(l => l.ProductoDevueltoId))
+        {
+            if (!vendidoPorProducto.TryGetValue(grupo.Key, out var vendido))
+                return Result<DevolucionDto>.Failure(
+                    "No se puede devolver un producto que no forma parte de la venta", ErrorType.Validation);
+
+            var aDevolver = grupo.Sum(l => l.CantidadDevuelta);
+            if (aDevolver > vendido)
+                return Result<DevolucionDto>.Failure(
+                    $"No se pueden devolver {aDevolver} unidades: la venta solo incluye {vendido}", ErrorType.Validation);
         }
 
         var now = DateTime.UtcNow;
@@ -820,6 +922,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             .Include(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
             .Include(d => d.SolicitadoPor).ThenInclude(u => u.Person)
             .Include(d => d.ConfirmadoPor!)
+            .Include(d => d.NotaCredito)
             .Where(d => d.VentaId == ventaId)
             .OrderByDescending(d => d.CreatedAt)
             .ToListAsync();
@@ -851,7 +954,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
             .Include(d => d.Lineas).ThenInclude(l => l.ProductoDevuelto)
             .Include(d => d.Lineas).ThenInclude(l => l.ProductoNuevo)
             .Include(d => d.SolicitadoPor).ThenInclude(u => u.Person)
-            .Include(d => d.Venta)
+            .Include(d => d.Venta).ThenInclude(v => v.Lineas)
+            .Include(d => d.Venta).ThenInclude(v => v.Factura)
+            .Include(d => d.Venta).ThenInclude(v => v.Cobros)
             .FirstOrDefaultAsync(d => d.Id == devolucionId);
 
         if (devolucion == null)
@@ -912,13 +1017,18 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         // Movimiento de caja negativo solo para Devolucion (no para Cambio — precio pendiente de definir)
         if (devolucion.Tipo == TipoDevolucion.Devolucion)
         {
-            var totalDevuelto = devolucion.Lineas.Sum(l =>
-            {
-                var precio = l.ProductoDevuelto?.PrecioVenta ?? 0;
-                return precio * l.CantidadDevuelta;
-            });
+            // Valor de la mercadería devuelta, calculado desde la VentaLinea original (no del catálogo
+            // actual). Rige la Nota de Crédito, que revierte la factura por lo efectivamente vendido.
+            var (montoExento, montoGravado5, montoGravado10) = CalcularMontosDevueltos(devolucion);
+            var totalDevuelto = montoExento + montoGravado5 + montoGravado10;
 
-            if (totalDevuelto > 0)
+            // La plata que sale de caja NO puede superar lo efectivamente cobrado (no anulado) de la
+            // venta. En una venta a crédito con seña, sólo se reintegra lo que el cliente pagó; el saldo
+            // financiado nunca entró a caja, así que no puede salir. (V2)
+            var cobradoNoAnulado = devolucion.Venta.TotalCobrado;
+            var montoReintegro   = Math.Min(totalDevuelto, cobradoNoAnulado);
+
+            if (montoReintegro > 0)
             {
                 var sesionDevolucion = await db.SesionesCaja
                     .FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == sucursalId);
@@ -926,7 +1036,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                 db.MovimientosCaja.Add(new MovimientoCaja
                 {
                     Tipo         = TipoMovimientoCaja.Egreso,
-                    Monto        = totalDevuelto,
+                    Monto        = montoReintegro,
                     Concepto     = $"Devolución #{devolucion.Id} — venta {devolucion.Venta.NumeroComprobante}",
                     MetodoPago   = MetodoPago.Efectivo,
                     SucursalId   = sucursalId,
@@ -936,9 +1046,105 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
                     CreatedAt    = now,
                 });
             }
+
+            // Nota de Crédito fiscal: solo si la venta se cerró con factura (no con recibo simple).
+            // Se emite por el valor de la mercadería (revierte la factura), independiente de lo reintegrado.
+            if (devolucion.Venta.Factura != null && totalDevuelto > 0)
+            {
+                var ncResult = await EmitirNotaCreditoAsync(
+                    devolucion, montoExento, montoGravado5, montoGravado10, fecha, userId, now);
+                if (!ncResult.IsSuccess)
+                    return Result<DevolucionDto>.Failure(ncResult.Error!, ncResult.ErrorType);
+            }
         }
 
         await db.SaveChangesAsync();
         return Result<DevolucionDto>.Success(MapDevolucion(devolucion));
+    }
+
+    /// <summary>
+    /// Suma el valor de la mercadería devuelta, agrupado por categoría fiscal, tomando el precio
+    /// neto unitario de la <see cref="VentaLinea"/> original (precio efectivamente vendido, con su
+    /// descuento prorrateado) y no el precio de catálogo vigente.
+    /// </summary>
+    private static (decimal exento, decimal gravado5, decimal gravado10) CalcularMontosDevueltos(Devolucion devolucion)
+    {
+        var ventaPorProducto = devolucion.Venta.Lineas
+            .Where(l => l.ProductoId.HasValue)
+            .GroupBy(l => l.ProductoId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => (
+                    NetoUnitario: g.Sum(l => l.Cantidad) == 0 ? 0m : g.Sum(l => l.Subtotal) / g.Sum(l => l.Cantidad),
+                    Categoria:    g.First().CategoriaFiscal));
+
+        decimal exento = 0, gravado5 = 0, gravado10 = 0;
+        foreach (var linea in devolucion.Lineas)
+        {
+            if (!ventaPorProducto.TryGetValue(linea.ProductoDevueltoId, out var info)) continue;
+            var monto = info.NetoUnitario * linea.CantidadDevuelta;
+            switch (info.Categoria)
+            {
+                case CategoriaFiscal.Exento:   exento    += monto; break;
+                case CategoriaFiscal.Gravado5: gravado5  += monto; break;
+                default:                       gravado10 += monto; break;
+            }
+        }
+
+        return (Math.Round(exento, 0), Math.Round(gravado5, 0), Math.Round(gravado10, 0));
+    }
+
+    /// <summary>
+    /// Emite la Nota de Crédito que compensa la factura de la venta. Numera con un timbrado propio
+    /// de tipo <see cref="TipoDocumentoFiscal.NotaCredito"/> activo en la sucursal. NO anula la factura.
+    /// </summary>
+    private async Task<Result<NotaCredito>> EmitirNotaCreditoAsync(
+        Devolucion devolucion, decimal exento, decimal gravado5, decimal gravado10,
+        DateOnly fecha, int userId, DateTime now)
+    {
+        var factura = devolucion.Venta.Factura!;
+        var sucursalId = devolucion.Venta.SucursalId;
+
+        var timbrado = await db.Timbrados.FirstOrDefaultAsync(t =>
+            t.IsActive && t.SucursalId == sucursalId && t.Tipo == TipoDocumentoFiscal.NotaCredito);
+        if (timbrado == null)
+            return Result<NotaCredito>.Failure(
+                "No hay un timbrado de Nota de Crédito activo para la sucursal. Configurá uno antes de confirmar la devolución.",
+                ErrorType.Conflict);
+
+        if (fecha < timbrado.FechaInicioVigencia || fecha > timbrado.FechaFinVigencia)
+            return Result<NotaCredito>.Failure(
+                $"La fecha de la nota de crédito está fuera de la vigencia del timbrado ({timbrado.FechaInicioVigencia:yyyy-MM-dd} al {timbrado.FechaFinVigencia:yyyy-MM-dd}).",
+                ErrorType.Conflict);
+
+        var numero = timbrado.UltimoNumero + 1;
+        if (timbrado.NumeroHasta.HasValue && numero > timbrado.NumeroHasta.Value)
+            return Result<NotaCredito>.Failure(
+                $"Se alcanzó el número máximo del timbrado de Nota de Crédito ({timbrado.NumeroHasta}).",
+                ErrorType.Conflict);
+
+        timbrado.UltimoNumero = numero;
+
+        var notaCredito = new NotaCredito
+        {
+            DevolucionId      = devolucion.Id,
+            VentaId           = devolucion.VentaId,
+            FacturaVentaId    = factura.Id,
+            NumeroNotaCredito = $"{timbrado.Establecimiento}-{timbrado.PuntoExpedicion}-{numero:D7}",
+            Timbrado          = timbrado.NumeroTimbrado,
+            Establecimiento   = timbrado.Establecimiento,
+            MontoExento       = exento,
+            MontoGravado5     = gravado5,
+            MontoGravado10    = gravado10,
+            FechaEmision      = fecha,
+            Observaciones     = $"Devolución #{devolucion.Id} — factura {factura.NumeroFactura}",
+            EmitidoPorId      = userId,
+            TimbradoId        = timbrado.Id,
+            CreatedAt         = now,
+        };
+
+        db.NotasCredito.Add(notaCredito);
+        devolucion.NotaCredito = notaCredito;
+        return Result<NotaCredito>.Success(notaCredito);
     }
 }

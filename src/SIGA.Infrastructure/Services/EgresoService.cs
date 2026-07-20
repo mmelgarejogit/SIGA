@@ -173,7 +173,7 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
             Observaciones     = request.Observaciones?.Trim(),
             FechaEmision      = fechaEmision,
             FechaVencimiento  = fechaVencimiento,
-            Estado            = EstadoEgreso.Aprobado,
+            Estado            = EstadoEgreso.Pendiente,
         };
         factura.Monto = factura.MontoTotal;
 
@@ -352,37 +352,6 @@ public class EgresoService(AppDbContext db, ICurrentUserContext current) : IEgre
                 CreatedAt       = DateTime.UtcNow,
             });
         }
-
-        await db.SaveChangesAsync();
-        return Result<EgresoResponse>.Success(Map(egreso));
-    }
-
-    public async Task<Result<EgresoResponse>> AprobarEgresoAsync(int id)
-    {
-        var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
-        if (egreso is null)
-            return Result<EgresoResponse>.Failure("Egreso no encontrado.", ErrorType.NotFound);
-
-        try { egreso.Aprobar(); }
-        catch (InvalidOperationException ex)
-        { return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict); }
-
-        await db.SaveChangesAsync();
-        return Result<EgresoResponse>.Success(Map(egreso));
-    }
-
-    public async Task<Result<EgresoResponse>> RechazarEgresoAsync(int id, RechazarEgresoRequest request)
-    {
-        var egreso = await BaseQuery().FirstOrDefaultAsync(e => e.Id == id);
-        if (egreso is null)
-            return Result<EgresoResponse>.Failure("Egreso no encontrado.", ErrorType.NotFound);
-
-        if (string.IsNullOrWhiteSpace(request.Motivo))
-            return Result<EgresoResponse>.Failure("El motivo de rechazo es obligatorio.", ErrorType.Validation);
-
-        try { egreso.Rechazar(request.Motivo.Trim()); }
-        catch (InvalidOperationException ex)
-        { return Result<EgresoResponse>.Failure(ex.Message, ErrorType.Conflict); }
 
         await db.SaveChangesAsync();
         return Result<EgresoResponse>.Success(Map(egreso));

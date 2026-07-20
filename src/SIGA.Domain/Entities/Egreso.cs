@@ -34,34 +34,17 @@ public abstract class Egreso
         FechaVencimiento.HasValue &&
         FechaVencimiento.Value < DateOnly.FromDateTime(DateTime.UtcNow);
 
-    public void Aprobar()
-    {
-        if (Estado != EstadoEgreso.Pendiente)
-            throw new InvalidOperationException("Solo se puede aprobar un egreso pendiente.");
-
-        Estado = EstadoEgreso.Aprobado;
-        FechaAprobacion = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
-
-    public void Rechazar(string motivo)
-    {
-        if (Estado != EstadoEgreso.Pendiente)
-            throw new InvalidOperationException("Solo se puede rechazar un egreso pendiente.");
-
-        Estado = EstadoEgreso.Rechazado;
-        MotivoRechazo = motivo;
-        UpdatedAt = DateTime.UtcNow;
-    }
-
     public void RegistrarPago(MetodoPago metodo, DateOnly fechaPago, string? nroComprobante)
     {
         if (Estado == EstadoEgreso.Anulado)
             throw new InvalidOperationException("No se puede pagar un egreso anulado.");
         if (Estado == EstadoEgreso.Pagado)
             throw new InvalidOperationException("El egreso ya fue pagado.");
-        if (Estado != EstadoEgreso.Aprobado)
-            throw new InvalidOperationException("Solo se puede pagar un egreso aprobado.");
+        if (Estado == EstadoEgreso.Rechazado)
+            throw new InvalidOperationException("No se puede pagar un egreso rechazado.");
+        // Se puede pagar un egreso registrado (Pendiente) o uno ya aprobado en el flujo anterior (Aprobado).
+        if (Estado != EstadoEgreso.Pendiente && Estado != EstadoEgreso.Aprobado)
+            throw new InvalidOperationException("Solo se puede pagar un egreso pendiente de pago.");
 
         Estado = EstadoEgreso.Pagado;
         MetodoPago = metodo;

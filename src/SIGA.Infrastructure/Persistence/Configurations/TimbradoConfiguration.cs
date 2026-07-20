@@ -10,6 +10,7 @@ public class TimbradoConfiguration : IEntityTypeConfiguration<Timbrado>
     {
         builder.ToTable("timbrados");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.Tipo).HasConversion<int>().IsRequired().HasDefaultValue(TipoDocumentoFiscal.Factura);
         builder.Property(x => x.NumeroTimbrado).IsRequired().HasMaxLength(20);
         builder.Property(x => x.Establecimiento).IsRequired().HasMaxLength(3);
         builder.Property(x => x.PuntoExpedicion).IsRequired().HasMaxLength(3);

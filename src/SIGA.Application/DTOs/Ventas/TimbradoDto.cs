@@ -5,6 +5,7 @@ public class TimbradoDto
     public int Id { get; set; }
     public int SucursalId { get; set; }
     public string? SucursalNombre { get; set; }
+    public string Tipo { get; set; } = "Factura";
     public string NumeroTimbrado { get; set; } = "";
     public string Establecimiento { get; set; } = "";
     public string PuntoExpedicion { get; set; } = "";
@@ -22,6 +23,8 @@ public class TimbradoDto
 public class CreateTimbradoRequest
 {
     public int SucursalId { get; set; }
+    /// <summary>"Factura" (default) o "NotaCredito".</summary>
+    public string Tipo { get; set; } = "Factura";
     public string NumeroTimbrado { get; set; } = "";
     public string Establecimiento { get; set; } = "";
     public string PuntoExpedicion { get; set; } = "";
@@ -34,6 +37,7 @@ public class CreateTimbradoRequest
 public class UpdateTimbradoRequest
 {
     public int SucursalId { get; set; }
+    public string Tipo { get; set; } = "Factura";
     public string NumeroTimbrado { get; set; } = "";
     public string Establecimiento { get; set; } = "";
     public string PuntoExpedicion { get; set; } = "";

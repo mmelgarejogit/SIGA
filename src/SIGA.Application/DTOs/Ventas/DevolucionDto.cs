@@ -11,6 +11,18 @@ public class DevolucionLineaDto
     public int? CantidadNueva { get; set; }
 }
 
+public class NotaCreditoDto
+{
+    public int Id { get; set; }
+    public string NumeroNotaCredito { get; set; } = "";
+    public string Timbrado { get; set; } = "";
+    public decimal MontoExento { get; set; }
+    public decimal MontoGravado5 { get; set; }
+    public decimal MontoGravado10 { get; set; }
+    public decimal Total { get; set; }
+    public string FechaEmision { get; set; } = "";
+}
+
 public class DevolucionDto
 {
     public int Id { get; set; }
@@ -25,6 +37,7 @@ public class DevolucionDto
     public string? ObservacionesRevision { get; set; }
     public string? FechaRevision { get; set; }
     public List<DevolucionLineaDto> Lineas { get; set; } = new();
+    public NotaCreditoDto? NotaCredito { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

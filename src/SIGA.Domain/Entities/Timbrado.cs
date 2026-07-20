@@ -1,10 +1,20 @@
 namespace SIGA.Domain.Entities;
 
+public enum TipoDocumentoFiscal
+{
+    Factura     = 1,
+    NotaCredito = 2,
+}
+
 public class Timbrado
 {
     public int Id { get; set; }
     public int SucursalId { get; set; }
     public Sucursal? Sucursal { get; set; }
+
+    /// <summary>Tipo de documento que numera este timbrado. Factura y Nota de Crédito tienen series separadas.</summary>
+    public TipoDocumentoFiscal Tipo { get; set; } = TipoDocumentoFiscal.Factura;
+
     public string NumeroTimbrado { get; set; } = null!;
     public string Establecimiento { get; set; } = null!;
     public string PuntoExpedicion { get; set; } = null!;

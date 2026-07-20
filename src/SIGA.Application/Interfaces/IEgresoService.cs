@@ -10,8 +10,6 @@ public interface IEgresoService
     Task<Result<EgresoResponse>> CrearGastoGeneralAsync(CrearGastoGeneralRequest request);
     Task<Result<EgresoResponse>> CrearSalarioAsync(CrearSalarioRequest request);
     Task<Result<EgresoResponse>> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int userId);
-    Task<Result<EgresoResponse>> AprobarEgresoAsync(int id);
-    Task<Result<EgresoResponse>> RechazarEgresoAsync(int id, RechazarEgresoRequest request);
     Task<Result<EgresoResponse>> AnularEgresoAsync(int id, AnularEgresoRequest request);
     Task<Result<EgresoResponse>> GetEgresoByIdAsync(int id);
     Task<Result<PagedResult<EgresoResponse>>> GetEgresosAsync(

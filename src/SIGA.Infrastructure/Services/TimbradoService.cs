@@ -48,6 +48,9 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         if (request.FechaFinVigencia < request.FechaInicioVigencia)
             return Result<TimbradoDto>.Failure("La fecha de fin de vigencia debe ser mayor o igual a la fecha de inicio.", ErrorType.Validation);
 
+        if (!Enum.TryParse<TipoDocumentoFiscal>(request.Tipo, out var tipo))
+            return Result<TimbradoDto>.Failure("Tipo de timbrado inválido. Use 'Factura' o 'NotaCredito'.", ErrorType.Validation);
+
         if (await db.Timbrados.AnyAsync(t =>
             t.NumeroTimbrado == numTimbrado &&
             t.Establecimiento == estable &&
@@ -63,6 +66,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         var item = new Timbrado
         {
             SucursalId = sucursalId,
+            Tipo = tipo,
             NumeroTimbrado = numTimbrado,
             Establecimiento = estable,
             PuntoExpedicion = punto,
@@ -98,6 +102,9 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         if (request.FechaFinVigencia < request.FechaInicioVigencia)
             return Result<TimbradoDto>.Failure("La fecha de fin de vigencia debe ser mayor o igual a la fecha de inicio.", ErrorType.Validation);
 
+        if (!Enum.TryParse<TipoDocumentoFiscal>(request.Tipo, out var tipo))
+            return Result<TimbradoDto>.Failure("Tipo de timbrado inválido. Use 'Factura' o 'NotaCredito'.", ErrorType.Validation);
+
         if (await db.Timbrados.AnyAsync(t =>
             t.NumeroTimbrado == numTimbrado &&
             t.Establecimiento == estable &&
@@ -112,6 +119,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
             item.SucursalId = request.SucursalId;
         }
 
+        item.Tipo = tipo;
         item.NumeroTimbrado = numTimbrado;
         item.Establecimiento = estable;
         item.PuntoExpedicion = punto;
@@ -138,6 +146,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         Id = t.Id,
         SucursalId = t.SucursalId,
         SucursalNombre = t.Sucursal?.Nombre,
+        Tipo = t.Tipo.ToString(),
         NumeroTimbrado = t.NumeroTimbrado,
         Establecimiento = t.Establecimiento,
         PuntoExpedicion = t.PuntoExpedicion,

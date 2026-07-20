@@ -87,7 +87,10 @@ public class Venta
     public bool CuotaVencida =>
         ProximaCuotaVencimiento is DateOnly f && f < DateOnly.FromDateTime(DateTime.UtcNow) && SaldoPendiente > 0;
 
-    public bool PuedeCancelarse()        => Estado is EstadoVenta.Borrador or EstadoVenta.Confirmada or EstadoVenta.EnProceso;
+    // ListaParaCobrar incluido: una venta confirmada con seña, aún sin comprobante emitido, puede
+    // cancelarse (el cliente se arrepiente antes de retirar). La disposición de la seña la resuelve
+    // CancelarVentaAsync según el estado del trabajo a pedido.
+    public bool PuedeCancelarse()        => Estado is EstadoVenta.Borrador or EstadoVenta.Confirmada or EstadoVenta.EnProceso or EstadoVenta.ListaParaCobrar;
     public bool PuedeConfirmarse()       => Estado == EstadoVenta.Borrador;
     public bool PuedeEmitirComprobante() => Estado == EstadoVenta.ListaParaCobrar;
     public bool PuedeDevolver()          => Estado == EstadoVenta.ComprobanteEmitido;

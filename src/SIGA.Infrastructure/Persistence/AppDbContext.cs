@@ -73,6 +73,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserCo
     public DbSet<Devolucion> Devoluciones => Set<Devolucion>();
     public DbSet<DevolucionLinea> DevolucionLineas => Set<DevolucionLinea>();
     public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
+    public DbSet<NotaCredito> NotasCredito => Set<NotaCredito>();
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
     public DbSet<Timbrado> Timbrados => Set<Timbrado>();
     public DbSet<SesionCaja> SesionesCaja => Set<SesionCaja>();

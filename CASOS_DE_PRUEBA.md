@@ -20,13 +20,13 @@
 
 | ID | Severidad | Título | Archivo / Línea | Estado |
 |----|-----------|--------|-----------------|--------|
-| V1 | 🔴 | Precio de devolución sale del catálogo, no de la venta | `VentaService.cs:903` | ☐ |
-| V2 | 🔴 | Devolución de venta a crédito devuelve plata que nunca entró | `VentaService.cs:899-925` | ☐ |
-| V3 | 🟠 | No se valida que lo devuelto haya sido vendido | `VentaService.cs:772-780` | ☐ |
+| V1 | 🔴 | Precio de devolución sale del catálogo, no de la venta | `VentaService.cs:903` | ☑ (065) |
+| V2 | 🔴 | Devolución de venta a crédito devuelve plata que nunca entró | `VentaService.cs:899-925` | ◐ — caja topada en lo cobrado; falta cancelar saldo a crédito (ver V7) |
+| V3 | 🟠 | No se valida que lo devuelto haya sido vendido | `VentaService.cs:772-780` | ☑ (065) |
 | V4 | 🔴 | Egreso de caja huérfano al devolver con caja cerrada | `VentaService.cs:909-924` | ☐ |
 | V5 | 🟠 | No hay validación de stock en toda la venta (stock negativo) | `VentaService.cs:641-654` | ☐ |
 | V6 | 🟠 | El "Cambio" no cobra la diferencia ni valida stock del nuevo | `VentaService.cs:898-899` | ☐ |
-| V7 | 🔴 | No existe nota de crédito; factura y estado quedan intactos tras devolución | `VentaService.cs:860-928` | ☐ |
+| V7 | 🔴 | No existe nota de crédito; factura y estado quedan intactos tras devolución | `VentaService.cs:860-928` | ☑ (065) — se emite NC; la factura sigue vigente a propósito |
 | V8 | 🔴 | No se puede anular un cobro (campo `Anulado` sin escritura) | `VentaService.cs` (falta método) | ☐ |
 | V9 | 🔴 | Race condition en numeración fiscal de facturas | `VentaService.cs:588` | ☐ |
 | V10 | 🟠 | Emisión de factura ignora `NumeroDesde` del timbrado | `VentaService.cs:588` | ☐ |
@@ -57,7 +57,7 @@
 - **Fix propuesto:** validar que cada producto exista en la venta y que la cantidad acumulada devuelta ≤ cantidad vendida.
 
 ### A3 · "El que pagó la seña y se arrepintió" — 🔴 (V2) ⭐ prioridad
-- [ ] **Estado**
+- [~] **Estado** — mitad hecha: el reintegro de caja ya está topado en lo cobrado (recibe 150.000, no 800.000). Falta "queda sin deuda": el saldo a crédito (650.000) todavía figura pendiente (estado de venta sin `Devuelta` — ligado a V7).
 - **Setup:** *Mirta Rolón* compra a **crédito** por **800.000**, deja **150.000** de seña, se lleva la mercadería con factura emitida.
 - **Acción:** a los 10 días devuelve todo. Confirmar la devolución.
 - **Resultado esperado:** recibe **150.000** (lo efectivamente pagado) y queda sin deuda.
@@ -87,6 +87,16 @@
 - **Resultado esperado:** la venta refleja la devolución (estado "Devuelta" o similar) y existe una nota de crédito que descuenta el IVA.
 - **Resultado actual (bug):** la venta sigue `ComprobanteEmitido`, la `FacturaVenta` sigue computando el total, no hay nota de crédito. Fiscalmente inconsistente.
 - **Fix propuesto:** generar nota de crédito y actualizar estado/reportes al confirmar la devolución.
+
+### A7 · "El que pagó seña y se arrepintió antes de retirar" — 🔴 (gap nuevo)
+- [x] **Estado** — implementado 2026-07-17.
+- **Setup:** venta a **crédito** de un trabajo a pedido; el cliente paga solo la **seña**; la venta queda `ListaParaCobrar` (sin comprobante, sin producto entregado).
+- **Problema detectado:** no había circuito. La *devolución* pide seleccionar productos (no tiene ninguno) y `PuedeCancelarse()` **no incluía** `ListaParaCobrar`, así que tampoco se podía cancelar. Cliente en limbo. Además `CancelarVentaAsync` no tocaba la seña.
+- **Regla de negocio acordada:** cancelar ≠ devolver. La disposición de la seña depende del estado del trabajo:
+  - Trabajo **ya enviado/recibido** del laboratorio → seña **NO reembolsable** (cristal a pedido ya fabricado; la seña cubre ese costo). Regla dura.
+  - Trabajo **no enviado** (`PendienteAprobacion`/`PendienteEnvio`) o producto de **stock** → **reembolso total** (egreso de caja, requiere caja abierta; los cobros se anulan).
+- **Implementado:** `PuedeCancelarse()` ahora acepta `ListaParaCobrar`; `CancelarVentaAsync` resuelve la seña según el estado del trabajo y deja rastro en `Observaciones`. Front: `VentaDetalleView` muestra la disposición en el modal de cancelar (aviso de reembolso vs. retención).
+- **Complemento (mismo día):** para no caer en el limbo "comprobante emitido antes de entregar", un trabajo a pedido **no puede emitir comprobante/factura hasta estar `Recibido`** del laboratorio (`ValidarTrabajoListoParaEmitir` en `EmitirComprobanteAsync`/`EmitirFacturaAsync`). Así la venta sigue cancelable durante toda la fabricación. Productos de stock no se afectan. Front: botón "Emitir" oculto hasta que el trabajo esté Recibido.
 
 ---
 
@@ -246,10 +256,10 @@
 
 ## Deuda técnica detectada de paso
 
-- **[ ] Catch inefectivo en `VentaDetalleView.vue`**: los bloques usan
-  `e?.response?.data?.message`, pero el interceptor de `http.ts` ya normaliza el error a
-  un `Error` plano, así que siempre cae al mensaje de fallback. Debe migrarse a
-  `e instanceof Error ? e.message : "..."`. (La vista nueva ya usa la convención correcta.)
+- **[x] Catch inefectivo en `VentaDetalleView.vue`** (resuelto 2026-07-16): los bloques de
+  devolución/gestión usaban `e?.response?.data?.message` y siempre caían al fallback genérico.
+  Migrados a `e instanceof Error ? e.message : "..."`, así ahora se muestra el mensaje explícito
+  del backend (ej. "No se pueden devolver 5 unidades: la venta solo incluye 3").
 
 ---
 
@@ -258,3 +268,15 @@
 | Fecha | Caso/V | Acción | Resultado |
 |-------|--------|--------|-----------|
 | 2026-07-15 | — | Cola global de devoluciones (backend + front) | ✅ Implementado, compila y typecheck OK |
+| 2026-07-16 | V3 | Validación: no devolver más unidades de las vendidas + producto debe pertenecer a la venta | ✅ `SolicitarDevolucionAsync` |
+| 2026-07-16 | — | Regla: una sola devolución por venta (una rechazada no bloquea) | ✅ `SolicitarDevolucionAsync` |
+| 2026-07-16 | V1 | Montos de devolución calculados desde la `VentaLinea` original, no del catálogo | ✅ `CalcularMontosDevueltos` |
+| 2026-07-16 | V7 | Nota de Crédito fiscal al confirmar (migración 065): entidad `NotaCredito`, `Timbrado.Tipo` (Factura/NotaCredito), timbrado propio de NC. La factura NO se anula. Solo si la venta tenía factura. | ✅ Backend + front (timbrados y detalle de venta), compila y typecheck OK |
+| 2026-07-16 | UX | Devoluciones: mensaje de error explícito (fix catch inefectivo), botón "Devolver" deshabilitado si ya hay devolución, stepper de cantidad topeado en lo vendido | ✅ `VentaDetalleView.vue`, typecheck OK |
+| 2026-07-16 | UX | "Facturas de Venta" → **Comprobantes de Venta**: lista unificada factura + NC, filtro por tipo de documento, acción "Visualizar comprobante" (preview PDF en iframe) + descargar. PDF de NC nuevo. | ✅ `FacturasVentaView.vue` + `useFacturaVentaPdf.ts`, typecheck OK |
+| 2026-07-16 | Flujo | Egresos de 3 a **2 pasos**: se elimina la aprobación (era sello de goma para un cajero solo). Todos nacen `Pendiente` → `Registrar pago` → `Pagado`. Seguridad movida al pago: modal de confirmación con concepto+monto+origen. Anular = deshacer. `RegistrarPago` acepta Pendiente (o Aprobado legacy). | ✅ Backend (Egreso, EgresoService, controller, interface) + front (borrada `AprobacionEgresosView`, ruta/menú, pago directo), typecheck OK, Infrastructure compila 0 err |
+| 2026-07-17 | UX | Egresos: se quita el método de pago del **alta** (se descartaba, nunca se enviaba) — queda sólo en "Registrar pago", donde el dinero realmente sale. Caja: movimientos ordenados **más reciente primero** en caja abierta e historial. | ✅ Front (`NuevoEgresoView`, `VentasCierreView`, `CajaHistorialView`), typecheck OK |
+| 2026-07-17 | V2 | Reintegro de devolución topado en `Venta.TotalCobrado` (cobros no anulados): `montoReintegro = min(valor mercadería, cobrado)`. La NC sigue emitiéndose por el valor de la mercadería (revierte la factura). Corrige la fuga de venta a crédito con seña. | ✅ Backend `GestionarDevolucionAsync` (+ include `Cobros`), Infrastructure compila 0 err. **Pendiente**: cancelar el saldo a crédito remanente (estado `Devuelta` / V7) |
+| 2026-07-17 | UX | `VentaCobrarView`: arreglado el default muerto del tipo de cobro (dependía de `EnProceso`, que nunca se setea). Ahora primer cobro de venta a crédito = **Seña**, siguientes = Cuota. | ✅ Front, typecheck OK |
+| 2026-07-17 | A7 | **Cancelar pedido con seña** (gap nuevo): `PuedeCancelarse()` acepta `ListaParaCobrar`; `CancelarVentaAsync` dispone la seña según el trabajo — retiene si ya se envió/recibió del lab (regla dura), reembolsa (egreso de caja + anula cobros) si no. Front muestra la disposición en el modal. | ✅ Backend (`Venta`, `CancelarVentaAsync`) + front (`VentaDetalleView`, catch arreglado), compila 0 err + typecheck OK |
+| 2026-07-17 | A7+ | Trabajo a pedido: **no se puede emitir comprobante/factura hasta estar `Recibido`** del lab (`ValidarTrabajoListoParaEmitir`). Evita el limbo "comprobante emitido antes de entregar" (no cancelable + sin producto que devolver). Stock no afectado. | ✅ Backend (`EmitirComprobanteAsync`/`EmitirFacturaAsync`) + front (`puedeEmitirDoc` gateado), compila 0 err + typecheck OK |
