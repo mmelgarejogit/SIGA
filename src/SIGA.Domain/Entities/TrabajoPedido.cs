@@ -32,12 +32,22 @@ public class TrabajoPedido
     public DateOnly? FechaEnvio { get; set; }
     public DateOnly? FechaRecepcion { get; set; }
 
+    // Retiro por el cliente: cuándo se entregaron los lentes terminados, quién los entregó
+    // y a nombre de quién se retiraron (a veces los busca un familiar, no el cliente titular).
+    public DateOnly? FechaEntrega { get; set; }
+    public int? EntregadoPorId { get; set; }
+    public User? EntregadoPor { get; set; }
+    public string? RetiradoPor { get; set; }
+
     // Compromiso del laboratorio al enviar: permite medir atrasos reales contra lo prometido.
     public DateOnly? FechaEstimadaEntrega { get; set; }
     // Cómo se comunicó el pedido al laboratorio (WhatsApp/Email/Portal/…). Registro, no transmisión.
     public MedioEnvioLaboratorio? MedioEnvio { get; set; }
 
     public string? Observacion { get; set; }
+
+    // Historial de re-trabajos (garantía / rehacer). Vacío = nunca se rehizo.
+    public ICollection<RetrabajoTrabajoPedido> Retrabajos { get; set; } = new List<RetrabajoTrabajoPedido>();
 
     public string? ObservacionAprobacion { get; set; }
     public int? AprobadoPorId { get; set; }

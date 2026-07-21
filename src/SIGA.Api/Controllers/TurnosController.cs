@@ -24,9 +24,11 @@ public class TurnosController : BaseController
         [FromQuery] DateOnly? fecha,
         [FromQuery] int? professionalId,
         [FromQuery] string? estado,
-        [FromQuery] int? patientId)
+        [FromQuery] int? patientId,
+        [FromQuery] DateOnly? desde,
+        [FromQuery] DateOnly? hasta)
     {
-        var result = await _turnoService.GetAllAsync(fecha, professionalId, estado, patientId);
+        var result = await _turnoService.GetAllAsync(fecha, professionalId, estado, patientId, desde, hasta);
         return ToHttpResponse(result);
     }
 

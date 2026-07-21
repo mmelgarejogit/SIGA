@@ -107,14 +107,87 @@ public class LaboratorioService(AppDbContext db, ICurrentUserContext current, IN
         return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(tp));
     }
 
+    public async Task<Result<TrabajoPedidoListDto>> RegistrarEntregaAsync(int id, RegistrarEntregaRequest request, int userId)
+    {
+        var tp = await TpBaseQuery().FirstOrDefaultAsync(t => t.Id == id);
+        if (tp is null) return Result<TrabajoPedidoListDto>.Failure("Pedido no encontrado.", ErrorType.NotFound);
+
+        if (tp.Estado != EstadoTrabajoPedido.Recibido)
+            return Result<TrabajoPedidoListDto>.Failure(
+                "Solo se pueden entregar pedidos recibidos del laboratorio (listos para retirar).", ErrorType.Conflict);
+
+        // No se entregan los lentes sin haber emitido el comprobante/factura de la venta.
+        if (tp.Venta.Estado != EstadoVenta.ComprobanteEmitido)
+            return Result<TrabajoPedidoListDto>.Failure(
+                "Antes de entregar hay que emitir el comprobante de la venta (cobrar el saldo y emitir factura/recibo).",
+                ErrorType.Conflict);
+
+        var now = DateTime.UtcNow;
+        tp.Estado         = EstadoTrabajoPedido.Entregado;
+        tp.FechaEntrega   = DateOnly.FromDateTime(now);
+        tp.EntregadoPorId = userId;
+        tp.RetiradoPor    = string.IsNullOrWhiteSpace(request.RetiradoPor) ? null : request.RetiradoPor.Trim();
+        tp.UpdatedAt      = now;
+
+        await db.SaveChangesAsync();
+
+        var saved = await TpBaseQuery().FirstAsync(t => t.Id == id);
+        return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(saved));
+    }
+
+    public async Task<Result<TrabajoPedidoListDto>> RegistrarRetrabajoAsync(int id, RegistrarRetrabajoRequest request, int userId)
+    {
+        if (!Enum.TryParse<MotivoRetrabajo>(request.Motivo, out var motivo))
+            return Result<TrabajoPedidoListDto>.Failure("Motivo de re-trabajo inválido.", ErrorType.Validation);
+        if (!Enum.TryParse<ResponsableRetrabajo>(request.Responsable, out var responsable))
+            return Result<TrabajoPedidoListDto>.Failure("Responsable del re-trabajo inválido.", ErrorType.Validation);
+
+        var tp = await TpBaseQuery().FirstOrDefaultAsync(t => t.Id == id);
+        if (tp is null) return Result<TrabajoPedidoListDto>.Failure("Pedido no encontrado.", ErrorType.NotFound);
+
+        // Solo se rehace algo que ya volvió del laboratorio (recibido o incluso entregado y devuelto).
+        if (tp.Estado is not (EstadoTrabajoPedido.Recibido or EstadoTrabajoPedido.Entregado))
+            return Result<TrabajoPedidoListDto>.Failure(
+                "Solo se puede rehacer un trabajo recibido o entregado (que volvió del laboratorio).", ErrorType.Conflict);
+
+        var now = DateTime.UtcNow;
+        tp.Retrabajos.Add(new RetrabajoTrabajoPedido
+        {
+            Fecha           = DateOnly.FromDateTime(now),
+            Motivo          = motivo,
+            Responsable     = responsable,
+            Observacion     = string.IsNullOrWhiteSpace(request.Observacion) ? null : request.Observacion.Trim(),
+            RegistradoPorId = userId,
+            CreatedAt       = now,
+        });
+
+        // El trabajo vuelve a la cola de envíos para rehacerse; se limpia el ciclo anterior
+        // (envío/recepción/entrega) — el historial queda en el log de re-trabajos.
+        tp.Estado               = EstadoTrabajoPedido.PendienteEnvio;
+        tp.FechaEnvio           = null;
+        tp.FechaRecepcion       = null;
+        tp.FechaEstimadaEntrega = null;
+        tp.MedioEnvio           = null;
+        tp.FechaEntrega         = null;
+        tp.EntregadoPorId       = null;
+        tp.RetiradoPor          = null;
+        tp.UpdatedAt            = now;
+
+        await db.SaveChangesAsync();
+
+        var saved = await TpBaseQuery().FirstAsync(t => t.Id == id);
+        return Result<TrabajoPedidoListDto>.Success(MapTrabajoPedidoList(saved));
+    }
+
     public async Task<Result<TrabajoPedidoListDto>> EmitirFacturaAsync(
         int id, EmitirFacturaLaboratorioRequest request, int userId)
     {
         var tp = await TpBaseQuery().FirstOrDefaultAsync(t => t.Id == id);
         if (tp is null) return Result<TrabajoPedidoListDto>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
-        if (tp.Estado != EstadoTrabajoPedido.Recibido)
-            return Result<TrabajoPedidoListDto>.Failure("Solo se puede emitir factura de pedidos recibidos.", ErrorType.Conflict);
+        // El laboratorio puede facturarnos aun después de que el cliente ya retiró.
+        if (tp.Estado is not (EstadoTrabajoPedido.Recibido or EstadoTrabajoPedido.Entregado))
+            return Result<TrabajoPedidoListDto>.Failure("Solo se puede emitir factura de pedidos recibidos o entregados.", ErrorType.Conflict);
 
         if (tp.Factura != null)
             return Result<TrabajoPedidoListDto>.Failure("Este pedido ya tiene una factura registrada.", ErrorType.Conflict);
@@ -165,6 +238,8 @@ public class LaboratorioService(AppDbContext db, ICurrentUserContext current, IN
             .Include(tp => tp.Tratamientos)
             .Include(tp => tp.LaboratorioProveedor)
             .Include(tp => tp.AprobadoPor).ThenInclude(u => u!.Person)
+            .Include(tp => tp.EntregadoPor).ThenInclude(u => u!.Person)
+            .Include(tp => tp.Retrabajos).ThenInclude(r => r.RegistradoPor).ThenInclude(u => u!.Person)
             .Include(tp => tp.Factura).ThenInclude(f => f!.EmitidoPor).ThenInclude(u => u.Person)
             .AsQueryable();
 
@@ -193,6 +268,19 @@ public class LaboratorioService(AppDbContext db, ICurrentUserContext current, IN
         FechaEstimadaEntrega  = tp.FechaEstimadaEntrega?.ToString("yyyy-MM-dd"),
         MedioEnvio            = tp.MedioEnvio?.ToString(),
         FechaRecepcion        = tp.FechaRecepcion?.ToString("yyyy-MM-dd"),
+        FechaEntrega          = tp.FechaEntrega?.ToString("yyyy-MM-dd"),
+        RetiradoPor           = tp.RetiradoPor,
+        EntregadoPorNombre    = tp.EntregadoPor == null ? null : $"{tp.EntregadoPor.Person?.FirstName} {tp.EntregadoPor.Person?.LastName}".Trim(),
+        Retrabajos            = tp.Retrabajos
+            .OrderByDescending(r => r.Fecha).ThenByDescending(r => r.Id)
+            .Select(r => new RetrabajoDto
+            {
+                Fecha              = r.Fecha.ToString("yyyy-MM-dd"),
+                Motivo             = r.Motivo.ToString(),
+                Responsable        = r.Responsable.ToString(),
+                Observacion        = r.Observacion,
+                RegistradoPorNombre = r.RegistradoPor == null ? null : $"{r.RegistradoPor.Person?.FirstName} {r.RegistradoPor.Person?.LastName}".Trim(),
+            }).ToList(),
         Observacion           = tp.Observacion,
         Factura               = tp.Factura == null ? null : new FacturaLaboratorioDto
         {

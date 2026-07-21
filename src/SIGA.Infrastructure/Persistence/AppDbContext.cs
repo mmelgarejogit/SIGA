@@ -69,6 +69,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserCo
     public DbSet<TipoLente> TiposLente => Set<TipoLente>();
     public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
     public DbSet<TrabajoPedido> TrabajosPedido => Set<TrabajoPedido>();
+    public DbSet<RetrabajoTrabajoPedido> RetrabajosTrabajoPedido => Set<RetrabajoTrabajoPedido>();
     public DbSet<FacturaLaboratorio> FacturasLaboratorio => Set<FacturaLaboratorio>();
     public DbSet<Devolucion> Devoluciones => Set<Devolucion>();
     public DbSet<DevolucionLinea> DevolucionLineas => Set<DevolucionLinea>();

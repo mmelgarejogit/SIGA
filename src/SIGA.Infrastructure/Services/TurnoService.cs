@@ -25,7 +25,9 @@ public class TurnoService : ITurnoService
         _frontendUrl = appOptions.Value.FrontendUrl;
     }
 
-    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado, int? patientId = null)
+    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(
+        DateOnly? fecha, int? professionalId, string? estado, int? patientId = null,
+        DateOnly? desde = null, DateOnly? hasta = null)
     {
         var query = _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
@@ -38,6 +40,18 @@ public class TurnoService : ITurnoService
             var from = DateTime.SpecifyKind(fecha.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
             var to   = DateTime.SpecifyKind(fecha.Value.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
             query = query.Where(t => t.FechaHora >= from && t.FechaHora <= to);
+        }
+
+        // Rango [desde, hasta] (inclusive) — para las vistas de semana/mes en una sola consulta.
+        if (desde.HasValue)
+        {
+            var from = DateTime.SpecifyKind(desde.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            query = query.Where(t => t.FechaHora >= from);
+        }
+        if (hasta.HasValue)
+        {
+            var to = DateTime.SpecifyKind(hasta.Value.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+            query = query.Where(t => t.FechaHora <= to);
         }
 
         if (professionalId.HasValue)
@@ -90,7 +104,9 @@ public class TurnoService : ITurnoService
             .Select(t => TimeOnly.FromDateTime(t.FechaHora))
             .ToListAsync();
 
-        var ahora      = DateTime.UtcNow;
+        // Hora local de Paraguay: los slots son horas de reloj locales; con UtcNow se ocultarían
+        // mal los horarios pasados de hoy (y "hoy" se calcularía sobre la fecha UTC).
+        var ahora      = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
         var horaActual = fecha == DateOnly.FromDateTime(ahora)
             ? TimeOnly.FromDateTime(ahora)
             : TimeOnly.MinValue;
@@ -238,6 +254,12 @@ public class TurnoService : ITurnoService
 
         if (turno is null)
             return Result<bool>.Failure("Turno no encontrado.", ErrorType.NotFound);
+
+        if (turno.Estado == TurnoEstado.Completado)
+            return Result<bool>.Failure("No se puede cancelar un turno que ya fue realizado.", ErrorType.Conflict);
+
+        if (turno.Estado == TurnoEstado.Cancelado)
+            return Result<bool>.Failure("El turno ya está cancelado.", ErrorType.Conflict);
 
         turno.Estado               = TurnoEstado.Cancelado;
         turno.SolicitudCancelacion = false;
@@ -426,9 +448,28 @@ public class TurnoService : ITurnoService
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
+    // Los turnos se guardan y validan en hora local de Paraguay (los horarios del profesional
+    // —HoraInicio/HoraFin— son horas de reloj locales). Por eso el chequeo de "pasado" debe usar
+    // el ahora local, no UtcNow: si no, después de las ~21:00 local (medianoche en UTC) los turnos
+    // de esa misma noche parecen estar en el pasado.
+    private static readonly TimeZoneInfo ZonaParaguay = ResolverZonaParaguay();
+
+    private static TimeZoneInfo ResolverZonaParaguay()
+    {
+        foreach (var id in new[] { "America/Asuncion", "Paraguay Standard Time" })
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+        // Fallback: Paraguay quedó fijo en UTC-3 (sin horario de verano desde 2024).
+        return TimeZoneInfo.CreateCustomTimeZone("PY", TimeSpan.FromHours(-3), "Paraguay", "Paraguay");
+    }
+
     private async Task<string?> ValidateSlotAsync(int professionalId, DateTime fechaHora, int sucursalId)
     {
-        if (fechaHora < DateTime.UtcNow)
+        var ahoraLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
+        if (fechaHora < ahoraLocal)
             return "No se pueden reservar turnos en fechas pasadas.";
 
         var fecha = DateOnly.FromDateTime(fechaHora);

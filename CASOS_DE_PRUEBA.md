@@ -194,21 +194,42 @@
 
 ## BLOQUE E — Laboratorio y trabajo a pedido
 
-### E1 · "El cristal que llegó mal graduado" — 🟠
-- [ ] **Estado**
+### E1 · "El cristal que llegó mal graduado" — 🟢 (re-trabajo implementado 2026-07-20)
+- [x] **Estado** — circuito de re-trabajo resuelto; queda una limitación de facturación del lab (ver abajo).
 - **Setup:** *Pedro Giménez* pagó su multifocal completo; venta facturada. El laboratorio devuelve el cristal con graduación equivocada.
-- **Verificar:** cómo se rehace el trabajo. `EstadoTrabajoPedido.Rechazado` existe pero la venta ya está cobrada/facturada. ¿Hay re-envío? ¿Se re-factura al laboratorio? ¿Quién asume el costo?
-- **Gap:** no hay circuito de re-trabajo definido.
+- **Antes:** `Rechazado` era solo el rechazo en la etapa de aprobación (antes de enviar). Un trabajo que volvía
+  defectuoso (`Recibido`/`Entregado`) no tenía forma de mandarse a rehacer; no se registraba motivo ni responsable.
+- **Ahora:** acción "Registrar re-trabajo (rehacer)" en **Laboratorio → Envíos y Recepciones** (pedidos
+  `Recibido`/`Entregado`). Entidad `RetrabajoTrabajoPedido` (log: motivo, responsable, obs, quién, fecha);
+  enums `MotivoRetrabajo` (DefectoLaboratorio/ErrorOptica/NoAdaptacionCliente/RoturaGarantia/Otro) y
+  `ResponsableRetrabajo` (Laboratorio/Optica). El trabajo vuelve a `PendienteEnvio` (re-enviar sin re-aprobar).
+- **Reglas de negocio (decididas):** el re-trabajo es **siempre sin costo al cliente** (garantía; no toca la
+  venta ni los cobros) y **sin ventana de garantía** (se registra siempre, es criterio del óptico). Si el cliente
+  quiere un producto distinto y paga, eso es una **venta nueva**, no un re-trabajo.
+- **Quién asume el costo:** se registra en `Responsable`. Si es `Optica` y el lab factura la rehechura, se paga
+  vía el egreso de factura del laboratorio existente.
+- **Limitación conocida (pendiente):** `FacturaLaboratorio` es 1:1 con el trabajo, así que si el lab factura una
+  **segunda** vez la rehechura (responsable Óptica), hoy no se puede registrar esa segunda factura. Requiere pasar
+  la relación a 1:N. No abordado para no sobredimensionar.
 
 ### E2 · "El armazón del cliente roto en el laboratorio" — 🟠
 - [ ] **Estado**
 - **Setup:** trabajo con `ArmazonDelCliente = true`. El laboratorio quiebra el armazón al montar.
 - **Verificar:** no existe circuito para registrar la rotura ni la responsabilidad. Pasivo real de la óptica sin cobertura en el sistema.
 
-### E3 · "El que nunca vino a retirar" — 🟡
-- [ ] **Estado**
+### E3 · "El que nunca vino a retirar" — 🟢 (retiro implementado 2026-07-20)
+- [x] **Estado** — visibilidad operativa resuelta; falta política de abandono (ver más abajo).
 - **Setup:** trabajo recibido del laboratorio hace 4 meses; el cliente no aparece.
-- **Verificar:** ¿existe reporte de trabajos sin retirar o alguna alerta? Gap probable.
+- **Antes:** un trabajo `Recibido` no distinguía "en el cajón esperando" de "ya retirado por el cliente";
+  no había forma de ver qué está pendiente de retiro ni hace cuánto.
+- **Ahora:** estado `EstadoTrabajoPedido.Entregado` + acción "Registrar entrega (retiro)" en
+  **Laboratorio → Envíos y Recepciones**. El filtro **Listos para retirar** (`Recibido`) es exactamente
+  el cajón, con semáforo de envejecimiento ("listo hace Xd": ámbar >3d, rojo >10d). Se registra
+  `FechaEntrega`, quién entregó (`EntregadoPor`) y a nombre de quién se retiró (`RetiradoPor`).
+- **Regla:** no se entrega sin comprobante emitido (guard `venta.Estado == ComprobanteEmitido`).
+- **Pendiente (política de abandono):** qué hacer con la seña y el producto tras N meses sin retiro
+  (dar de baja, reingresar a stock, retener seña). Solo falta la decisión/automatización; la
+  visibilidad ya existe.
 
 ---
 
@@ -244,6 +265,28 @@
 
 ## Mejoras de flujo implementadas (no eran bugs)
 
+- **[x] Re-trabajo / garantía (rehacer trabajo)** (2026-07-20). Cierra E1: no había circuito para rehacer
+  un trabajo que volvió defectuoso.
+  - Backend: entidad `RetrabajoTrabajoPedido` + enums `MotivoRetrabajo`/`ResponsableRetrabajo`
+    (migración **067_RetrabajoTrabajoPedido**); `RegistrarRetrabajoAsync` + endpoint
+    `POST /api/laboratorio/pedidos/{id}/retrabajo` (policy `gestionar_laboratorio`). Guard: solo
+    `Recibido`/`Entregado`. Devuelve el trabajo a `PendienteEnvio` y guarda el log (motivo, responsable, obs, quién).
+  - Regla dura: **sin costo al cliente** (no toca ventas/cobros) y **sin ventana de garantía**.
+  - Frontend: acción "Registrar re-trabajo (rehacer)" con motivo + responsable + obs; chip "rehecho N×" en la fila.
+  - Pendiente: `FacturaLaboratorio` 1:1 no admite una 2ª factura del lab por la rehechura (responsable Óptica).
+
+- **[x] Retiro del cliente / entrega del trabajo** (2026-07-20). Cierra el ciclo físico del trabajo a
+  pedido: antes terminaba en `Recibido` (volvió del lab) sin registrar si el cliente pasó a buscarlo.
+  - Backend: `EstadoTrabajoPedido.Entregado`; campos `FechaEntrega`, `EntregadoPorId` (FK User),
+    `RetiradoPor` en `TrabajoPedido` (migración **066_TrabajoPedidoEntrega**);
+    `RegistrarEntregaAsync` + endpoint `PUT /api/laboratorio/pedidos/{id}/entregar` (policy
+    `gestionar_laboratorio`). Guard: solo `Recibido` **y** venta `ComprobanteEmitido` (no se entrega
+    sin documento). `EmitirFacturaAsync` (factura del laboratorio proveedor) relajado a `Recibido|Entregado`.
+  - Frontend: `TrabajosPedidoRecepcionesView` extendida con filtros **Listos para retirar** (`Recibido`)
+    y **Entregados**; acción "Registrar entrega (retiro)" con campo opcional "Retiró"; semáforo de
+    envejecimiento en el cajón. Sin filtro se muestra el ciclo activo (Pend. envío + Enviado + Recibido).
+  - Habilita E3 (trabajos sin retirar ahora son visibles con antigüedad).
+
 - **[x] Cola global de aprobación de devoluciones** (2026-07-15). Antes solo se podían
   gestionar devoluciones abriendo la venta específica; no había una vista centralizada.
   - Backend: `GetDevolucionesPendientesAsync()` en `VentaService` + endpoint
@@ -277,6 +320,9 @@
 | 2026-07-16 | Flujo | Egresos de 3 a **2 pasos**: se elimina la aprobación (era sello de goma para un cajero solo). Todos nacen `Pendiente` → `Registrar pago` → `Pagado`. Seguridad movida al pago: modal de confirmación con concepto+monto+origen. Anular = deshacer. `RegistrarPago` acepta Pendiente (o Aprobado legacy). | ✅ Backend (Egreso, EgresoService, controller, interface) + front (borrada `AprobacionEgresosView`, ruta/menú, pago directo), typecheck OK, Infrastructure compila 0 err |
 | 2026-07-17 | UX | Egresos: se quita el método de pago del **alta** (se descartaba, nunca se enviaba) — queda sólo en "Registrar pago", donde el dinero realmente sale. Caja: movimientos ordenados **más reciente primero** en caja abierta e historial. | ✅ Front (`NuevoEgresoView`, `VentasCierreView`, `CajaHistorialView`), typecheck OK |
 | 2026-07-17 | V2 | Reintegro de devolución topado en `Venta.TotalCobrado` (cobros no anulados): `montoReintegro = min(valor mercadería, cobrado)`. La NC sigue emitiéndose por el valor de la mercadería (revierte la factura). Corrige la fuga de venta a crédito con seña. | ✅ Backend `GestionarDevolucionAsync` (+ include `Cobros`), Infrastructure compila 0 err. **Pendiente**: cancelar el saldo a crédito remanente (estado `Devuelta` / V7) |
+| 2026-07-20 | Ventas | Precio de producto **fijo** (no editable) al cargar venta; recepción de lab quitada del detalle de venta (solo en Laboratorio). | ✅ Front (`VentaEditor`, `VentaDetalleView`), typecheck OK |
+| 2026-07-20 | E3 | **Retiro del cliente**: estado `Entregado` + campos entrega (mig. 066) + `RegistrarEntregaAsync` + endpoint `entregar`; front con filtro "Listos para retirar", acción de entrega y semáforo de cajón. Guard: no se entrega sin comprobante emitido. | ✅ Backend Api+Infra compilan 0 err, front typecheck OK. **Requiere reiniciar backend** (migración + endpoint nuevos) |
+| 2026-07-20 | E1 | **Re-trabajo / garantía**: entidad `RetrabajoTrabajoPedido` + enums `MotivoRetrabajo`/`ResponsableRetrabajo` (mig. 067) + `RegistrarRetrabajoAsync` + endpoint `retrabajo`; front con acción "rehacer" (motivo+responsable) y chip "rehecho N×". Sin costo al cliente, sin ventana de garantía. Vuelve a `PendienteEnvio`. | ✅ Solución completa compila 0 err, front typecheck OK. **Requiere reiniciar backend**. Pendiente: 2ª factura del lab (FacturaLaboratorio 1:1) |
 | 2026-07-17 | UX | `VentaCobrarView`: arreglado el default muerto del tipo de cobro (dependía de `EnProceso`, que nunca se setea). Ahora primer cobro de venta a crédito = **Seña**, siguientes = Cuota. | ✅ Front, typecheck OK |
 | 2026-07-17 | A7 | **Cancelar pedido con seña** (gap nuevo): `PuedeCancelarse()` acepta `ListaParaCobrar`; `CancelarVentaAsync` dispone la seña según el trabajo — retiene si ya se envió/recibió del lab (regla dura), reembolsa (egreso de caja + anula cobros) si no. Front muestra la disposición en el modal. | ✅ Backend (`Venta`, `CancelarVentaAsync`) + front (`VentaDetalleView`, catch arreglado), compila 0 err + typecheck OK |
 | 2026-07-17 | A7+ | Trabajo a pedido: **no se puede emitir comprobante/factura hasta estar `Recibido`** del lab (`ValidarTrabajoListoParaEmitir`). Evita el limbo "comprobante emitido antes de entregar" (no cancelable + sin producto que devolver). Stock no afectado. | ✅ Backend (`EmitirComprobanteAsync`/`EmitirFacturaAsync`) + front (`puedeEmitirDoc` gateado), compila 0 err + typecheck OK |
