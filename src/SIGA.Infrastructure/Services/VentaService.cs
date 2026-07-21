@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class VentaService(AppDbContext db, ICurrentUserContext current) : IVentaService
+public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditService audit) : IVentaService
 {
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +132,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
     public async Task<Result<PagedResult<VentaDto>>> GetVentasAsync(
         string? estado, string? tipo, string? fechaDesde, string? fechaHasta,
-        int? clienteId, int page, int pageSize)
+        int? clienteId, int? personId, int page, int pageSize)
     {
         var query = BaseQuery();
 
@@ -150,6 +150,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
 
         if (clienteId.HasValue)
             query = query.Where(v => v.ClienteId == clienteId.Value);
+
+        if (personId.HasValue)
+            query = query.Where(v => v.Cliente != null && v.Cliente.PersonId == personId.Value);
 
         var total = await query.CountAsync();
         var items = await query
@@ -462,6 +465,12 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         venta.Observaciones = string.IsNullOrWhiteSpace(venta.Observaciones) ? nota : $"{venta.Observaciones} | {nota}";
 
         await db.SaveChangesAsync();
+
+        var motivoTxt = string.IsNullOrWhiteSpace(request.Motivo) ? "" : $" — {request.Motivo.Trim()}";
+        await audit.LogAsync(AuditAccion.VentaAnulada,
+            $"Anuló la venta {venta.NumeroComprobante}{motivoTxt}",
+            entidad: "Venta", entidadId: venta.Id);
+
         return await GetVentaByIdAsync(id);
     }
 
@@ -974,6 +983,12 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         {
             devolucion.Estado = EstadoDevolucion.Rechazada;
             await db.SaveChangesAsync();
+
+            await audit.LogAsync(AuditAccion.DevolucionRechazada,
+                $"Rechazó la devolución #{devolucion.Id} de la venta {devolucion.Venta.NumeroComprobante}",
+                entidad: "Devolucion", entidadId: devolucion.Id,
+                userIdOverride: userId, usuarioNombreOverride: userName);
+
             return Result<DevolucionDto>.Success(MapDevolucion(devolucion));
         }
 
@@ -1059,6 +1074,12 @@ public class VentaService(AppDbContext db, ICurrentUserContext current) : IVenta
         }
 
         await db.SaveChangesAsync();
+
+        await audit.LogAsync(AuditAccion.DevolucionAprobada,
+            $"Aprobó la devolución #{devolucion.Id} de la venta {devolucion.Venta.NumeroComprobante}",
+            entidad: "Devolucion", entidadId: devolucion.Id,
+            userIdOverride: userId, usuarioNombreOverride: userName);
+
         return Result<DevolucionDto>.Success(MapDevolucion(devolucion));
     }
 

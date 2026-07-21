@@ -8,7 +8,7 @@ public interface IVentaService
     Task<Result<VentaDto>> GetVentaByIdAsync(int id);
     Task<Result<PagedResult<VentaDto>>> GetVentasAsync(
         string? estado, string? tipo, string? fechaDesde, string? fechaHasta,
-        int? clienteId, int page, int pageSize);
+        int? clienteId, int? personId, int page, int pageSize);
 
     Task<Result<VentaDto>> CrearVentaAsync(CrearVentaRequest request);
     Task<Result<VentaDto>> ActualizarVentaAsync(int id, ActualizarVentaRequest request);
