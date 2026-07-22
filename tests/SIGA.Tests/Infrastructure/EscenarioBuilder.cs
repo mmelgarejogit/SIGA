@@ -166,6 +166,77 @@ public sealed class EscenarioBuilder(AppDbContext db)
         return venta;
     }
 
+    /// <summary>
+    /// Registra un cobro en efectivo sobre la venta. Necesario para que
+    /// <c>Venta.TotalCobrado</c> sea mayor a cero, que es lo que habilita el reintegro
+    /// de caja al confirmar una devolución.
+    /// </summary>
+    public async Task<Cobro> RegistrarCobroAsync(Venta venta, int usuarioId, decimal monto)
+    {
+        var cobro = new Cobro
+        {
+            VentaId = venta.Id,
+            Tipo = TipoCobro.Cuota,
+            MontoTotal = monto,
+            Fecha = DateOnly.FromDateTime(DateTime.UtcNow),
+            Anulado = false,
+            RegistradoPorId = usuarioId,
+            CreatedAt = DateTime.UtcNow,
+        };
+        cobro.Lineas.Add(new CobroLinea
+        {
+            MetodoPago = MetodoPago.Efectivo,
+            Monto = monto,
+        });
+        db.Cobros.Add(cobro);
+        await db.SaveChangesAsync();
+        return cobro;
+    }
+
+    /// <summary>
+    /// Devolución en estado Pendiente sobre una venta con documento emitido, lista para
+    /// que un test la confirme o la rechace.
+    /// </summary>
+    public async Task<Devolucion> CrearDevolucionPendienteAsync(
+        Venta venta, int productoId, int cantidad, int solicitadaPorId)
+    {
+        var devolucion = new Devolucion
+        {
+            VentaId = venta.Id,
+            Tipo = TipoDevolucion.Devolucion,
+            Estado = EstadoDevolucion.Pendiente,
+            Motivo = "El cliente se arrepintió",
+            SolicitadoPorId = solicitadaPorId,
+            CreatedAt = DateTime.UtcNow,
+        };
+        devolucion.Lineas.Add(new DevolucionLinea
+        {
+            ProductoDevueltoId = productoId,
+            CantidadDevuelta = cantidad,
+        });
+        db.Devoluciones.Add(devolucion);
+        await db.SaveChangesAsync();
+        return devolucion;
+    }
+
+    /// <summary>Deja la venta con comprobante emitido, sin pasar por el servicio.</summary>
+    public async Task EmitirComprobanteDirectoAsync(Venta venta, int usuarioId)
+    {
+        var now = DateTime.UtcNow;
+        venta.Comprobante = new Comprobante
+        {
+            Tipo = TipoComprobante.ReciboSimple,
+            Estado = EstadoComprobante.Emitido,
+            EmitidoPorId = usuarioId,
+            FechaEmision = now,
+            CreatedAt = now,
+        };
+        venta.Estado = EstadoVenta.ComprobanteEmitido;
+        venta.FechaComprobante = DateOnly.FromDateTime(now);
+        venta.UpdatedAt = now;
+        await db.SaveChangesAsync();
+    }
+
     public async Task<SesionCaja> AbrirCajaAsync(int sucursalId, int usuarioId, decimal montoInicial = 500_000)
     {
         var sesion = new SesionCaja

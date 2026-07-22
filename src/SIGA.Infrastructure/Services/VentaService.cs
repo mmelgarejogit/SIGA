@@ -1016,6 +1016,44 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
         if (devolucion.Estado != EstadoDevolucion.Pendiente)
             return Result<DevolucionDto>.Failure("Solo se pueden gestionar devoluciones en estado Pendiente", ErrorType.Conflict);
 
+        // Si confirmar va a mover dinero, exigir caja abierta ANTES de tocar nada. Antes el
+        // egreso se guardaba con SesionCajaId = null: la plata salía del cajón pero el
+        // movimiento no pertenecía a ninguna sesión, no entraba en ningún arqueo, y el
+        // descuadre recién aparecía al contar los billetes. Mismo criterio que la emisión del
+        // documento fiscal, que también exige caja abierta. (V4)
+        //
+        // La comprobación va acá arriba, y no junto al movimiento de caja, para no dejar la
+        // devolución marcada como Confirmada en el rastreador de cambios de un contexto que
+        // después se descarta.
+        // Valor de la mercadería devuelta, calculado desde la VentaLinea original (no del
+        // catálogo actual). Rige la Nota de Crédito, que revierte la factura por lo
+        // efectivamente vendido.
+        decimal montoExento = 0, montoGravado5 = 0, montoGravado10 = 0, montoReintegro = 0;
+        SesionCaja? sesionCaja = null;
+
+        if (request.Accion == "Confirmar" && devolucion.Tipo == TipoDevolucion.Devolucion)
+        {
+            (montoExento, montoGravado5, montoGravado10) = CalcularMontosDevueltos(devolucion);
+
+            // La plata que sale de caja NO puede superar lo efectivamente cobrado (no
+            // anulado) de la venta. En una venta a crédito con seña solo se reintegra lo que
+            // el cliente pagó; el saldo financiado nunca entró a caja, así que no puede
+            // salir. (V2)
+            montoReintegro = Math.Min(montoExento + montoGravado5 + montoGravado10,
+                                      devolucion.Venta.TotalCobrado);
+
+            if (montoReintegro > 0)
+            {
+                sesionCaja = await db.SesionesCaja.FirstOrDefaultAsync(
+                    s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == devolucion.Venta.SucursalId);
+
+                if (sesionCaja is null)
+                    return Result<DevolucionDto>.Failure(
+                        "No hay una caja abierta. Abrí la caja antes de confirmar una devolución que reintegra dinero.",
+                        ErrorType.Conflict);
+            }
+        }
+
         var now = DateTime.UtcNow;
         devolucion.ConfirmadoPorId       = userId;
         devolucion.ObservacionesRevision = request.ObservacionesRevision?.Trim();
@@ -1071,25 +1109,16 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
             }
         }
 
-        // Movimiento de caja negativo solo para Devolucion (no para Cambio — precio pendiente de definir)
+        // Movimiento de caja negativo solo para Devolucion (no para Cambio — precio pendiente de definir).
+        // Los montos y el reintegro ya se calcularon arriba, junto con la validación de caja abierta:
+        // se calculan una sola vez para que no puedan divergir entre la comprobación y el asiento.
         if (devolucion.Tipo == TipoDevolucion.Devolucion)
         {
-            // Valor de la mercadería devuelta, calculado desde la VentaLinea original (no del catálogo
-            // actual). Rige la Nota de Crédito, que revierte la factura por lo efectivamente vendido.
-            var (montoExento, montoGravado5, montoGravado10) = CalcularMontosDevueltos(devolucion);
             var totalDevuelto = montoExento + montoGravado5 + montoGravado10;
-
-            // La plata que sale de caja NO puede superar lo efectivamente cobrado (no anulado) de la
-            // venta. En una venta a crédito con seña, sólo se reintegra lo que el cliente pagó; el saldo
-            // financiado nunca entró a caja, así que no puede salir. (V2)
-            var cobradoNoAnulado = devolucion.Venta.TotalCobrado;
-            var montoReintegro   = Math.Min(totalDevuelto, cobradoNoAnulado);
 
             if (montoReintegro > 0)
             {
-                var sesionDevolucion = await db.SesionesCaja
-                    .FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta && s.SucursalId == sucursalId);
-
+                // sesionCaja quedó resuelta y validada arriba, antes de mutar la devolución.
                 db.MovimientosCaja.Add(new MovimientoCaja
                 {
                     Tipo         = TipoMovimientoCaja.Egreso,
@@ -1098,7 +1127,7 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
                     MetodoPago   = MetodoPago.Efectivo,
                     SucursalId   = sucursalId,
                     VentaId      = devolucion.VentaId,
-                    SesionCajaId = sesionDevolucion?.Id,
+                    SesionCajaId = sesionCaja!.Id,
                     Fecha        = fecha,
                     CreatedAt    = now,
                 });

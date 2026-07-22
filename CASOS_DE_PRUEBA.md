@@ -23,7 +23,7 @@
 | V1 | 🔴 | Precio de devolución sale del catálogo, no de la venta | `VentaService.cs:903` | ☑ (065) |
 | V2 | 🔴 | Devolución de venta a crédito devuelve plata que nunca entró | `VentaService.cs:899-925` | ◐ — caja topada en lo cobrado; falta cancelar saldo a crédito (ver V7) |
 | V3 | 🟠 | No se valida que lo devuelto haya sido vendido | `VentaService.cs:772-780` | ☑ (065) |
-| V4 | 🔴 | Egreso de caja huérfano al devolver con caja cerrada | `VentaService.cs:909-924` | ☐ |
+| V4 | 🔴 | Egreso de caja huérfano al devolver con caja cerrada | `VentaService.cs:909-924` | ☑ — se exige caja abierta antes de confirmar; cubierto por `DevolucionYCajaTests` |
 | V5 | 🟠 | No hay validación de stock en toda la venta (stock negativo) | `VentaService.cs:641-654` | ☑ — `ValidarStockDisponibleAsync` en ambas emisiones; cubierto por `StockEnLaVentaTests` |
 | V6 | 🟠 | El "Cambio" no cobra la diferencia ni valida stock del nuevo | `VentaService.cs:898-899` | ☐ |
 | V7 | 🔴 | No existe nota de crédito; factura y estado quedan intactos tras devolución | `VentaService.cs:860-928` | ☑ (065) — se emite NC; la factura sigue vigente a propósito |
