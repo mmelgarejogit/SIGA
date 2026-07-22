@@ -24,7 +24,7 @@
 | V2 | 🔴 | Devolución de venta a crédito devuelve plata que nunca entró | `VentaService.cs:899-925` | ◐ — caja topada en lo cobrado; falta cancelar saldo a crédito (ver V7) |
 | V3 | 🟠 | No se valida que lo devuelto haya sido vendido | `VentaService.cs:772-780` | ☑ (065) |
 | V4 | 🔴 | Egreso de caja huérfano al devolver con caja cerrada | `VentaService.cs:909-924` | ☐ |
-| V5 | 🟠 | No hay validación de stock en toda la venta (stock negativo) | `VentaService.cs:641-654` | ☐ |
+| V5 | 🟠 | No hay validación de stock en toda la venta (stock negativo) | `VentaService.cs:641-654` | ☑ — `ValidarStockDisponibleAsync` en ambas emisiones; cubierto por `StockEnLaVentaTests` |
 | V6 | 🟠 | El "Cambio" no cobra la diferencia ni valida stock del nuevo | `VentaService.cs:898-899` | ☐ |
 | V7 | 🔴 | No existe nota de crédito; factura y estado quedan intactos tras devolución | `VentaService.cs:860-928` | ☑ (065) — se emite NC; la factura sigue vigente a propósito |
 | V8 | 🔴 | No se puede anular un cobro (campo `Anulado` sin escritura) | `VentaService.cs` (falta método) | ☐ |
@@ -103,7 +103,7 @@
 ## BLOQUE B — Stock inexistente
 
 ### B1 · "El último armazón, dos veces" — 🟠 (V5) ⭐ prioridad
-- [ ] **Estado**
+- [~] **Estado** — **sigue abierto**: la validación agregada en V5 (`ValidarStockDisponibleAsync`) corta el caso secuencial (B2), pero no éste. Es una condición de carrera: dos transacciones concurrentes leen el stock, ambas ven 1 disponible, y ambas escriben su egreso. Cerrarlo requiere bloqueo pesimista sobre el stock del producto (`SELECT ... FOR UPDATE`) o una restricción en la base que impida el negativo — no alcanza con validar antes de escribir.
 - **Setup:** dejar **1** unidad en stock del modelo Vulk.
 - **Acción:** dos operadores (o dos pestañas) crean, confirman y emiten comprobante sobre ese producto casi simultáneamente.
 - **Resultado esperado:** uno de los dos falla por stock insuficiente.
@@ -111,7 +111,7 @@
 - **Fix propuesto:** validar stock disponible al emitir; idealmente reservar al confirmar.
 
 ### B2 · "La venta sin mercadería" — 🟠 (V5)
-- [ ] **Estado**
+- [x] **Estado** — arreglado y cubierto por `StockEnLaVentaTests`
 - **Setup:** producto con **2** unidades en stock.
 - **Acción:** vender **10**. Confirmar. Emitir factura.
 - **Resultado esperado:** bloqueo por stock insuficiente en algún paso.

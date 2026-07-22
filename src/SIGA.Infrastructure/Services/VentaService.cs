@@ -600,6 +600,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
             return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
         if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
             return errTrabajo;
+        if (await ValidarStockDisponibleAsync(venta) is { } errStock)
+            return errStock;
 
         var now = DateTime.UtcNow;
 
@@ -644,6 +646,8 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
             return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
         if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
             return errTrabajo;
+        if (await ValidarStockDisponibleAsync(venta) is { } errStock)
+            return errStock;
 
         var timbrado = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == request.TimbradoId);
         if (timbrado == null)
@@ -702,6 +706,44 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
 
         await db.SaveChangesAsync();
         return await GetVentaByIdAsync(request.VentaId);
+    }
+
+    /// <summary>
+    /// Verifica que haya stock suficiente en la sucursal de la venta para todas sus líneas
+    /// de producto. Devuelve null si se puede emitir, o el error si no.
+    ///
+    /// Se agrupa por producto porque una misma venta puede repetir el producto en varias
+    /// líneas, y sumadas superar el stock aunque ninguna lo haga por separado. El stock se
+    /// mira siempre de la sucursal de la venta: tener unidades en otro local no habilita a
+    /// vender acá.
+    /// </summary>
+    private async Task<Result<VentaDto>?> ValidarStockDisponibleAsync(Venta venta)
+    {
+        var requerido = venta.Lineas
+            .Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue)
+            .GroupBy(l => l.ProductoId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.Cantidad));
+
+        if (requerido.Count == 0) return null;
+
+        var productoIds = requerido.Keys.ToList();
+        var disponible = await db.StockActual
+            .Where(s => s.SucursalId == venta.SucursalId && productoIds.Contains(s.ProductoId))
+            .ToDictionaryAsync(s => s.ProductoId, s => s.StockActual);
+
+        foreach (var (productoId, cantidad) in requerido)
+        {
+            // Un producto sin movimientos no tiene fila en la vista: eso es stock 0.
+            var hay = disponible.GetValueOrDefault(productoId, 0);
+            if (hay >= cantidad) continue;
+
+            var descripcion = venta.Lineas.First(l => l.ProductoId == productoId).Descripcion;
+            return Result<VentaDto>.Failure(
+                $"Stock insuficiente de «{descripcion}»: se necesitan {cantidad} y hay {hay} en la sucursal.",
+                ErrorType.Conflict);
+        }
+
+        return null;
     }
 
     /// <summary>
