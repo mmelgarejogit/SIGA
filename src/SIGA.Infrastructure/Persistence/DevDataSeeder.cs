@@ -95,18 +95,21 @@ public static class DevDataSeeder
         var professionalRole = await db.Roles.FirstAsync(r => r.Type == "professional");
         var especialidades   = await db.Especialidades.ToListAsync();
 
+        // Sucursal por defecto: horarios y turnos tienen dimensión de sucursal (FK obligatoria).
+        var sucursalId = await db.Sucursales.OrderBy(s => s.Id).Select(s => s.Id).FirstAsync();
+
         await SeedAdminAsync(db, pwHash, adminRole);
         await SyncHorariosAsync(db);
 
         if (!await db.Patients.AnyAsync())
         {
-            var professionals = await SeedProfessionalsAsync(db, pwHash, professionalRole, especialidades);
+            var professionals = await SeedProfessionalsAsync(db, pwHash, professionalRole, especialidades, sucursalId);
             var patients      = await SeedPatientsAsync(db, pwHash, patientRole);
-            await SeedTurnosAsync(db, professionals, patients);
+            await SeedTurnosAsync(db, professionals, patients, sucursalId);
         }
 
         // Inventario aparte: así se re-puebla tras un reset de catálogo aunque ya haya pacientes.
-        await SeedInventarioAsync(db);
+        await SeedInventarioAsync(db, sucursalId);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
@@ -143,7 +146,7 @@ public static class DevDataSeeder
     // ── Profesionales ─────────────────────────────────────────────────────────
 
     private static async Task<List<Professional>> SeedProfessionalsAsync(
-        AppDbContext db, string pwHash, Role role, List<Especialidad> especialidades)
+        AppDbContext db, string pwHash, Role role, List<Especialidad> especialidades, int sucursalId)
     {
         var now    = DateTime.UtcNow;
         var result = new List<Professional>();
@@ -180,7 +183,7 @@ public static class DevDataSeeder
                 LicenseNumber = matricula,
                 CreatedAt     = now,
                 UpdatedAt     = now,
-                Horarios      = BuildHorarios(),
+                Horarios      = BuildHorarios(sucursalId),
                 Especialidades = espIdx
                     .Where(i => i < especialidades.Count)
                     .Select(i => new ProfesionalEspecialidad { EspecialidadId = especialidades[i].Id })
@@ -204,9 +207,10 @@ public static class DevDataSeeder
     private static readonly TimeOnly HoraInicioDev = new(8, 0);
     private static readonly TimeOnly HoraFinDev    = new(17, 0);
 
-    private static List<HorarioProfesional> BuildHorarios() =>
+    private static List<HorarioProfesional> BuildHorarios(int sucursalId) =>
         DiasLaborales.Select(d => new HorarioProfesional
         {
+            SucursalId = sucursalId,
             DiaSemana  = d,
             HoraInicio = HoraInicioDev,
             HoraFin    = HoraFinDev,
@@ -305,7 +309,7 @@ public static class DevDataSeeder
     // ── Turnos ────────────────────────────────────────────────────────────────
 
     private static async Task SeedTurnosAsync(
-        AppDbContext db, List<Professional> professionals, List<Patient> patients)
+        AppDbContext db, List<Professional> professionals, List<Patient> patients, int sucursalId)
     {
         var now  = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(now);
@@ -355,6 +359,7 @@ public static class DevDataSeeder
 
                 turnos.Add(new Turno
                 {
+                    SucursalId     = sucursalId,
                     ProfessionalId = prof.Id,
                     PatientId      = patient.Id,
                     FechaHora      = fechaHora,
@@ -372,7 +377,7 @@ public static class DevDataSeeder
 
     // ── Inventario ────────────────────────────────────────────────────────────
 
-    private static async Task SeedInventarioAsync(AppDbContext db)
+    private static async Task SeedInventarioAsync(AppDbContext db, int sucursalId)
     {
         if (await db.Productos.AnyAsync()) return;
 
@@ -405,6 +410,7 @@ public static class DevDataSeeder
             .Select(x => new MovimientoStock
             {
                 ProductoId      = x.p.Id,
+                SucursalId      = sucursalId,
                 Tipo            = TipoMovimientoStock.Entrada,
                 Cantidad        = x.act,
                 Motivo          = "Ingreso inicial",
@@ -434,6 +440,7 @@ public static class DevDataSeeder
                 movimientos.Add(new MovimientoStock
                 {
                     ProductoId = prod.Id,
+                    SucursalId = sucursalId,
                     Tipo       = tipo,
                     Cantidad   = cantidad,
                     Motivo     = motivosMov[Rng.Next(motivosMov.Length)],

@@ -157,6 +157,7 @@ using (var scope = app.Services.CreateScope())
     if (app.Environment.IsDevelopment())
     {
         await DevDataSeeder.SeedAsync(db, hasher);
+        await DemoDataSeeder.SeedAsync(db, hasher);
     }
 }
 
