@@ -11,11 +11,25 @@ namespace SIGA.Infrastructure.Services;
 public class RoleService : IRoleService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IAuditService _audit;
 
-    public RoleService(AppDbContext dbContext)
+    public RoleService(AppDbContext dbContext, IAuditService audit)
     {
         _dbContext = dbContext;
+        _audit     = audit;
     }
+
+    private async Task<string> NombreUsuario(int userId) =>
+        await _dbContext.Users
+            .Where(u => u.Id == userId)
+            .Select(u => (u.Person.FirstName + " " + u.Person.LastName).Trim())
+            .FirstOrDefaultAsync() ?? $"usuario #{userId}";
+
+    private async Task<string> NombreRol(int roleId) =>
+        await _dbContext.Roles
+            .Where(r => r.Id == roleId)
+            .Select(r => r.Name)
+            .FirstOrDefaultAsync() ?? $"rol #{roleId}";
 
     public async Task<Result<IEnumerable<RoleResponse>>> GetAllAsync()
     {
@@ -50,6 +64,9 @@ public class RoleService : IRoleService
 
         await SetPermissionsAsync(role.Id, request.Permissions);
 
+        await _audit.LogAsync(AuditAccion.RolCreado, $"Creó el rol {name}",
+            entidad: "Role", entidadId: role.Id);
+
         return await GetByIdAsync(role.Id);
     }
 
@@ -69,6 +86,10 @@ public class RoleService : IRoleService
 
         await SetPermissionsAsync(id, request.Permissions);
 
+        await _audit.LogAsync(AuditAccion.RolActualizado,
+            $"Editó el rol {name} (nombre y permisos)",
+            entidad: "Role", entidadId: id);
+
         return await GetByIdAsync(id);
     }
 
@@ -86,6 +107,9 @@ public class RoleService : IRoleService
 
         _dbContext.Roles.Remove(role);
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.RolEliminado, $"Eliminó el rol {role.Name}",
+            entidad: "Role", entidadId: id);
 
         return Result<bool>.Success(true);
     }
@@ -109,6 +133,10 @@ public class RoleService : IRoleService
         _dbContext.UserRoles.Add(new UserRole { UserId = userId, RoleId = request.RoleId });
         await _dbContext.SaveChangesAsync();
 
+        await _audit.LogAsync(AuditAccion.RolAsignado,
+            $"Asignó el rol {role.Name} a {await NombreUsuario(userId)}",
+            entidad: "User", entidadId: userId);
+
         return Result<bool>.Success(true);
     }
 
@@ -122,6 +150,10 @@ public class RoleService : IRoleService
 
         _dbContext.UserRoles.Remove(userRole);
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.RolQuitado,
+            $"Quitó el rol {await NombreRol(roleId)} a {await NombreUsuario(userId)}",
+            entidad: "User", entidadId: userId);
 
         return Result<bool>.Success(true);
     }

@@ -19,6 +19,7 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly AppOptions _appOptions;
     private readonly ICurrentUserContext _current;
+    private readonly IAuditService _audit;
 
     public AuthService(
         AppDbContext dbContext,
@@ -27,7 +28,8 @@ public class AuthService : IAuthService
         IHCaptchaService hCaptchaService,
         IEmailService emailService,
         IOptions<AppOptions> appOptions,
-        ICurrentUserContext current)
+        ICurrentUserContext current,
+        IAuditService audit)
     {
         _dbContext         = dbContext;
         _passwordHasher    = passwordHasher;
@@ -36,6 +38,7 @@ public class AuthService : IAuthService
         _emailService      = emailService;
         _appOptions        = appOptions.Value;
         _current           = current;
+        _audit             = audit;
     }
 
     public async Task<Result<RegisterResponse>> RegisterAsync(RegisterRequest request)
@@ -210,7 +213,13 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Person.Email == email);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        {
+            await _audit.LogAsync(AuditAccion.LoginFallido,
+                $"Intento de inicio de sesión fallido para {email}",
+                entidad: "User", entidadId: user?.Id,
+                userIdOverride: user?.Id, usuarioNombreOverride: email);
             return Result<LoginResponse>.Failure("Credenciales incorrectas.", ErrorType.Unauthorized);
+        }
 
         if (!user.IsActive)
             return Result<LoginResponse>.Failure("La cuenta está desactivada.", ErrorType.Unauthorized);
@@ -226,6 +235,11 @@ public class AuthService : IAuthService
             .Distinct()
             .ToList();
         var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions, user.Professional?.Id, user.SucursalId);
+
+        await _audit.LogAsync(AuditAccion.LoginExitoso, "Inició sesión",
+            entidad: "User", entidadId: user.Id,
+            userIdOverride: user.Id,
+            usuarioNombreOverride: $"{user.Person.FirstName} {user.Person.LastName}".Trim());
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
@@ -260,6 +274,9 @@ public class AuthService : IAuthService
         user.MustChangePassword = false;
         user.UpdatedAt          = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordCambiado, "Cambió su contraseña",
+            entidad: "User", entidadId: user.Id);
 
         return Result<bool>.Success(true);
     }
@@ -323,6 +340,10 @@ public class AuthService : IAuthService
         user.MustChangePassword          = false;
         user.UpdatedAt                   = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordReseteado,
+            "Restableció su contraseña desde el enlace de recuperación",
+            entidad: "User", entidadId: user.Id, userIdOverride: user.Id);
 
         return Result<bool>.Success(true);
     }

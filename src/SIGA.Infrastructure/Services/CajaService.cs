@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaService
+public class CajaService(AppDbContext db, ICurrentUserContext current, IAuditService audit) : ICajaService
 {
     // ── Mappers ──────────────────────────────────────────────────────────────────
 
@@ -217,6 +217,11 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         sesion.FechaAprobacion = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
+
+        await audit.LogAsync(AuditAccion.CierreCajaAprobado,
+            $"Aprobó el cierre de la sesión de caja #{sesion.Id}",
+            entidad: "SesionCaja", entidadId: sesion.Id, userIdOverride: userId);
+
         var updated = await SesionQuery().FirstAsync(s => s.Id == id);
         return Result<SesionCajaDto>.Success(MapSesion(updated));
     }
@@ -243,6 +248,11 @@ public class CajaService(AppDbContext db, ICurrentUserContext current) : ICajaSe
         sesion.ObservacionCierre = null;
 
         await db.SaveChangesAsync();
+
+        await audit.LogAsync(AuditAccion.CierreCajaRechazado,
+            $"Rechazó el cierre de la sesión de caja #{sesion.Id} — {request.Motivo.Trim()}",
+            entidad: "SesionCaja", entidadId: sesion.Id, userIdOverride: userId);
+
         var updated = await SesionQuery().FirstAsync(s => s.Id == id);
         return Result<SesionCajaDto>.Success(MapSesion(updated));
     }

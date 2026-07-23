@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
+using SIGA.Domain.Entities;
 using SIGA.Domain.Security;
 using SIGA.Infrastructure.Persistence;
 
@@ -11,12 +12,20 @@ public class UserService : IUserService
 {
     private readonly AppDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IAuditService _audit;
 
-    public UserService(AppDbContext dbContext, IPasswordHasher passwordHasher)
+    public UserService(AppDbContext dbContext, IPasswordHasher passwordHasher, IAuditService audit)
     {
         _dbContext      = dbContext;
         _passwordHasher = passwordHasher;
+        _audit          = audit;
     }
+
+    private async Task<string> NombreDe(int personId) =>
+        await _dbContext.Persons
+            .Where(p => p.Id == personId)
+            .Select(p => (p.FirstName + " " + p.LastName).Trim())
+            .FirstOrDefaultAsync() ?? $"usuario #{personId}";
 
     public async Task<Result<IEnumerable<UserResponse>>> GetAllAsync()
     {
@@ -75,6 +84,10 @@ public class UserService : IUserService
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
+        await _audit.LogAsync(AuditAccion.UsuarioDesactivado,
+            $"Desactivó al usuario {await NombreDe(user.PersonId)}",
+            entidad: "User", entidadId: user.Id);
+
         return Result<bool>.Success(true);
     }
 
@@ -92,6 +105,10 @@ public class UserService : IUserService
         user.MustChangePassword = true;
         user.UpdatedAt          = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordReseteado,
+            $"Reseteó la contraseña del usuario {await NombreDe(user.PersonId)}",
+            entidad: "User", entidadId: user.Id);
 
         return Result<bool>.Success(true);
     }

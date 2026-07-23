@@ -25,10 +25,11 @@ public class VentasController(IVentaService ventaService) : BaseController
         [FromQuery] string? fechaDesde = null,
         [FromQuery] string? fechaHasta = null,
         [FromQuery] int?    clienteId  = null,
+        [FromQuery] int?    personId   = null,
         [FromQuery] int     page       = 1,
         [FromQuery] int     pageSize   = 10)
     {
-        var result = await ventaService.GetVentasAsync(estado, tipo, fechaDesde, fechaHasta, clienteId, page, pageSize);
+        var result = await ventaService.GetVentasAsync(estado, tipo, fechaDesde, fechaHasta, clienteId, personId, page, pageSize);
         return ToHttpResponse(result);
     }
 
