@@ -208,6 +208,22 @@ public class PatientService : IPatientService
         return Result<bool>.Success(true);
     }
 
+    public async Task<Result<bool>> ActivarAsync(int id)
+    {
+        var patient = await _dbContext.Patients
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (patient is null)
+            return Result<bool>.Failure("Paciente no encontrado.", ErrorType.NotFound);
+
+        patient.IsActive = true;
+        patient.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        return Result<bool>.Success(true);
+    }
+
     private static PatientResponse ToResponse(Patient p) => new()
     {
         Id          = p.Id,

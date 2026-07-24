@@ -140,8 +140,16 @@ public class ConsultaClinicaService : IConsultaClinicaService
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result<ConsultaClinicaResponse>.Failure("El motivo es obligatorio.", ErrorType.Validation);
 
-        if (!await _db.Patients.AnyAsync(p => p.Id == request.PatientId))
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == request.PatientId);
+        if (patient is null)
             return Result<ConsultaClinicaResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
+
+        // Paciente inactivo = archivado: su historial se sigue viendo, pero no se le puede
+        // cargar una consulta nueva sin reactivarlo antes.
+        if (!patient.IsActive)
+            return Result<ConsultaClinicaResponse>.Failure(
+                "El paciente está inactivo. Reactivalo para poder registrarle una consulta.",
+                ErrorType.Validation);
 
         if (!await _db.Professionals.AnyAsync(p => p.Id == request.ProfessionalId))
             return Result<ConsultaClinicaResponse>.Failure("Profesional no encontrado.", ErrorType.NotFound);

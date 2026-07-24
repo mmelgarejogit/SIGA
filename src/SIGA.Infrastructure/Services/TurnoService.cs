@@ -17,6 +17,10 @@ public class TurnoService : ITurnoService
     private readonly string _frontendUrl;
     private const int DuracionMinutos = 30;
 
+    /// <summary>Antelación mínima para agendar. Se aplica en los dos lados —al listar slots
+    /// y al validar el alta— para no ofrecer horarios que después se rechazarían.</summary>
+    private const int AntelacionMinimaMinutos = 30;
+
     public TurnoService(AppDbContext db, IEmailService email, ICurrentUserContext current, IOptions<AppOptions> appOptions)
     {
         _db          = db;
@@ -106,13 +110,13 @@ public class TurnoService : ITurnoService
 
         // Hora local de Paraguay: los slots son horas de reloj locales; con UtcNow se ocultarían
         // mal los horarios pasados de hoy (y "hoy" se calcularía sobre la fecha UTC).
-        var ahora      = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
-        var horaActual = fecha == DateOnly.FromDateTime(ahora)
-            ? TimeOnly.FromDateTime(ahora)
-            : TimeOnly.MinValue;
+        // El corte se compara como instante completo (fecha + hora) y no como TimeOnly:
+        // así el margen no se desborda pasada la medianoche y las fechas pasadas quedan vacías.
+        var ahora  = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
+        var minimo = ahora.AddMinutes(AntelacionMinimaMinutos);
 
         var disponibles = slotsLibres
-            .Where(s => !ocupados.Contains(s) && s > horaActual)
+            .Where(s => !ocupados.Contains(s) && fecha.ToDateTime(s) >= minimo)
             .Select(s => new SlotDisponibleResponse { HoraInicio = s, HoraFin = s.AddMinutes(DuracionMinutos) });
 
         return Result<IEnumerable<SlotDisponibleResponse>>.Success(disponibles);
@@ -172,6 +176,12 @@ public class TurnoService : ITurnoService
             .FirstOrDefaultAsync(p => p.Id == request.PatientId);
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
+
+        // Un paciente inactivo está archivado: se conserva todo su historial pero no puede
+        // generar actividad nueva. Hay que reactivarlo desde Pacientes para volver a agendarle.
+        if (!patient.IsActive)
+            return Result<TurnoResponse>.Failure(
+                "El paciente está inactivo. Reactivalo para poder agendarle turnos.", ErrorType.Validation);
 
         var branch = await SucursalResolver.WriteBranchAsync(_db, _current);
 
@@ -355,6 +365,11 @@ public class TurnoService : ITurnoService
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
+        if (!patient.IsActive)
+            return Result<TurnoResponse>.Failure(
+                "Tu perfil de paciente está inactivo. Comunicate con la óptica para reactivarlo.",
+                ErrorType.Validation);
+
         if (request.SucursalId <= 0 ||
             !await _db.Sucursales.AnyAsync(s => s.Id == request.SucursalId && s.IsActive))
             return Result<TurnoResponse>.Failure("Seleccioná una sucursal válida.", ErrorType.Validation);
@@ -471,6 +486,10 @@ public class TurnoService : ITurnoService
         var ahoraLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
         if (fechaHora < ahoraLocal)
             return "No se pueden reservar turnos en fechas pasadas.";
+
+        // Margen de cortesía: el mostrador necesita tiempo para preparar la atención.
+        if (fechaHora < ahoraLocal.AddMinutes(AntelacionMinimaMinutos))
+            return $"Los turnos se agendan con al menos {AntelacionMinimaMinutos} minutos de antelación.";
 
         var fecha = DateOnly.FromDateTime(fechaHora);
         var hora  = TimeOnly.FromDateTime(fechaHora);
