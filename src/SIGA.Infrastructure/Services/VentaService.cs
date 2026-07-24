@@ -361,11 +361,16 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
     public async Task<Result<VentaDto>> ConfirmarVentaAsync(int id, int userId)
     {
         var venta = await db.Ventas
+            .Include(v => v.Lineas)
             .Include(v => v.TrabajoPedido)
             .FirstOrDefaultAsync(v => v.Id == id);
         if (venta == null) return Result<VentaDto>.Failure("Venta no encontrada", ErrorType.NotFound);
         if (!venta.PuedeConfirmarse())
             return Result<VentaDto>.Failure("Solo se pueden confirmar ventas en estado Borrador", ErrorType.Conflict);
+
+        // No se puede confirmar una venta si algún producto no tiene stock disponible en la sucursal.
+        if (await ValidarStockDisponibleAsync(venta) is { } errStock)
+            return errStock;
 
         // Defensa adicional: CrearVentaAsync ya exige la receta para todo trabajo a pedido
         // (venta o presupuesto), así que esto nunca debería dispararse en la práctica.
@@ -600,6 +605,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
             return Result<VentaDto>.Failure("La venta ya tiene factura emitida", ErrorType.Conflict);
         if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
             return errTrabajo;
+        // El stock sale recién acá: última barrera contra vender sin stock disponible.
+        if (await ValidarStockDisponibleAsync(venta) is { } errStock)
+            return errStock;
 
         var now = DateTime.UtcNow;
 
@@ -644,6 +652,9 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
             return Result<VentaDto>.Failure("La venta ya tiene comprobante emitido", ErrorType.Conflict);
         if (ValidarTrabajoListoParaEmitir(venta) is { } errTrabajo)
             return errTrabajo;
+        // El stock sale recién acá: última barrera contra vender sin stock disponible.
+        if (await ValidarStockDisponibleAsync(venta) is { } errStock)
+            return errStock;
 
         var timbrado = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == request.TimbradoId);
         if (timbrado == null)
@@ -702,6 +713,46 @@ public class VentaService(AppDbContext db, ICurrentUserContext current, IAuditSe
 
         await db.SaveChangesAsync();
         return await GetVentaByIdAsync(request.VentaId);
+    }
+
+    /// <summary>
+    /// Verifica que haya stock disponible en la sucursal de la venta para cada línea de producto.
+    /// Un producto no se puede vender si su stock disponible es menor a la cantidad requerida —lo
+    /// que incluye el caso de stock 0 o negativo—. Solo aplica a líneas de producto de stock; los
+    /// servicios, líneas manuales y el lente a pedido (tipo Lente, sin ProductoId) no afectan stock.
+    /// Devuelve un Result de error si falta stock, o null si todo está disponible.
+    /// </summary>
+    private async Task<Result<VentaDto>?> ValidarStockDisponibleAsync(Venta venta)
+    {
+        var requeridoPorProducto = venta.Lineas
+            .Where(l => l.Tipo == TipoLineaVenta.Producto && l.ProductoId.HasValue)
+            .GroupBy(l => l.ProductoId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.Cantidad));
+
+        if (requeridoPorProducto.Count == 0) return null;
+
+        var productoIds = requeridoPorProducto.Keys.ToList();
+        var stockMap = await db.StockActual
+            .Where(s => productoIds.Contains(s.ProductoId) && s.SucursalId == venta.SucursalId)
+            .GroupBy(s => s.ProductoId)
+            .Select(g => new { ProductoId = g.Key, Stock = g.Sum(x => x.StockActual) })
+            .ToDictionaryAsync(x => x.ProductoId, x => x.Stock);
+
+        foreach (var (productoId, requerido) in requeridoPorProducto)
+        {
+            var disponible = stockMap.GetValueOrDefault(productoId, 0);
+            if (disponible < requerido)
+            {
+                var nombre = venta.Lineas.First(l => l.ProductoId == productoId).Descripcion;
+                return Result<VentaDto>.Failure(
+                    disponible <= 0
+                        ? $"El producto \"{nombre}\" no tiene stock disponible y no se puede vender."
+                        : $"Stock insuficiente para \"{nombre}\": disponible {disponible}, requerido {requerido}.",
+                    ErrorType.Conflict);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
