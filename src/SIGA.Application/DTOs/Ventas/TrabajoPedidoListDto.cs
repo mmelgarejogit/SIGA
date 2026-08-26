@@ -28,6 +28,10 @@ public class TrabajoPedidoListDto
     public string? FechaEstimadaEntrega { get; set; }
     public string? MedioEnvio { get; set; }
     public string? FechaRecepcion { get; set; }
+    public string? FechaEntrega { get; set; }
+    public string? RetiradoPor { get; set; }
+    public string? EntregadoPorNombre { get; set; }
+    public List<RetrabajoDto> Retrabajos { get; set; } = new();
     public string? Observacion { get; set; }
     public FacturaLaboratorioDto? Factura { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -69,6 +73,30 @@ public class RegistrarEnvioRequest
 {
     public string? FechaEstimadaEntrega { get; set; }   // "yyyy-MM-dd"
     public string? MedioEnvio { get; set; }             // MedioEnvioLaboratorio (enum por nombre)
+}
+
+/// <summary>Datos del retiro del cliente: a nombre de quién se entregaron los lentes (opcional).</summary>
+public class RegistrarEntregaRequest
+{
+    public string? RetiradoPor { get; set; }
+}
+
+/// <summary>Un re-trabajo (garantía / rehacer) registrado sobre un trabajo a pedido.</summary>
+public class RetrabajoDto
+{
+    public string Fecha { get; set; } = "";
+    public string Motivo { get; set; } = "";        // MotivoRetrabajo (enum por nombre)
+    public string Responsable { get; set; } = "";   // ResponsableRetrabajo (enum por nombre)
+    public string? Observacion { get; set; }
+    public string? RegistradoPorNombre { get; set; }
+}
+
+/// <summary>Manda un trabajo a rehacer (sin costo al cliente): motivo + quién asume el costo.</summary>
+public class RegistrarRetrabajoRequest
+{
+    public string Motivo { get; set; } = null!;       // MotivoRetrabajo (enum por nombre)
+    public string Responsable { get; set; } = null!;  // ResponsableRetrabajo (enum por nombre)
+    public string? Observacion { get; set; }
 }
 
 public class EmitirFacturaLaboratorioRequest

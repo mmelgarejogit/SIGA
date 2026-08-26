@@ -137,3 +137,5 @@ ListaParaCobrar
   `VentasView.vue` (Lista de Ventas) se eliminó el modal intermedio de detalle: la fila ahora
   navega directo a `/ventas/:id` (removidos `BaseModal`/`BaseButton`/`openDetalle`/
   `condicionLabel`). Front type-check en verde.
+
+> **Auditado 2026-07-08:** contenido vigente, confirmado contra código. Fusionado en [modules/08-ventas.md](./modules/08-ventas.md). Este archivo se mantiene por referencia histórica.

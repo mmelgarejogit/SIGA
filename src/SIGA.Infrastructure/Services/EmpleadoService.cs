@@ -114,6 +114,10 @@ public class EmpleadoService(AppDbContext db, IPasswordHasher passwordHasher) : 
         if (string.IsNullOrWhiteSpace(request.CI))
             return Result<EmpleadoResponse>.Failure("La CI es obligatoria.", ErrorType.Validation);
 
+        var passwordError = PasswordPolicy.Validate(request.Password);
+        if (passwordError is not null)
+            return Result<EmpleadoResponse>.Failure(passwordError, ErrorType.Validation);
+
         if (await db.Persons.AnyAsync(p => p.CI == request.CI.Trim()))
             return Result<EmpleadoResponse>.Failure("La CI ya está registrada.", ErrorType.Conflict);
 

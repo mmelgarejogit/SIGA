@@ -154,3 +154,5 @@ se reservan para lo que tiene stock (armazones, accesorios, y a futuro lentes de
 - 2026-06-13 — Generada la migración `046_ModeloLentes` y build de la solución en verde (B10/B11).
   La migración se auto-aplica al arrancar la API. **Pendiente:** reiniciar la API y correr la
   verificación end-to-end V1–V4.
+
+> **Auditado 2026-07-08:** contenido vigente, confirmado contra código — es la fuente original de [ADR 0007](./adr/0007-cristal-ya-no-es-producto-con-stock.md). Fusionado en [modules/08-ventas.md](./modules/08-ventas.md). Este archivo se mantiene por referencia histórica.

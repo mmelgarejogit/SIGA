@@ -7,7 +7,7 @@ using SIGA.Infrastructure.Persistence;
 
 namespace SIGA.Infrastructure.Services;
 
-public class RecepcionesService(AppDbContext db, ICurrentUserContext current) : IRecepcionesService
+public class RecepcionesService(AppDbContext db) : IRecepcionesService
 {
     // ─────────────────────────────────────────────────────────────────────────
     // Listado de recepciones con filtros
@@ -27,9 +27,6 @@ public class RecepcionesService(AppDbContext db, ICurrentUserContext current) : 
             .Include(r => r.User).ThenInclude(u => u.Person)
             .Include(r => r.Items)
             .AsQueryable();
-
-        if (current.SucursalId is int suc)
-            query = query.Where(r => r.SucursalId == suc);
 
         if (proveedorId.HasValue)
             query = query.Where(r => r.PedidoProveedor.ProveedorId == proveedorId.Value);
@@ -215,10 +212,10 @@ public class RecepcionesService(AppDbContext db, ICurrentUserContext current) : 
             {
                 ProductoId      = item.ProductoId,
                 SucursalId      = branch,
-                Tipo            = "Entrada",
+                Tipo            = TipoMovimientoStock.Entrada,
                 Cantidad        = rec.CantidadRecibida,
                 Motivo          = $"Recepción — OC #{pedido.Id} / Fact. {factura.NroFactura}",
-                Estado          = "Aprobado",
+                Estado          = EstadoMovimientoStock.Aprobado,
                 FechaAprobacion = DateTime.UtcNow,
             });
         }

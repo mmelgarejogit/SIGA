@@ -8,6 +8,9 @@ public class MovimientoStockConfiguration : IEntityTypeConfiguration<MovimientoS
 {
     public void Configure(EntityTypeBuilder<MovimientoStock> builder)
     {
+        builder.Property(m => m.Tipo).HasConversion<int>().IsRequired();
+        builder.Property(m => m.Estado).HasConversion<int>().IsRequired();
+
         builder.HasOne(m => m.Sucursal)
             .WithMany()
             .HasForeignKey(m => m.SucursalId)

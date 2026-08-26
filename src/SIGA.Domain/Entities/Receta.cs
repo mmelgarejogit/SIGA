@@ -4,6 +4,12 @@ public class Receta
 {
     public int Id { get; set; }
 
+    // Sucursal donde se emitió (clínica) o donde se cargó (externa/de mostrador). Se usa
+    // solo para reportes — a propósito NO tiene filtro global de EF: el flujo de venta a
+    // pedido necesita ver las recetas de un cliente en cualquier sucursal (RecetaService.GetByClienteAsync).
+    public int SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
+
     // Opcional: una receta clínica cuelga de una consulta; una receta externa/de mostrador no.
     public int? ConsultaClinicaId { get; set; }
     public ConsultaClinica? ConsultaClinica { get; set; }

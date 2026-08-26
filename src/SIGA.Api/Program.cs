@@ -55,7 +55,7 @@ var permissionPolicies = new[]
         "ver_reportes",
         "ver_mis_turnos",
         "ver_dashboard",
-        "ver_notificaciones",
+        "ver_notificaciones", "gestionar_notificaciones",
         "gestionar_configuracion",
         "ver_egresos",       "gestionar_egresos",  "aprobar_egresos",  "pagar_egresos",
         "ver_empleados",     "gestionar_empleados",
@@ -157,6 +157,7 @@ using (var scope = app.Services.CreateScope())
     if (app.Environment.IsDevelopment())
     {
         await DevDataSeeder.SeedAsync(db, hasher);
+        await DemoDataSeeder.SeedAsync(db, hasher);
     }
 }
 

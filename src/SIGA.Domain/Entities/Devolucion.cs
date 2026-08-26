@@ -35,5 +35,8 @@ public class Devolucion
 
     public ICollection<DevolucionLinea> Lineas { get; set; } = new List<DevolucionLinea>();
 
+    /// <summary>Nota de crédito emitida al confirmar (solo si la venta tenía factura).</summary>
+    public NotaCredito? NotaCredito { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

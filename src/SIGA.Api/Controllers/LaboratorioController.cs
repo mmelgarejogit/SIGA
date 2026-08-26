@@ -37,6 +37,16 @@ public class LaboratorioController(ILaboratorioService lab) : BaseController
     public async Task<IActionResult> Recibir(int id)
         => ToHttpResponse(await lab.RegistrarRecepcionAsync(id));
 
+    [HttpPut("pedidos/{id:int}/entregar")]
+    [Authorize(Policy = "gestionar_laboratorio")]
+    public async Task<IActionResult> Entregar(int id, [FromBody] RegistrarEntregaRequest request)
+        => ToHttpResponse(await lab.RegistrarEntregaAsync(id, request, CurrentUserId));
+
+    [HttpPost("pedidos/{id:int}/retrabajo")]
+    [Authorize(Policy = "gestionar_laboratorio")]
+    public async Task<IActionResult> Retrabajo(int id, [FromBody] RegistrarRetrabajoRequest request)
+        => ToHttpResponse(await lab.RegistrarRetrabajoAsync(id, request, CurrentUserId));
+
     [HttpPost("pedidos/{id:int}/factura")]
     [Authorize(Policy = "gestionar_laboratorio")]
     public async Task<IActionResult> Factura(int id, [FromBody] EmitirFacturaLaboratorioRequest request)

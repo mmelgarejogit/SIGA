@@ -24,6 +24,7 @@ public class TrabajoPedidoConfiguration : IEntityTypeConfiguration<TrabajoPedido
         builder.Property(x => x.MedioEnvio).HasConversion<int>();
         builder.Property(x => x.Observacion).HasMaxLength(1000);
         builder.Property(x => x.ObservacionAprobacion).HasMaxLength(500);
+        builder.Property(x => x.RetiradoPor).HasMaxLength(200);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 
@@ -32,6 +33,11 @@ public class TrabajoPedidoConfiguration : IEntityTypeConfiguration<TrabajoPedido
         builder.HasOne(x => x.AprobadoPor)
             .WithMany()
             .HasForeignKey(x => x.AprobadoPorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.EntregadoPor)
+            .WithMany()
+            .HasForeignKey(x => x.EntregadoPorId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Factura)

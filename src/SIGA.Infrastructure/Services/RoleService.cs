@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Roles;
+using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
 using SIGA.Domain.Entities;
 using SIGA.Infrastructure.Persistence;
@@ -10,11 +11,25 @@ namespace SIGA.Infrastructure.Services;
 public class RoleService : IRoleService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IAuditService _audit;
 
-    public RoleService(AppDbContext dbContext)
+    public RoleService(AppDbContext dbContext, IAuditService audit)
     {
         _dbContext = dbContext;
+        _audit     = audit;
     }
+
+    private async Task<string> NombreUsuario(int userId) =>
+        await _dbContext.Users
+            .Where(u => u.Id == userId)
+            .Select(u => (u.Person.FirstName + " " + u.Person.LastName).Trim())
+            .FirstOrDefaultAsync() ?? $"usuario #{userId}";
+
+    private async Task<string> NombreRol(int roleId) =>
+        await _dbContext.Roles
+            .Where(r => r.Id == roleId)
+            .Select(r => r.Name)
+            .FirstOrDefaultAsync() ?? $"rol #{roleId}";
 
     public async Task<Result<IEnumerable<RoleResponse>>> GetAllAsync()
     {
@@ -49,6 +64,9 @@ public class RoleService : IRoleService
 
         await SetPermissionsAsync(role.Id, request.Permissions);
 
+        await _audit.LogAsync(AuditAccion.RolCreado, $"Creó el rol {name}",
+            entidad: "Role", entidadId: role.Id);
+
         return await GetByIdAsync(role.Id);
     }
 
@@ -68,6 +86,10 @@ public class RoleService : IRoleService
 
         await SetPermissionsAsync(id, request.Permissions);
 
+        await _audit.LogAsync(AuditAccion.RolActualizado,
+            $"Editó el rol {name} (nombre y permisos)",
+            entidad: "Role", entidadId: id);
+
         return await GetByIdAsync(id);
     }
 
@@ -85,6 +107,9 @@ public class RoleService : IRoleService
 
         _dbContext.Roles.Remove(role);
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.RolEliminado, $"Eliminó el rol {role.Name}",
+            entidad: "Role", entidadId: id);
 
         return Result<bool>.Success(true);
     }
@@ -108,6 +133,10 @@ public class RoleService : IRoleService
         _dbContext.UserRoles.Add(new UserRole { UserId = userId, RoleId = request.RoleId });
         await _dbContext.SaveChangesAsync();
 
+        await _audit.LogAsync(AuditAccion.RolAsignado,
+            $"Asignó el rol {role.Name} a {await NombreUsuario(userId)}",
+            entidad: "User", entidadId: userId);
+
         return Result<bool>.Success(true);
     }
 
@@ -121,6 +150,10 @@ public class RoleService : IRoleService
 
         _dbContext.UserRoles.Remove(userRole);
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.RolQuitado,
+            $"Quitó el rol {await NombreRol(roleId)} a {await NombreUsuario(userId)}",
+            entidad: "User", entidadId: userId);
 
         return Result<bool>.Success(true);
     }
@@ -138,6 +171,55 @@ public class RoleService : IRoleService
             .ToListAsync();
 
         return Result<IEnumerable<RoleResponse>>.Success(roles.Select(ToResponse));
+    }
+
+    public async Task<Result<IEnumerable<UserResponse>>> GetUsersByRoleAsync(int roleId)
+    {
+        var roleExists = await _dbContext.Roles.AnyAsync(r => r.Id == roleId);
+        if (!roleExists)
+            return Result<IEnumerable<UserResponse>>.Failure("Role not found.", ErrorType.NotFound);
+
+        var users = await _dbContext.Users
+            .Where(u => u.UserRoles.Any(ur => ur.RoleId == roleId))
+            .Include(u => u.Person)
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.Professional)
+            .Include(u => u.Patient)
+            .Include(u => u.Sucursal)
+            .OrderByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        return Result<IEnumerable<UserResponse>>.Success(users.Select(ToUserResponse));
+    }
+
+    private static UserResponse ToUserResponse(User u)
+    {
+        string type;
+        if (u.Professional is not null)
+            type = "Profesional";
+        else if (u.Patient is not null)
+            type = "Paciente";
+        else if (u.UserRoles.Any(ur => ur.Role.Name == "Admin"))
+            type = "Administrador";
+        else
+            type = "Usuario";
+
+        return new UserResponse
+        {
+            UserId         = u.Id,
+            PersonId       = u.PersonId,
+            CI             = u.Person.CI,
+            FirstName      = u.Person.FirstName,
+            LastName       = u.Person.LastName,
+            Email          = u.Person.Email,
+            PhoneNumber    = u.Person.PhoneNumber,
+            IsActive       = u.IsActive,
+            Type           = type,
+            SucursalId     = u.SucursalId,
+            SucursalNombre = u.Sucursal?.Nombre,
+            Roles          = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+            CreatedAt      = u.CreatedAt,
+        };
     }
 
     private async Task SetPermissionsAsync(int roleId, List<string> permissionNames)

@@ -66,7 +66,7 @@ public sealed class StockBajoNotificadorService : BackgroundService
         if (bajoStock.Count == 0) return;
 
         var yaNotificados = await db.NotificacionesInternas
-            .Where(n => n.Tipo == "bajo_stock" && !n.Leido && n.EntidadOrigenTipo == "Producto")
+            .Where(n => n.Tipo == TipoNotificacion.BajoStock && !n.Leido && n.EntidadOrigenTipo == "Producto")
             .Select(n => new { n.EntidadOrigenId, n.DestinatarioSucursalId })
             .ToListAsync(ct);
 
@@ -80,7 +80,7 @@ public sealed class StockBajoNotificadorService : BackgroundService
                 continue;
 
             await notificacion.CrearAsync(
-                tipo: "bajo_stock",
+                tipo: TipoNotificacion.BajoStock,
                 mensaje: $"\"{item.Nombre}\" está bajo el mínimo (stock: {item.StockActual}, mínimo: {item.StockMinimo}).",
                 entidadOrigenTipo: "Producto",
                 entidadOrigenId: item.ProductoId,

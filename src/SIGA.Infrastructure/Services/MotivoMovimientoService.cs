@@ -9,14 +9,12 @@ namespace SIGA.Infrastructure.Services;
 
 public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
 {
-    private static readonly string[] TiposValidos = ["Entrada", "Salida", "Ambos"];
-
     public async Task<Result<IEnumerable<MotivoMovimientoResponse>>> GetAllAsync(string? tipo)
     {
         var query = db.MotivosMovimiento.AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(tipo))
-            query = query.Where(m => m.Tipo == tipo || m.Tipo == "Ambos");
+        if (!string.IsNullOrWhiteSpace(tipo) && Enum.TryParse<TipoMotivoMovimiento>(tipo, ignoreCase: true, out var t))
+            query = query.Where(m => m.Tipo == t || m.Tipo == TipoMotivoMovimiento.Ambos);
 
         var items = await query
             .OrderBy(m => m.Nombre)
@@ -31,7 +29,7 @@ public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<MotivoMovimientoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
-        if (!TiposValidos.Contains(request.Tipo))
+        if (!Enum.TryParse<TipoMotivoMovimiento>(request.Tipo, ignoreCase: true, out var tipoCreate))
             return Result<MotivoMovimientoResponse>.Failure("Tipo inválido. Use Entrada, Salida o Ambos.", ErrorType.Validation);
 
         var nombre = request.Nombre.Trim();
@@ -41,7 +39,7 @@ public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
         var motivo = new MotivoMovimiento
         {
             Nombre = nombre,
-            Tipo   = request.Tipo,
+            Tipo   = tipoCreate,
         };
 
         db.MotivosMovimiento.Add(motivo);
@@ -59,7 +57,7 @@ public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
         if (string.IsNullOrWhiteSpace(request.Nombre))
             return Result<MotivoMovimientoResponse>.Failure("El nombre es obligatorio.", ErrorType.Validation);
 
-        if (!TiposValidos.Contains(request.Tipo))
+        if (!Enum.TryParse<TipoMotivoMovimiento>(request.Tipo, ignoreCase: true, out var tipoUpdate))
             return Result<MotivoMovimientoResponse>.Failure("Tipo inválido. Use Entrada, Salida o Ambos.", ErrorType.Validation);
 
         var nombre = request.Nombre.Trim();
@@ -67,7 +65,7 @@ public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
             return Result<MotivoMovimientoResponse>.Failure("Ya existe un motivo con ese nombre.", ErrorType.Conflict);
 
         motivo.Nombre   = nombre;
-        motivo.Tipo     = request.Tipo;
+        motivo.Tipo     = tipoUpdate;
         motivo.IsActive = request.IsActive;
 
         await db.SaveChangesAsync();
@@ -89,7 +87,7 @@ public class MotivoMovimientoService(AppDbContext db) : IMotivoMovimientoService
     {
         Id        = m.Id,
         Nombre    = m.Nombre,
-        Tipo      = m.Tipo,
+        Tipo      = m.Tipo.ToString(),
         IsActive  = m.IsActive,
         CreatedAt = m.CreatedAt,
     };

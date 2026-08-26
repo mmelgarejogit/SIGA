@@ -63,4 +63,12 @@ public class PatientsController : BaseController
         var result = await _patientService.DeleteAsync(id);
         return ToHttpResponse(result);
     }
+
+    [HttpPost("{id:int}/activar")]
+    [Authorize(Policy = "desactivar_paciente")]
+    public async Task<IActionResult> Activar(int id)
+    {
+        var result = await _patientService.ActivarAsync(id);
+        return ToHttpResponse(result);
+    }
 }

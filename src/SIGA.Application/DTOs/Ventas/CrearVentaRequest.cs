@@ -8,6 +8,12 @@ public class CrearVentaRequest
     public string CondicionVenta { get; set; } = "Contado";
     public string FechaVenta { get; set; } = null!;
     public int ValidezDias { get; set; } = 15;
+
+    // Plan de cuotas (opcional, solo aplica cuando CondicionVenta = "Credito").
+    // Si se omiten, la venta a crédito queda "libre" (sin cronograma de vencimientos).
+    public int? CantidadCuotas { get; set; }
+    public int? FrecuenciaCuotasDias { get; set; }
+
     public string? Observaciones { get; set; }
     public List<AgregarLineaRequest> Lineas { get; set; } = new();
 

@@ -12,7 +12,7 @@ public class NotificacionInterna
     public int? DestinatarioSucursalId { get; set; }
     public Sucursal? DestinatarioSucursal { get; set; }
 
-    public string Tipo { get; set; } = null!;
+    public TipoNotificacion Tipo { get; set; }
     public string Mensaje { get; set; } = null!;
 
     public string? EntidadOrigenTipo { get; set; }

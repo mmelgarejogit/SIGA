@@ -275,3 +275,12 @@ docker run --rm -v siga_siga_uploads:/data -v ~/siga:/backup alpine \
   hCaptcha y reemplazá `VITE_HCAPTCHA_SITE_KEY` (front) y `HCAPTCHA_SECRET` (back).
 - **`www` / dominio raíz**: si querés cubrir también `www.` o el apex, agregá esos
   nombres al bloque del `Caddyfile` (Caddy gestiona los certificados de cada uno).
+
+---
+
+> **Auditado 2026-07-08:** contenido vigente — `docker-compose.prod.yml` y `Caddyfile`
+> coinciden exactamente con lo descrito (mismos nombres de variables de entorno, mismos
+> servicios `db`/`api`/`web`/`caddy`). Único hallazgo: el archivo `.env.example` que el
+> compose y este documento referencian (paso 5, `cp .env.example .env`) **no existe en el
+> repo** — falta crearlo o el paso debe documentarse como "crear `.env` desde cero con las
+> variables listadas más abajo".

@@ -139,12 +139,13 @@ public class ReporteOperativoService(AppDbContext db, ICurrentUserContext curren
         if (f.Desde is DateOnly d)  q = q.Where(m => m.FechaMovimiento >= d.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         if (f.Hasta is DateOnly h)  q = q.Where(m => m.FechaMovimiento <= h.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
         if (f.OperadorId is int op) q = q.Where(m => m.CreadoPorId == op.ToString());
-        if (!string.IsNullOrWhiteSpace(f.Tipo))      q = q.Where(m => m.Tipo == f.Tipo);
+        if (!string.IsNullOrWhiteSpace(f.Tipo) && Enum.TryParse<TipoMovimientoStock>(f.Tipo, ignoreCase: true, out var tipoFiltro))
+            q = q.Where(m => m.Tipo == tipoFiltro);
         if (!string.IsNullOrWhiteSpace(f.Categoria)) q = q.Where(m => m.Producto.Categoria == f.Categoria);
 
         var totalCount   = await q.CountAsync();
-        var totalEntrada = await q.Where(m => m.Tipo == "Entrada").SumAsync(m => (int?)m.Cantidad) ?? 0;
-        var totalSalida  = await q.Where(m => m.Tipo == "Salida").SumAsync(m => (int?)m.Cantidad) ?? 0;
+        var totalEntrada = await q.Where(m => m.Tipo == TipoMovimientoStock.Entrada).SumAsync(m => (int?)m.Cantidad) ?? 0;
+        var totalSalida  = await q.Where(m => m.Tipo == TipoMovimientoStock.Salida).SumAsync(m => (int?)m.Cantidad) ?? 0;
 
         var rows = await Paginate(q.OrderByDescending(m => m.FechaMovimiento).ThenByDescending(m => m.Id), f)
             .Select(m => new ReporteMovInventarioRow
@@ -152,10 +153,10 @@ public class ReporteOperativoService(AppDbContext db, ICurrentUserContext curren
                 Fecha     = m.FechaMovimiento,
                 Producto  = m.Producto.Nombre,
                 Categoria = m.Producto.Categoria,
-                Tipo      = m.Tipo,
+                Tipo      = m.Tipo.ToString(),
                 Cantidad  = m.Cantidad,
                 Motivo    = m.Motivo ?? "—",
-                Estado    = m.Estado,
+                Estado    = m.Estado.ToString(),
                 CreadoPor = m.CreadoPorNombre ?? "—",
                 Sucursal  = m.Sucursal != null ? m.Sucursal.Nombre : "—",
             })

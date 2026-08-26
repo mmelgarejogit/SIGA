@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Users;
 using SIGA.Application.Interfaces;
+using SIGA.Domain.Entities;
 using SIGA.Domain.Security;
 using SIGA.Infrastructure.Persistence;
 
@@ -11,12 +12,20 @@ public class UserService : IUserService
 {
     private readonly AppDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IAuditService _audit;
 
-    public UserService(AppDbContext dbContext, IPasswordHasher passwordHasher)
+    public UserService(AppDbContext dbContext, IPasswordHasher passwordHasher, IAuditService audit)
     {
         _dbContext      = dbContext;
         _passwordHasher = passwordHasher;
+        _audit          = audit;
     }
+
+    private async Task<string> NombreDe(int personId) =>
+        await _dbContext.Persons
+            .Where(p => p.Id == personId)
+            .Select(p => (p.FirstName + " " + p.LastName).Trim())
+            .FirstOrDefaultAsync() ?? $"usuario #{personId}";
 
     public async Task<Result<IEnumerable<UserResponse>>> GetAllAsync()
     {
@@ -75,22 +84,31 @@ public class UserService : IUserService
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
+        await _audit.LogAsync(AuditAccion.UsuarioDesactivado,
+            $"Desactivó al usuario {await NombreDe(user.PersonId)}",
+            entidad: "User", entidadId: user.Id);
+
         return Result<bool>.Success(true);
     }
 
     public async Task<Result<bool>> ResetPasswordAsync(int id, string newPassword)
     {
-        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
-            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
-
         var user = await _dbContext.Users.FindAsync(id);
         if (user is null)
             return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
+
+        var passwordError = PasswordPolicy.ValidateNew(newPassword, user.PasswordHash, _passwordHasher);
+        if (passwordError is not null)
+            return Result<bool>.Failure(passwordError, ErrorType.Validation);
 
         user.PasswordHash       = _passwordHasher.Hash(newPassword);
         user.MustChangePassword = true;
         user.UpdatedAt          = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordReseteado,
+            $"Reseteó la contraseña del usuario {await NombreDe(user.PersonId)}",
+            entidad: "User", entidadId: user.Id);
 
         return Result<bool>.Success(true);
     }

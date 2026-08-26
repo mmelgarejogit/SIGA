@@ -119,7 +119,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
     public async Task<Result<PedidoResponse>> ConfirmarPedidoAsync(int id)
     {
-        var pedido = await db.PedidosProveedor.FindAsync(id);
+        var pedido = await db.PedidosProveedor.FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 
@@ -186,12 +186,12 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         }
 
         SesionCaja? sesion = null;
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
             if (sesion is null)
                 return Result<PedidoResponse>.Failure(
-                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    "No hay una caja abierta. Abrí la caja antes de registrar un pago.",
                     ErrorType.Validation);
         }
 
@@ -225,15 +225,16 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
         db.FacturasCompra.Add(factura);
 
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
+                SucursalId   = pedido.SucursalId,
                 Tipo         = TipoMovimientoCaja.Egreso,
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra — OC #{id} — {pedido.Proveedor.Nombre}",
-                MetodoPago   = MetodoPago.Efectivo,
-                EgresoId     = null, // se actualizará tras SaveChanges si se requiere
+                MetodoPago   = metodoPago.Value,
+                Egreso       = factura, // FacturaCompra hereda de Egreso (misma PK) — EF resuelve el FK tras SaveChanges
                 SesionCajaId = sesion!.Id,
                 Fecha        = fechaEmision,
                 CreatedAt    = DateTime.UtcNow,
@@ -295,10 +296,10 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         {
             ProductoId      = item.ProductoId,
             SucursalId      = await SucursalResolver.WriteBranchAsync(db, current),
-            Tipo            = "Salida",
+            Tipo            = TipoMovimientoStock.Salida,
             Cantidad        = request.Cantidad,
             Motivo          = $"Devolución proveedor — OC #{pedido.Id}: {request.Motivo.Trim()}",
-            Estado          = "Aprobado",
+            Estado          = EstadoMovimientoStock.Aprobado,
             FechaAprobacion = DateTime.UtcNow,
         });
 
@@ -323,9 +324,6 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
         int? proveedorId, string? estado, int page, int pageSize)
     {
         var query = db.PedidosProveedor.AsQueryable();
-
-        if (current.SucursalId is int b)
-            query = query.Where(p => p.SucursalId == b);
 
         if (proveedorId.HasValue)
             query = query.Where(p => p.ProveedorId == proveedorId.Value);
@@ -387,7 +385,7 @@ public class ComprasService(AppDbContext db, ICurrentUserContext current) : ICom
 
     public async Task<Result<PedidoResponse>> CancelarPedidoAsync(int id)
     {
-        var pedido = await db.PedidosProveedor.FindAsync(id);
+        var pedido = await db.PedidosProveedor.FirstOrDefaultAsync(p => p.Id == id);
         if (pedido is null)
             return Result<PedidoResponse>.Failure("Pedido no encontrado.", ErrorType.NotFound);
 

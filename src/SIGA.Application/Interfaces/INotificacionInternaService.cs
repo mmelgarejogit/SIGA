@@ -1,5 +1,6 @@
 using SIGA.Application.Common;
 using SIGA.Application.DTOs.Notificaciones;
+using SIGA.Domain.Entities;
 
 namespace SIGA.Application.Interfaces;
 
@@ -7,7 +8,7 @@ public interface INotificacionInternaService
 {
     /// <summary>Helper interno para que otros servicios disparen notificaciones. Ambos destinatarios null = global.</summary>
     Task CrearAsync(
-        string tipo, string mensaje,
+        TipoNotificacion tipo, string mensaje,
         string? entidadOrigenTipo = null, int? entidadOrigenId = null,
         int? destinatarioUsuarioId = null, int? destinatarioSucursalId = null);
 

@@ -21,9 +21,6 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
             .Include(l => l.Sucursal)
             .AsQueryable();
 
-        if (current.SucursalId is int b)
-            query = query.Where(l => l.SucursalId == b);
-
         if (productoId.HasValue)
             query = query.Where(l => l.ProductoId == productoId.Value);
 
@@ -101,11 +98,8 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
             .Include(c => c.Sucursal)
             .AsQueryable();
 
-        if (current.SucursalId is int b)
-            query = query.Where(c => c.SucursalId == b);
-
-        if (!string.IsNullOrWhiteSpace(estado))
-            query = query.Where(c => c.Estado == estado);
+        if (!string.IsNullOrWhiteSpace(estado) && Enum.TryParse<EstadoConteoInventario>(estado, ignoreCase: true, out var estadoFiltro))
+            query = query.Where(c => c.Estado == estadoFiltro);
 
         var conteos = await query
             .OrderByDescending(c => c.CreatedAt)
@@ -134,7 +128,8 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
     public async Task<Result<ConteoInventarioDto>> GestionarConteoAsync(
         int id, int userId, string userName, GestionarConteoRequest request)
     {
-        if (request.Accion != "Aprobado" && request.Accion != "Rechazado")
+        if (!Enum.TryParse<EstadoConteoInventario>(request.Accion, ignoreCase: true, out var accion)
+            || (accion != EstadoConteoInventario.Aprobado && accion != EstadoConteoInventario.Rechazado))
             return Result<ConteoInventarioDto>.Failure(
                 "Acción inválida. Use 'Aprobado' o 'Rechazado'.", ErrorType.Validation);
 
@@ -146,20 +141,20 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
         if (conteo is null)
             return Result<ConteoInventarioDto>.Failure("Inventario no encontrado.", ErrorType.NotFound);
 
-        if (conteo.Estado != "Pendiente")
+        if (conteo.Estado != EstadoConteoInventario.Pendiente)
             return Result<ConteoInventarioDto>.Failure(
                 "Solo se pueden gestionar inventarios en estado Pendiente.", ErrorType.Validation);
 
-        conteo.Estado                  = request.Accion;
+        conteo.Estado                  = accion;
         conteo.AprobadoPorNombre       = userName;
         conteo.FechaAprobacion         = DateTime.UtcNow;
         conteo.ObservacionesAprobacion = request.Observaciones?.Trim();
 
-        if (request.Accion == "Aprobado")
+        if (accion == EstadoConteoInventario.Aprobado)
         {
             foreach (var linea in conteo.Lineas.Where(l => l.Diferencia != 0))
             {
-                var tipo = linea.Diferencia > 0 ? "Entrada" : "Salida";
+                var tipo = linea.Diferencia > 0 ? TipoMovimientoStock.Entrada : TipoMovimientoStock.Salida;
 
                 db.MovimientosStock.Add(new MovimientoStock
                 {
@@ -169,7 +164,7 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
                     Cantidad                = Math.Abs(linea.Diferencia),
                     Motivo                  = $"Ajuste de inventario físico — Inventario #{conteo.Id}",
                     CreadoPorId             = userId.ToString(),
-                    Estado                  = "Aprobado",
+                    Estado                  = EstadoMovimientoStock.Aprobado,
                     AprobadoPorNombre       = userName,
                     FechaAprobacion         = DateTime.UtcNow,
                     ObservacionesAprobacion = request.Observaciones?.Trim(),
@@ -209,7 +204,7 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
         SucursalNombre          = c.Sucursal?.Nombre,
         CreadoPorNombre         = c.CreadoPorNombre,
         FechaConteo             = c.FechaConteo.ToString("yyyy-MM-ddTHH:mm:ss"),
-        Estado                  = c.Estado,
+        Estado                  = c.Estado.ToString(),
         Observaciones           = c.Observaciones,
         AprobadoPorNombre       = c.AprobadoPorNombre,
         FechaAprobacion         = c.FechaAprobacion?.ToString("yyyy-MM-ddTHH:mm:ss"),
@@ -225,7 +220,7 @@ public class StockLoteService(AppDbContext db, ICurrentUserContext current) : IS
         SucursalNombre          = c.Sucursal?.Nombre,
         CreadoPorNombre         = c.CreadoPorNombre,
         FechaConteo             = c.FechaConteo.ToString("yyyy-MM-ddTHH:mm:ss"),
-        Estado                  = c.Estado,
+        Estado                  = c.Estado.ToString(),
         Observaciones           = c.Observaciones,
         AprobadoPorNombre       = c.AprobadoPorNombre,
         FechaAprobacion         = c.FechaAprobacion?.ToString("yyyy-MM-ddTHH:mm:ss"),

@@ -12,8 +12,6 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
     public async Task<Result<IEnumerable<TimbradoDto>>> GetAllAsync()
     {
         var query = db.Timbrados.Include(t => t.Sucursal).AsQueryable();
-        if (current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
         var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
@@ -24,15 +22,13 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         var query = db.Timbrados
             .Include(t => t.Sucursal)
             .Where(t => t.IsActive && t.FechaInicioVigencia <= today && t.FechaFinVigencia >= today);
-        if (current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
         var items = await query.OrderBy(t => t.NumeroTimbrado).ToListAsync();
         return Result<IEnumerable<TimbradoDto>>.Success(items.Select(ToDto));
     }
 
     public async Task<Result<TimbradoDto>> GetByIdAsync(int id)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<TimbradoDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         return Result<TimbradoDto>.Success(ToDto(item));
     }
@@ -52,6 +48,9 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         if (request.FechaFinVigencia < request.FechaInicioVigencia)
             return Result<TimbradoDto>.Failure("La fecha de fin de vigencia debe ser mayor o igual a la fecha de inicio.", ErrorType.Validation);
 
+        if (!Enum.TryParse<TipoDocumentoFiscal>(request.Tipo, out var tipo))
+            return Result<TimbradoDto>.Failure("Tipo de timbrado inválido. Use 'Factura' o 'NotaCredito'.", ErrorType.Validation);
+
         if (await db.Timbrados.AnyAsync(t =>
             t.NumeroTimbrado == numTimbrado &&
             t.Establecimiento == estable &&
@@ -67,6 +66,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         var item = new Timbrado
         {
             SucursalId = sucursalId,
+            Tipo = tipo,
             NumeroTimbrado = numTimbrado,
             Establecimiento = estable,
             PuntoExpedicion = punto,
@@ -86,7 +86,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
 
     public async Task<Result<TimbradoDto>> UpdateAsync(int id, UpdateTimbradoRequest request)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<TimbradoDto>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
 
         var numTimbrado = request.NumeroTimbrado.Trim();
@@ -102,6 +102,9 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         if (request.FechaFinVigencia < request.FechaInicioVigencia)
             return Result<TimbradoDto>.Failure("La fecha de fin de vigencia debe ser mayor o igual a la fecha de inicio.", ErrorType.Validation);
 
+        if (!Enum.TryParse<TipoDocumentoFiscal>(request.Tipo, out var tipo))
+            return Result<TimbradoDto>.Failure("Tipo de timbrado inválido. Use 'Factura' o 'NotaCredito'.", ErrorType.Validation);
+
         if (await db.Timbrados.AnyAsync(t =>
             t.NumeroTimbrado == numTimbrado &&
             t.Establecimiento == estable &&
@@ -116,6 +119,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
             item.SucursalId = request.SucursalId;
         }
 
+        item.Tipo = tipo;
         item.NumeroTimbrado = numTimbrado;
         item.Establecimiento = estable;
         item.PuntoExpedicion = punto;
@@ -130,7 +134,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
 
     public async Task<Result<bool>> DeactivateAsync(int id)
     {
-        var item = await db.Timbrados.FindAsync(id);
+        var item = await db.Timbrados.FirstOrDefaultAsync(t => t.Id == id);
         if (item is null) return Result<bool>.Failure("Timbrado no encontrado.", ErrorType.NotFound);
         item.IsActive = false;
         await db.SaveChangesAsync();
@@ -142,6 +146,7 @@ public class TimbradoService(AppDbContext db, ICurrentUserContext current) : ITi
         Id = t.Id,
         SucursalId = t.SucursalId,
         SucursalNombre = t.Sucursal?.Nombre,
+        Tipo = t.Tipo.ToString(),
         NumeroTimbrado = t.NumeroTimbrado,
         Establecimiento = t.Establecimiento,
         PuntoExpedicion = t.PuntoExpedicion,

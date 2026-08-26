@@ -67,3 +67,13 @@ reset de datos y verificar.
 - [ ] Venta a pedido: el armazón aparece en el buscador (tipo Armazón) y el lente se arma por
   diseño + precio.
 - [ ] Botón "Eliminar": borra un registro sin uso; rechaza con mensaje uno en uso.
+
+---
+
+> **Auditado 2026-07-08:** el backend confirmado contra código — `DELETE
+> /api/productos/{id}/permanente`, `DELETE /api/productos/categorias/{id}/permanente`
+> (`ProductosController.cs`) y `DELETE /api/tipos-lente/{id}/permanente`
+> (`TipoLentesController.cs`) existen tal cual se describe. El checklist de la sección 5
+> (reset de datos) y 6 (verificación manual) no se pudo reconfirmar en esta pasada — son
+> pasos de ejecución puntual en un entorno de dev, no estado de código. Contenido de fondo
+> vigente; mencionado en [modules/07-inventario-catalogo.md](./modules/07-inventario-catalogo.md).

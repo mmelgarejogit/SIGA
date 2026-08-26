@@ -17,6 +17,10 @@ public class TurnoService : ITurnoService
     private readonly string _frontendUrl;
     private const int DuracionMinutos = 30;
 
+    /// <summary>Antelación mínima para agendar. Se aplica en los dos lados —al listar slots
+    /// y al validar el alta— para no ofrecer horarios que después se rechazarían.</summary>
+    private const int AntelacionMinimaMinutos = 30;
+
     public TurnoService(AppDbContext db, IEmailService email, ICurrentUserContext current, IOptions<AppOptions> appOptions)
     {
         _db          = db;
@@ -25,7 +29,9 @@ public class TurnoService : ITurnoService
         _frontendUrl = appOptions.Value.FrontendUrl;
     }
 
-    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(DateOnly? fecha, int? professionalId, string? estado, int? patientId = null)
+    public async Task<Result<IEnumerable<TurnoResponse>>> GetAllAsync(
+        DateOnly? fecha, int? professionalId, string? estado, int? patientId = null,
+        DateOnly? desde = null, DateOnly? hasta = null)
     {
         var query = _db.Turnos
             .Include(t => t.Professional).ThenInclude(p => p.User).ThenInclude(u => u.Person)
@@ -33,14 +39,23 @@ public class TurnoService : ITurnoService
             .Include(t => t.EstadoCustom)
             .AsQueryable();
 
-        if (_current.SucursalId is int b)
-            query = query.Where(t => t.SucursalId == b);
-
         if (fecha.HasValue)
         {
             var from = DateTime.SpecifyKind(fecha.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
             var to   = DateTime.SpecifyKind(fecha.Value.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
             query = query.Where(t => t.FechaHora >= from && t.FechaHora <= to);
+        }
+
+        // Rango [desde, hasta] (inclusive) — para las vistas de semana/mes en una sola consulta.
+        if (desde.HasValue)
+        {
+            var from = DateTime.SpecifyKind(desde.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            query = query.Where(t => t.FechaHora >= from);
+        }
+        if (hasta.HasValue)
+        {
+            var to = DateTime.SpecifyKind(hasta.Value.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+            query = query.Where(t => t.FechaHora <= to);
         }
 
         if (professionalId.HasValue)
@@ -61,7 +76,10 @@ public class TurnoService : ITurnoService
         if (await _db.BloqueosFecha.AnyAsync(b => b.ProfessionalId == professionalId && b.Fecha == fecha))
             return Result<IEnumerable<SlotDisponibleResponse>>.Success([]);
 
-        var branch = sucursalId ?? _current.SucursalId;
+        // La identidad del que llama siempre gana; sucursalId solo sirve para que un
+        // usuario global (sin sucursal propia) filtre por una sucursal en particular
+        // (mismo patrón que ReporteOperativoService.ResolveBranch).
+        var branch = _current.SucursalId ?? sucursalId;
         var horario = await _db.HorariosProfesional
             .Include(h => h.Pausas)
             .FirstOrDefaultAsync(h => h.ProfessionalId == professionalId
@@ -90,13 +108,15 @@ public class TurnoService : ITurnoService
             .Select(t => TimeOnly.FromDateTime(t.FechaHora))
             .ToListAsync();
 
-        var ahora      = DateTime.UtcNow;
-        var horaActual = fecha == DateOnly.FromDateTime(ahora)
-            ? TimeOnly.FromDateTime(ahora)
-            : TimeOnly.MinValue;
+        // Hora local de Paraguay: los slots son horas de reloj locales; con UtcNow se ocultarían
+        // mal los horarios pasados de hoy (y "hoy" se calcularía sobre la fecha UTC).
+        // El corte se compara como instante completo (fecha + hora) y no como TimeOnly:
+        // así el margen no se desborda pasada la medianoche y las fechas pasadas quedan vacías.
+        var ahora  = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
+        var minimo = ahora.AddMinutes(AntelacionMinimaMinutos);
 
         var disponibles = slotsLibres
-            .Where(s => !ocupados.Contains(s) && s > horaActual)
+            .Where(s => !ocupados.Contains(s) && fecha.ToDateTime(s) >= minimo)
             .Select(s => new SlotDisponibleResponse { HoraInicio = s, HoraFin = s.AddMinutes(DuracionMinutos) });
 
         return Result<IEnumerable<SlotDisponibleResponse>>.Success(disponibles);
@@ -104,7 +124,9 @@ public class TurnoService : ITurnoService
 
     public async Task<Result<IEnumerable<ProfesionalDisponibleResponse>>> GetProfesionalesDisponiblesAsync(DateOnly fecha, int? sucursalId = null)
     {
-        var branch = sucursalId ?? _current.SucursalId;
+        // La identidad del que llama siempre gana; sucursalId solo sirve para que un
+        // usuario global (sin sucursal propia) filtre por una sucursal en particular.
+        var branch = _current.SucursalId ?? sucursalId;
 
         // Profesionales con un horario activo para ese día de la semana (en la sucursal indicada).
         var profIds = await _db.HorariosProfesional
@@ -154,6 +176,12 @@ public class TurnoService : ITurnoService
             .FirstOrDefaultAsync(p => p.Id == request.PatientId);
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
+
+        // Un paciente inactivo está archivado: se conserva todo su historial pero no puede
+        // generar actividad nueva. Hay que reactivarlo desde Pacientes para volver a agendarle.
+        if (!patient.IsActive)
+            return Result<TurnoResponse>.Failure(
+                "El paciente está inactivo. Reactivalo para poder agendarle turnos.", ErrorType.Validation);
 
         var branch = await SucursalResolver.WriteBranchAsync(_db, _current);
 
@@ -236,6 +264,12 @@ public class TurnoService : ITurnoService
 
         if (turno is null)
             return Result<bool>.Failure("Turno no encontrado.", ErrorType.NotFound);
+
+        if (turno.Estado == TurnoEstado.Completado)
+            return Result<bool>.Failure("No se puede cancelar un turno que ya fue realizado.", ErrorType.Conflict);
+
+        if (turno.Estado == TurnoEstado.Cancelado)
+            return Result<bool>.Failure("El turno ya está cancelado.", ErrorType.Conflict);
 
         turno.Estado               = TurnoEstado.Cancelado;
         turno.SolicitudCancelacion = false;
@@ -331,6 +365,11 @@ public class TurnoService : ITurnoService
         if (patient is null)
             return Result<TurnoResponse>.Failure("Paciente no encontrado.", ErrorType.NotFound);
 
+        if (!patient.IsActive)
+            return Result<TurnoResponse>.Failure(
+                "Tu perfil de paciente está inactivo. Comunicate con la óptica para reactivarlo.",
+                ErrorType.Validation);
+
         if (request.SucursalId <= 0 ||
             !await _db.Sucursales.AnyAsync(s => s.Id == request.SucursalId && s.IsActive))
             return Result<TurnoResponse>.Failure("Seleccioná una sucursal válida.", ErrorType.Validation);
@@ -424,10 +463,33 @@ public class TurnoService : ITurnoService
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
+    // Los turnos se guardan y validan en hora local de Paraguay (los horarios del profesional
+    // —HoraInicio/HoraFin— son horas de reloj locales). Por eso el chequeo de "pasado" debe usar
+    // el ahora local, no UtcNow: si no, después de las ~21:00 local (medianoche en UTC) los turnos
+    // de esa misma noche parecen estar en el pasado.
+    private static readonly TimeZoneInfo ZonaParaguay = ResolverZonaParaguay();
+
+    private static TimeZoneInfo ResolverZonaParaguay()
+    {
+        foreach (var id in new[] { "America/Asuncion", "Paraguay Standard Time" })
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+        // Fallback: Paraguay quedó fijo en UTC-3 (sin horario de verano desde 2024).
+        return TimeZoneInfo.CreateCustomTimeZone("PY", TimeSpan.FromHours(-3), "Paraguay", "Paraguay");
+    }
+
     private async Task<string?> ValidateSlotAsync(int professionalId, DateTime fechaHora, int sucursalId)
     {
-        if (fechaHora < DateTime.UtcNow)
+        var ahoraLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaParaguay);
+        if (fechaHora < ahoraLocal)
             return "No se pueden reservar turnos en fechas pasadas.";
+
+        // Margen de cortesía: el mostrador necesita tiempo para preparar la atención.
+        if (fechaHora < ahoraLocal.AddMinutes(AntelacionMinimaMinutos))
+            return $"Los turnos se agendan con al menos {AntelacionMinimaMinutos} minutos de antelación.";
 
         var fecha = DateOnly.FromDateTime(fechaHora);
         var hora  = TimeOnly.FromDateTime(fechaHora);

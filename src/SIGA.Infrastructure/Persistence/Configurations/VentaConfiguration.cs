@@ -18,6 +18,8 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Property(x => x.FechaConfirmacion);
         builder.Property(x => x.FechaComprobante);
         builder.Property(x => x.ValidezDias).HasDefaultValue(15);
+        builder.Property(x => x.CantidadCuotas);
+        builder.Property(x => x.FrecuenciaCuotasDias);
         builder.Property(x => x.Observaciones).HasMaxLength(1000);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
@@ -29,6 +31,11 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Ignore(x => x.MontoSeña);
         builder.Ignore(x => x.TotalCobrado);
         builder.Ignore(x => x.SaldoPendiente);
+        builder.Ignore(x => x.MontoCuota);
+        builder.Ignore(x => x.TotalCobradoEnCuotas);
+        builder.Ignore(x => x.CuotasPagadas);
+        builder.Ignore(x => x.ProximaCuotaVencimiento);
+        builder.Ignore(x => x.CuotaVencida);
 
         builder.HasOne(x => x.Sucursal).WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);

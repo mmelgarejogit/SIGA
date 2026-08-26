@@ -29,9 +29,6 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
             .Include(f => f.Items).ThenInclude(i => i.Producto)
             .AsQueryable();
 
-        if (current.SucursalId is int b)
-            query = query.Where(f => f.SucursalId == b);
-
         if (proveedorId.HasValue)
             query = query.Where(f => f.ProveedorId == proveedorId.Value);
 
@@ -170,12 +167,12 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
         }
 
         SesionCaja? sesion = null;
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             sesion = await db.SesionesCaja.FirstOrDefaultAsync(s => s.Estado == EstadoSesionCaja.Abierta);
             if (sesion is null)
                 return Result<FacturaCompraResponse>.Failure(
-                    "No hay una caja abierta. Abra la caja antes de registrar un pago en efectivo.",
+                    "No hay una caja abierta. Abrí la caja antes de registrar un pago.",
                     ErrorType.Validation);
         }
 
@@ -255,10 +252,10 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
                 {
                     ProductoId      = producto.Id,
                     SucursalId      = branch,
-                    Tipo            = "Entrada",
+                    Tipo            = TipoMovimientoStock.Entrada,
                     Cantidad        = entry.Cantidad,
                     Motivo          = $"Factura directa {nroFactura} — {proveedor.Nombre}",
-                    Estado          = "Aprobado",
+                    Estado          = EstadoMovimientoStock.Aprobado,
                     FechaAprobacion = DateTime.UtcNow,
                 });
             }
@@ -266,14 +263,14 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
 
         db.FacturasCompra.Add(factura);
 
-        if (metodoPago == MetodoPago.Efectivo)
+        if (metodoPago != null)
         {
             db.MovimientosCaja.Add(new MovimientoCaja
             {
                 Tipo         = TipoMovimientoCaja.Egreso,
                 Monto        = factura.Monto,
                 Concepto     = $"Pago factura compra directa — {nroFactura} — {proveedor.Nombre}",
-                MetodoPago   = MetodoPago.Efectivo,
+                MetodoPago   = metodoPago.Value,
                 SesionCajaId = sesion!.Id,
                 Fecha        = fechaEmision,
                 CreatedAt    = DateTime.UtcNow,
@@ -321,7 +318,7 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
                     "No se puede anular la factura porque el pedido tiene recepciones registradas.",
                     ErrorType.Validation);
 
-            var pedido = await db.PedidosProveedor.FindAsync(factura.PedidoProveedorId.Value);
+            var pedido = await db.PedidosProveedor.FirstOrDefaultAsync(p => p.Id == factura.PedidoProveedorId.Value);
             if (pedido is not null && pedido.Estado == EstadoPedido.Facturada)
             {
                 pedido.Estado    = EstadoPedido.Confirmada;
@@ -379,10 +376,10 @@ public class FacturasCompraService(AppDbContext db, ICurrentUserContext current)
                     {
                         ProductoId      = producto.Id,
                         SucursalId      = branch,
-                        Tipo            = "Salida",
+                        Tipo            = TipoMovimientoStock.Salida,
                         Cantidad        = entry.Cantidad,
                         Motivo          = $"Anulación factura directa {factura.NroFactura} — {request.Motivo.Trim()}",
-                        Estado          = "Aprobado",
+                        Estado          = EstadoMovimientoStock.Aprobado,
                         FechaAprobacion = DateTime.UtcNow,
                     });
                 }

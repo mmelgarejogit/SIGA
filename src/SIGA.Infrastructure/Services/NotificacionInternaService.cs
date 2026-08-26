@@ -10,7 +10,7 @@ namespace SIGA.Infrastructure.Services;
 public class NotificacionInternaService(AppDbContext db, ICurrentUserContext current) : INotificacionInternaService
 {
     public async Task CrearAsync(
-        string tipo, string mensaje,
+        TipoNotificacion tipo, string mensaje,
         string? entidadOrigenTipo = null, int? entidadOrigenId = null,
         int? destinatarioUsuarioId = null, int? destinatarioSucursalId = null)
     {
@@ -114,7 +114,7 @@ public class NotificacionInternaService(AppDbContext db, ICurrentUserContext cur
     private static readonly System.Linq.Expressions.Expression<Func<NotificacionInterna, NotificacionDto>> ToDtoExpression = n => new NotificacionDto
     {
         Id                = n.Id,
-        Tipo              = n.Tipo,
+        Tipo              = n.Tipo.ToString(),
         Mensaje           = n.Mensaje,
         EntidadOrigenTipo = n.EntidadOrigenTipo,
         EntidadOrigenId   = n.EntidadOrigenId,

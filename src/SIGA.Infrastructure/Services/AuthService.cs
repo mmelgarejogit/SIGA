@@ -19,6 +19,7 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly AppOptions _appOptions;
     private readonly ICurrentUserContext _current;
+    private readonly IAuditService _audit;
 
     public AuthService(
         AppDbContext dbContext,
@@ -27,7 +28,8 @@ public class AuthService : IAuthService
         IHCaptchaService hCaptchaService,
         IEmailService emailService,
         IOptions<AppOptions> appOptions,
-        ICurrentUserContext current)
+        ICurrentUserContext current,
+        IAuditService audit)
     {
         _dbContext         = dbContext;
         _passwordHasher    = passwordHasher;
@@ -36,6 +38,7 @@ public class AuthService : IAuthService
         _emailService      = emailService;
         _appOptions        = appOptions.Value;
         _current           = current;
+        _audit             = audit;
     }
 
     public async Task<Result<RegisterResponse>> RegisterAsync(RegisterRequest request)
@@ -45,6 +48,10 @@ public class AuthService : IAuthService
 
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             return Result<RegisterResponse>.Failure("Email and password are required.", ErrorType.Validation);
+
+        var passwordError = PasswordPolicy.Validate(request.Password);
+        if (passwordError is not null)
+            return Result<RegisterResponse>.Failure(passwordError, ErrorType.Validation);
 
         if (string.IsNullOrWhiteSpace(request.CI))
             return Result<RegisterResponse>.Failure("CI is required.", ErrorType.Validation);
@@ -102,6 +109,10 @@ public class AuthService : IAuthService
 
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             return Result<RegisterResponse>.Failure("El email y la contraseña son obligatorios.", ErrorType.Validation);
+
+        var passwordError = PasswordPolicy.Validate(request.Password);
+        if (passwordError is not null)
+            return Result<RegisterResponse>.Failure(passwordError, ErrorType.Validation);
 
         if (string.IsNullOrWhiteSpace(request.CI))
             return Result<RegisterResponse>.Failure("El documento es obligatorio.", ErrorType.Validation);
@@ -202,7 +213,13 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Person.Email == email);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        {
+            await _audit.LogAsync(AuditAccion.LoginFallido,
+                $"Intento de inicio de sesión fallido para {email}",
+                entidad: "User", entidadId: user?.Id,
+                userIdOverride: user?.Id, usuarioNombreOverride: email);
             return Result<LoginResponse>.Failure("Credenciales incorrectas.", ErrorType.Unauthorized);
+        }
 
         if (!user.IsActive)
             return Result<LoginResponse>.Failure("La cuenta está desactivada.", ErrorType.Unauthorized);
@@ -218,6 +235,11 @@ public class AuthService : IAuthService
             .Distinct()
             .ToList();
         var jwtToken = _jwtTokenGenerator.GenerateToken(user, roles, permissions, user.Professional?.Id, user.SucursalId);
+
+        await _audit.LogAsync(AuditAccion.LoginExitoso, "Inició sesión",
+            entidad: "User", entidadId: user.Id,
+            userIdOverride: user.Id,
+            usuarioNombreOverride: $"{user.Person.FirstName} {user.Person.LastName}".Trim());
 
         return Result<LoginResponse>.Success(new LoginResponse
         {
@@ -237,9 +259,6 @@ public class AuthService : IAuthService
 
     public async Task<Result<bool>> ChangePasswordAsync(ChangePasswordRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
-            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
-
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == _current.UserId);
         if (user is null)
             return Result<bool>.Failure("Usuario no encontrado.", ErrorType.NotFound);
@@ -247,10 +266,17 @@ public class AuthService : IAuthService
         if (!_passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
             return Result<bool>.Failure("La contraseña actual es incorrecta.", ErrorType.Validation);
 
+        var passwordError = PasswordPolicy.ValidateNew(request.NewPassword, user.PasswordHash, _passwordHasher);
+        if (passwordError is not null)
+            return Result<bool>.Failure(passwordError, ErrorType.Validation);
+
         user.PasswordHash       = _passwordHasher.Hash(request.NewPassword);
         user.MustChangePassword = false;
         user.UpdatedAt          = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordCambiado, "Cambió su contraseña",
+            entidad: "User", entidadId: user.Id);
 
         return Result<bool>.Success(true);
     }
@@ -296,9 +322,6 @@ public class AuthService : IAuthService
 
     public async Task<Result<bool>> ResetPasswordWithTokenAsync(ResetPasswordWithTokenRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
-            return Result<bool>.Failure("La nueva contraseña debe tener al menos 6 caracteres.", ErrorType.Validation);
-
         var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
             u.PasswordResetToken == request.Token &&
             u.PasswordResetTokenExpiresAt != null &&
@@ -307,12 +330,20 @@ public class AuthService : IAuthService
         if (user is null)
             return Result<bool>.Failure("El enlace no es válido o expiró.", ErrorType.NotFound);
 
+        var passwordError = PasswordPolicy.ValidateNew(request.NewPassword, user.PasswordHash, _passwordHasher);
+        if (passwordError is not null)
+            return Result<bool>.Failure(passwordError, ErrorType.Validation);
+
         user.PasswordHash                = _passwordHasher.Hash(request.NewPassword);
         user.PasswordResetToken          = null;
         user.PasswordResetTokenExpiresAt = null;
         user.MustChangePassword          = false;
         user.UpdatedAt                   = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAccion.PasswordReseteado,
+            "Restableció su contraseña desde el enlace de recuperación",
+            entidad: "User", entidadId: user.Id, userIdOverride: user.Id);
 
         return Result<bool>.Success(true);
     }

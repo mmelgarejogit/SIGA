@@ -14,6 +14,7 @@ public class ConsultaClinica
     public Professional Professional { get; set; } = null!;
 
     public int? CitaId { get; set; }
+    public Turno? Cita { get; set; }
 
     public DateTime FechaConsulta { get; set; }
     public string Motivo { get; set; } = null!;

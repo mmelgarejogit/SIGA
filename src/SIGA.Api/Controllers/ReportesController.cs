@@ -78,7 +78,7 @@ public class ReportesController(
     /// recepciones y compras por proveedor del rango. Permiso del módulo de compras.
     /// </summary>
     [HttpGet("compras")]
-    [Authorize(Policy = "ver_inventario")]
+    [Authorize(Policy = "ver_reportes")]
     public async Task<IActionResult> GetReporteCompras(
         [FromQuery] string desde,
         [FromQuery] string hasta,
