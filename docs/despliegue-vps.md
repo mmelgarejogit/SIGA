@@ -3,6 +3,10 @@
 Guía paso a paso para desplegar SIGA (API .NET + frontend Vue + PostgreSQL) en una
 VPS de Contabo con **HTTPS automático** vía Caddy.
 
+> Esta guía es operativa: dice qué correr. Si querés entender **qué hace cada pieza y por
+> qué** — imágenes y contenedores, volúmenes, redes, healthchecks, proxy inverso, TLS
+> automático y claves SSH — leé [conceptos-despliegue.md](conceptos-despliegue.md).
+
 **Arquitectura:**
 
 ```
@@ -70,18 +74,60 @@ ufw --force enable
 ufw status
 ```
 
-(Opcional pero recomendado) copiar tu clave SSH para no usar contraseña:
+### Acceso por clave (no es opcional)
+
+Una IP pública recibe intentos de login automatizados a las pocas horas de
+existir. Mientras SSH acepte contraseñas, la seguridad del servidor es la de la
+contraseña de `deploy`. Con clave, el ataque por fuerza bruta deja de aplicar.
+
+Desde tu PC, generar la clave (una sola vez en la vida) y copiarla:
 
 ```bash
-# En tu PC (una vez):  ssh-keygen -t ed25519
+ssh-keygen -t ed25519          # si todavía no tenés ~/.ssh/id_ed25519.pub
 ssh-copy-id deploy@203.0.113.10
 ```
 
-Reconectarse como `deploy` para el resto de la guía:
+**Antes de seguir, comprobá que la clave funciona.** Abrí una segunda terminal y
+entrá sin que te pida contraseña:
 
 ```bash
 ssh deploy@203.0.113.10
 ```
+
+> ⚠️ No cierres la sesión que ya tenés abierta hasta terminar este paso. Si algo
+> sale mal más abajo, esa sesión es tu única forma de volver a entrar.
+
+Recién ahora, ya dentro como `deploy`, desactivar contraseñas y login de root:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/99-hardening.conf > /dev/null <<'CONF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+CONF
+
+sudo sshd -t && sudo systemctl restart ssh
+```
+
+`sshd -t` valida la configuración antes de reiniciar: si hay un error de
+sintaxis, el servicio no se reinicia y no te quedás afuera.
+
+Verificá desde una **tercera** terminal que seguís entrando, y que la contraseña
+efectivamente ya no se acepta:
+
+```bash
+ssh deploy@203.0.113.10                                    # entra
+ssh -o PreferredAuthentications=password root@203.0.113.10 # debe rechazar
+```
+
+Dos extras baratos, que valen para cualquier servidor expuesto:
+
+```bash
+sudo apt install -y fail2ban unattended-upgrades   # bloqueo de IPs y parches automáticos
+sudo dpkg-reconfigure -plow unattended-upgrades
+```
+
+El resto de la guía se hace como `deploy`.
 
 ---
 
@@ -133,8 +179,8 @@ git clone https://github.com/mmelgarejogit/SIGA-Web.git
 > o configurá una *deploy key* SSH. Para clonar por HTTPS con token:
 > `git clone https://<TOKEN>@github.com/mmelgarejogit/SIGA.git`
 
-> El backend está en la rama `matias-gaona` por ahora. Si querés esa rama:
-> `cd SIGA && git checkout matias-gaona && cd ..`
+> Ambos repos despliegan desde `master`, que es la rama por defecto: el trabajo
+> que vivía en `matias-gaona` ya está mergeado ahí. No hace falta cambiar de rama.
 
 Estructura resultante:
 
@@ -197,6 +243,12 @@ Qué pasa al arrancar:
 docker compose -f docker-compose.prod.yml ps          # todos "running"/"healthy"
 docker compose -f docker-compose.prod.yml logs caddy  # buscar "certificate obtained"
 ```
+
+La `api` arranca en `health: starting` y pasa a `healthy` recién cuando termina
+de correr las migraciones y el seed — en el primer arranque eso puede tardar un
+par de minutos. Caddy espera ese estado antes de levantar, así que **un 502 en
+ese rato es lo esperado, no un error**. Si después de unos minutos sigue en
+`starting`, ahí sí mirá `logs api`.
 
 En el navegador: `https://siga.tudominio.com` → candado verde y pantalla de login.
 Entrá con el `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` que pusiste.

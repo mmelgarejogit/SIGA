@@ -55,6 +55,16 @@ services:
       Resend__FromEmail: ${RESEND_FROM_EMAIL}
       Resend__FromName: ${RESEND_FROM_NAME}
       HCaptcha__SecretKey: ${HCAPTCHA_SECRET}
+    healthcheck:
+      # Cualquier respuesta HTTP sirve (un 404 tambien): lo que se comprueba es
+      # que la API este escuchando, no que la ruta exista.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # El primer arranque corre todas las migraciones y el seed. Los fallos
+      # dentro de esta ventana no cuentan como caidas.
+      start_period: 120s
     volumes:
       - siga_uploads:/app/wwwroot/uploads
     networks: [siga_net]
@@ -74,7 +84,11 @@ services:
     image: caddy:2-alpine
     container_name: siga-caddy
     restart: unless-stopped
-    depends_on: [api, web]
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
     ports:
       - "80:80"
       - "443:443"
